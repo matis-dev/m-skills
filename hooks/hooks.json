@@ -1,0 +1,43 @@
+{
+  "description": "Two SessionStart hooks, both silent unless opted in. (1) Detects the project's stack once when no PROJECT-PROFILE.md exists yet and hands Claude verified values to build one from. (2) Applies the guidelines-meta §17 reply protocol session-wide when a flag file is present, including after a context clear.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/profile-bootstrap.sh"],
+            "timeout": 20,
+            "statusMessage": "m-skills: checking for PROJECT-PROFILE.md..."
+          }
+        ]
+      },
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/adhd-always-on.sh"],
+            "timeout": 10,
+            "statusMessage": "m-skills: checking adhd always-on flag..."
+          }
+        ]
+      }
+    ],
+    "Setup": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/profile-bootstrap.sh"],
+            "timeout": 20
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls:*)",
+      "Bash(find:*)",
+      "Bash(grep:*)",
+      "Bash(rg:*)",
+      "Bash(wc:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(npm run *)",
+      "Bash(npm test:*)",
+      "Bash(npm audit:*)",
+      "Bash(pnpm run *)",
+      "Bash(pnpm test:*)",
+      "Bash(pnpm audit:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx eslint *)",
+      "Bash(bash *check-quality.sh:*)",
+      "Skill(update-config)"
+    ],
+    "deny": [
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(git checkout:*)",
+      "Bash(git switch:*)",
+      "Bash(git branch:*)",
+      "Bash(git tag:*)",
+      "Bash(git reset --hard:*)"
+    ]
+  },
+  "outputStyle": "default",
+  "spinnerTipsEnabled": true
+}
