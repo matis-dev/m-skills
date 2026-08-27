@@ -81,10 +81,14 @@ Kickoff ends where the normal skill begins: take the smallest useful thing from 
 - **5 Whys** — drill to the root purpose. Most feature bloat dies at why #3.
 - **Inversion** — "How would we guarantee this fails?" Then check whether the design accidentally does that.
 - **Error-first / grey paths** — force the design of the unhappy states: offline and reconnect, timeout and retry, partial failure, empty state, loading state, permission denied, concurrent edit. **Grey paths are a design deliverable, not an implementation detail.**
+- **Trust boundary** — what untrusted input does this newly accept, and what privilege does it newly grant? Then the question that catches the rest: when the check it depends on *fails*, does this feature deny or continue? Answering "it crosses none" is a valid outcome and worth stating out loud.
+- **Assistive path** — can this be completed with the keyboard alone, and what does a screen reader hear when it changes something? Both are architecture at this stage and a rewrite later.
 - **Cost of being wrong** — one line: is this reversible? Reversible decisions get made fast; irreversible ones earn a pass of real scrutiny.
 
 ### 4. If the Idea Has a User-Facing Surface
 Bring in **Design Architect** (the `design-architect` skill) early enough to matter: name the **visitor mode** (Persuade / Operate / Read / Experience) and the existing design-system components the feature should be built from. Deciding this during brainstorming is cheap; deciding it during implementation is a rewrite.
+
+The same is true of the two questions above. If the surface is interactive, name the interaction pattern and let the `accessibility-architect` skill state its contract now — focus architecture is not something you retrofit. If the idea accepts input or changes who may do what, let the `security-architect` skill map the boundary now, while the data flow is still a sentence and not a call graph.
 
 ---
 
@@ -94,7 +98,7 @@ Bring in **Design Architect** (the `design-architect` skill) early enough to mat
 2. **Zero Git Automation** — absolute prohibition on `git add`, `git commit`, `git push`. Even at the brainstorming stage, never propose them as a step (Guidelines §9).
 3. **Reuse as DNA** — new features are composed from existing components, services, and patterns. Cite them by path when you propose them.
 4. **No Over-Engineering (YAGNI)** — only what was asked; no speculative abstractions or future-proofing the user didn't request. Favor the simplest implementation that works (Guidelines §2).
-5. **Tests planned via Testing Architect** — when the prompt mentions tests, defer the *how* to the `testing-architect` skill (cited by the downstream Planning Architect).
+5. **Tests planned via Testing Architect** — when the prompt mentions tests, defer the *how* to the `testing-architect` skill (cited by the downstream Planning Architect). Same deferral for security and accessibility: surface the boundary and the assistive path here, and let `security-architect` and `accessibility-architect` own the answers downstream.
 6. **No invented facts** (Guidelines §15) — no fabricated benchmarks, user counts, or "industry standard" claims to win an argument.
 7. **One output, once** — emit the Deep-Dive Execution Prompt only when discovery has actually converged. Emitting it early is the main way this skill fails.
 
@@ -129,6 +133,12 @@ REFINED FEATURE LOGIC:
 
 GREY PATHS TO DESIGN FOR (not optional):
 {{offline / timeout / empty / loading / partial-failure / permission cases surfaced in discovery}}
+
+TRUST BOUNDARIES CROSSED:
+{{untrusted input accepted / privilege granted / data leaving — or "none, and here is why"}}
+
+ASSISTIVE PATH:
+{{keyboard-only completion / what gets announced on change — or "no interactive surface"}}
 
 EXPLICIT NON-GOALS:
 {{what_we_decided_not_to_build_and_why}}

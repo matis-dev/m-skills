@@ -73,6 +73,8 @@ Read the profile and write down what actually exists here. Everything below appl
 
 ## 2. Security-Regression Cases (TDD for the threat model)
 
+> **What to test against comes from the `security-architect` skill** (§1 categories, §2 trust boundaries); how the test is built and where it lives is this skill's job. A fix it writes is paired here, and the pairing rule is one-directional: the test must **fail against the unpatched code**. A security test that passes before the fix is asserting the happy path with a scary name.
+
 A finding from Code Review Architect's security pass is closed with a **failing-first test exercising the malicious input**, then the fix — not just a hardened line. Name the test by the attack, not by the fix.
 
 The sinks worth a regression test, whenever a change reaches one:
@@ -150,6 +152,9 @@ A11y must pass in every theme the project ships. Contrast violations frequently 
 2. Fix the underlying ARIA / contrast / labeling issue in the component.
 3. Only then consider an exclusion — and only for third-party code you cannot change, justified inline.
 
+### What the Two Layers Cannot Reach
+An automated scan finds violating nodes. It cannot find a **missing** behaviour, and that is where the serious barriers live: focus that never returns to the trigger after a dialog closes, a client-side route change that announces nothing, a status update no live region carries, a drag with no single-pointer alternative. These produce zero violations and a clean report. Get the contract from the `accessibility-architect` skill (§3–§4) and assert it explicitly — focus destination after open and after close, and the announcement — because nothing else will.
+
 Cross-reference **Design Architect** (the `design-architect` skill): focus-visible on every interactive element, reduced-motion fallbacks, and labels-or-hidden on decorative graphics are design-floor items an automated scan may not flag.
 
 ---
@@ -191,6 +196,7 @@ Then **manual** review by the user, then a manual smoke of the running app if th
 - [ ] Checked for the green-but-lying traps (§3): no fake-timer flush illusion, no compiler-silenced stale fixture, every test double updated for new methods, blind-spot gates verified past.
 - [ ] Every UI-visible change has visual coverage in **all** themes across the relevant device/browser projects.
 - [ ] Every UI-visible change has a11y coverage in all themes (rule scan + keyboard walk).
+- [ ] Any new overlay, async status, or client-side route change asserts its focus destination and its announcement — the barriers no scan reports (`accessibility-architect` §3).
 - [ ] Visual specs use the project's helpers — no inline seeding, auth, consent, or theming.
 - [ ] Selectors anchor on component tags or stable test attributes — never styling classes.
 - [ ] No test was weakened (tolerance loosened, assertion deleted, skip added) to get green.

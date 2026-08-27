@@ -26,8 +26,10 @@ disable-model-invocation: true
 5. **Confirmation gate is non-negotiable.** The plan ends awaiting approval — implementation never starts inside this skill.
 6. **Tests sourced from Testing Architect.** Fill every `Tests:` line using the `testing-architect` skill. Do not invent ad-hoc test plans.
 7. **UI steps sourced from Design Architect.** Any step with a user-facing surface names its visitor mode and the design-system components used, per the `design-architect` skill.
-8. **Per-step model routing is mandatory.** Every step declares a `Model:` line so the user can switch tiers between steps and save tokens.
-9. **Every command in the plan is real.** Read from the profile or a manifest file. An absent gate is written `n-a`, never guessed (Guidelines §15).
+8. **Security sourced from Security Architect.** Any step that accepts untrusted input, changes authorization, touches secrets or storage, or adds a dependency names its trust boundary and carries a `[SEC]` tag, per the `security-architect` skill. A feature that crosses no boundary says so explicitly.
+9. **Accessibility sourced from Accessibility Architect.** Any step with an interactive surface names its keyboard map and its accessible name/role, and carries an `[A11Y]` tag, per the `accessibility-architect` skill.
+10. **Per-step model routing is mandatory.** Every step declares a `Model:` line so the user can switch tiers between steps and save tokens.
+11. **Every command in the plan is real.** Read from the profile or a manifest file. An absent gate is written `n-a`, never guessed (Guidelines §15).
 
 ---
 
@@ -45,6 +47,8 @@ Every plan addresses each of these explicitly:
 8. **Grey paths planned, not discovered** — loading, empty, error, offline, timeout, permission-denied, and partial-failure states are plan steps with their own tests, not afterthoughts.
 9. **Token economy via model tiering** — assign the cheapest tier that does the step well (§Model Tier Routing).
 10. **Change-propagation surface** — see the protocol below. This is the single highest-value section of any plan that touches shared shape.
+11. **Trust boundaries mapped, not reviewed later** — where untrusted data enters, where privilege changes, where data leaves. Each crossing names its control and where that control is enforced (`security-architect` §2). The cheapest moment to place an ownership check is before the data access is designed without one.
+12. **The accessible contract decided with the interaction** — keyboard map, focus destination on open and on close, and what gets announced (`accessibility-architect` §3). Focus architecture and route announcements produce **zero** automated violations, so a plan is the only place they get caught.
 
 ---
 
@@ -145,6 +149,21 @@ Produce markdown with this **fixed shape** so any downstream implementer can par
 - Custom styling justification (if any): <reason>
 - Grey paths designed: <loading / empty / error / offline / permission>
 
+## Trust Boundaries  *(omit only if the change crosses none — and say so in one line rather than deleting the heading)*
+| Boundary | Untrusted input | Control | Enforced at |
+|---|---|---|---|
+| `<endpoint / form / import>` | `<what arrives>` | `<validation, limit, ownership check>` | `<file:symbol>` |
+- Privilege changes: `<none | what widens, and where>`
+- Data leaving: `<responses / logs / exports / emails>` — `<what is redacted>`
+
+## Accessibility Contract  *(omit if no interactive surface)*
+- Pattern: `<native element | ARIA pattern + the full contract it owes>`
+- Accessible name/role for each new control: `<name — role>`
+- Keyboard map: `<Tab / arrows / Enter / Escape behaviour>`
+- Focus on open → `<destination>`; on close → `<returned to trigger>`
+- Announced: `<what, via role=status | role=alert | focus move>` — one mechanism, not both
+- Target size: `<meets 24×24 or the spacing exception>`
+
 ## Change-Propagation Surface  *(omit if nothing shared changes)*
 - <category> → `<path>` — <what must change>
 - Verification: <re-grep the old identifier | semantic sites listed by name | confirm via `<build>`>
@@ -162,18 +181,18 @@ Produce markdown with this **fixed shape** so any downstream implementer can par
 Group adjacent same-tier rows so the user switches only when the tier changes.
 
 ## Step-by-Step Changes
-Each step: model tier, action, files, **tests required**, optional `[VISUAL]` tag, and an explicit stop before any tier change.
+Each step: model tier, action, files, **tests required**, any of the `[VISUAL]` / `[SEC]` / `[A11Y]` tags that apply, and an explicit stop before any tier change. A step can carry more than one tag — an upload field is both.
 
 1. `[SWITCH MODEL → Light]` **<action>** — files: `<paths>`
    - Model: **Light** — <one-clause reason>
    - Tests: <unit test names / specs to add or update>
-2. **<action>** — files: `<paths>` `[VISUAL]`
+2. **<action>** — files: `<paths>` `[VISUAL]` `[A11Y]`
    - Model: **Light** *(same tier — no switch needed)*
-   - Tests: <unit + visual spec>
+   - Tests: <unit + visual spec + a11y scan and keyboard walk>
    - **Stop after this step.** The next step uses a different model.
-3. `[SWITCH MODEL → Standard]` **<action>** — files: `<paths>`
+3. `[SWITCH MODEL → Standard]` **<action>** — files: `<paths>` `[SEC]`
    - Model: **Standard** — <one-clause reason>
-   - Tests: <…>
+   - Tests: <… + the security-regression case that fails without the fix>
 
 > Implementer rule: never upgrade your own tier silently. If a Light-tagged step needs Heavy reasoning, stop and tell the user.
 
@@ -217,6 +236,8 @@ Do **not** invoke the Implementing Skill. Do **not** start writing code. Wait.
 - [ ] Every code-change step paired with a tests-required item.
 - [ ] Grey paths (loading / empty / error / offline / permission) planned with their own tests.
 - [ ] `[VISUAL]` tags applied wherever rendered output changes.
+- [ ] `[SEC]` tags applied wherever untrusted input, authorization, secrets, storage, or a new dependency is touched; Trust Boundaries section present or an explicit "crosses none".
+- [ ] `[A11Y]` tags applied to every interactive surface; Accessibility Contract names focus destination on open **and** on close.
 - [ ] Manual Final Stage present and explicit about no auto-updates.
 - [ ] Inherited guards restated.
 - [ ] Goal trace verifiable — each step maps to an objective.

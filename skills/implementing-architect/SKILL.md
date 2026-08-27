@@ -41,8 +41,10 @@ If invoked without one:
 6. **No Auto Golden/Snapshot Updates** — the update command is user-only (§Manual Visual Review).
 7. **Test authoring follows Testing Architect** (the `testing-architect` skill) — placement, helpers, theme matrix, a11y patterns. No ad-hoc test setups.
 8. **UI work follows Design Architect** (the `design-architect` skill) — the craft floor and refuse list apply before a UI change is called done.
-9. **Every gate in the profile must pass** — lint, types, tests + coverage, build, e2e, visual, a11y, audit, whichever exist. A gate that doesn't exist is `n-a`; a gate that fails is reported, never skipped.
-10. **Bounded passes** (Guidelines §16) — implement fully, run the gates once as a batch, fix in one batch, re-run once. Not an open loop.
+9. **`[SEC]` steps follow Security Architect** (the `security-architect` skill, `harden` mode) — the sink is built correctly the first time: parameterized, encoded at the sink, authorization checked at the data access, error path failing **closed**. Never fix a finding by weakening a check.
+10. **`[A11Y]` steps follow Accessibility Architect** (the `accessibility-architect` skill, `build` mode) — native element first, and every overlay moves focus in, traps it, closes on Escape, and **returns focus to the trigger**. A green `<a11y>` gate does not cover any of that.
+11. **Every gate in the profile must pass** — lint, types, tests + coverage, build, e2e, visual, a11y, audit, whichever exist. A gate that doesn't exist is `n-a`; a gate that fails is reported, never skipped.
+12. **Bounded passes** (Guidelines §16) — implement fully, run the gates once as a batch, fix in one batch, re-run once. Not an open loop.
 
 > The git constraints (1–4) are absolute. Even when the user says "ship it" or "looks good", they still drive `git add`, `git commit`, and `git push` themselves.
 
@@ -102,6 +104,7 @@ Applies when a change makes the app load a **new external origin** (tiles, an AP
 - Pick the directive by sink: images, network calls, fonts, scripts, frames each have their own.
 - **Blind spot:** a blocked resource renders *consistently* broken, so its visual baseline still matches and the visual gate **passes**. Verify in a real served build, not by green tests.
 - Same logic for env vars, feature flags, and build-time constants: enumerate every environment that declares them.
+- **A new origin or config value is also a security change** (OWASP A02/A03). Apply the `security-architect` skill: the origin is one you meant to trust, the directive is the narrowest that works, and nothing added here is a secret living in a tracked file.
 
 ---
 
@@ -112,11 +115,12 @@ Applies when a change makes the app load a **new external origin** (tiles, an AP
 3. **Implement** — only what the plan specifies. No scope expansion. Apply **YAGNI** and prefer a single readable expression where one does the job (Guidelines §2). Never trade clarity for brevity.
 4. **Author / update tests via Testing Architect** — every in-scope change gets its paired coverage per the plan.
 5. **Apply Design Architect** to any UI-visible step before considering it done.
-6. **Run the gates in the profile's order**, as one batch — record every result, don't stop at the first failure unless it blocks the rest:
+6. **Apply Security Architect to every `[SEC]` step and Accessibility Architect to every `[A11Y]` step** — while writing, not after. If the plan carries no such tags but the change turns out to cross a trust boundary or add an interactive control, apply them anyway and say the plan missed it.
+7. **Run the gates in the profile's order**, as one batch — record every result, don't stop at the first failure unless it blocks the rest:
    `<lint>` → `<typecheck>` → `<test>` → `<build>` → `<e2e>` → `<visual>` → `<a11y>` → `<audit>`
-7. **Run the propagation protocols** that apply (A / B / C above). This is the step the gates can't do for you.
-8. **Manual Visual Review** — §below.
-9. **Summarize** — the Implementation Summary template. Leave files **unstaged**; no commits; no pushes.
+8. **Run the propagation protocols** that apply (A / B / C above). This is the step the gates can't do for you.
+9. **Manual Visual Review** — §below.
+10. **Summarize** — the Implementation Summary template. Leave files **unstaged**; no commits; no pushes.
 
 **One-shot alternative:** `bash ${CLAUDE_SKILL_DIR}/check-quality.sh` runs the same gates in the same order and prints a pass/fail report. The variable resolves to this skill's own directory in both plugin and copied installs, so the command is identical either way. Add `--list` to print which gates it resolved **without running any of them** — use that first when you're unsure the profile is right.
 
@@ -175,6 +179,8 @@ Lead with status, not narration (Guidelines §17).
 - [ ] If a new external origin or config value was introduced: **Protocol C** run — every declaration site updated, verified in a real served build (visual gates are blind to this).
 - [ ] Tests authored per Testing Architect; green-but-lying traps checked.
 - [ ] UI-visible changes cleared the Design Architect craft floor and refuse list.
+- [ ] `[SEC]` steps built per Security Architect — sink parameterized or encoded, authorization at the data access, error paths fail closed, no secret in a tracked file, and every fix carries a regression test that fails without it.
+- [ ] `[A11Y]` steps built per Accessibility Architect — keyboard-reachable with a visible focus indicator, overlays return focus to the trigger, route and status changes announced. Verified by walking it, not by the green `<a11y>` gate.
 - [ ] Every gate in the profile run and recorded; no gate skipped, no failure hidden.
 - [ ] Visual diffs surfaced for manual review — **not** auto-updated.
 - [ ] Verified in the running app across the viewports/platforms the project ships, if user-visible.
