@@ -50,7 +50,8 @@ There when you need them:
 /m-skills:design-architect        /m-skills:testing-architect
 /m-skills:documentation-architect /m-skills:product-architect
 /m-skills:debugging-architect     /m-skills:deployment-architect
-/m-skills:maintenance-architect
+/m-skills:maintenance-architect   /m-skills:security-architect
+/m-skills:accessibility-architect /m-skills:search-optimization-architect
 ```
 
 They install at user scope, so they're in every project you open — no per-project copying.
@@ -88,6 +89,8 @@ Commands below use the plugin form — in copy mode, drop the `m-skills:` prefix
 | Starting a project from nothing | `/m-skills:brainstorming-planner kickoff` → what to build, first slice, foundational decisions routed to their owners |
 | Screen or component to design | `/m-skills:design-architect` → visitor mode, craft floor, refuse list |
 | Tests to add or upgrade | `/m-skills:testing-architect` |
+| Untrusted input, auth, secrets, or an advisory | `/m-skills:security-architect` → trust boundaries at plan time, the fix and its regression test after |
+| Modal, menu, drag, async status, or an axe log | `/m-skills:accessibility-architect` → the accessible contract before it's built, WCAG 2.2 AA by default |
 | Something is broken | `/m-skills:debugging-architect <symptom>` → reproduce, narrow, one hypothesis at a time, regression test before the fix |
 | Plan is too big to ship in one go | `/m-skills:product-architect — decompose` → vertical slices, INVEST, acceptance criteria |
 | PRD, product brief, or research plan needed | `/m-skills:product-architect — prd \| brief \| research` |
@@ -137,11 +140,13 @@ flowchart TD
     PA -.-> CITE
     IA -.-> CITE
     CR -.-> CITE
-    subgraph KNOW["Knowledge skills &mdash; also auto-loaded when the work is design-, test-, or docs-shaped"]
+    subgraph KNOW["Knowledge skills &mdash; also auto-loaded when the work is design-, test-, docs-, security-, or a11y-shaped"]
         CITE{{"cited at plan,<br/>implement, review"}}
         CITE -.-> DES["<b>/design-architect</b><br/>visitor mode · craft floor · refuse list"]
         CITE -.-> TST["<b>/testing-architect</b><br/>layers · placement · green-but-lying traps"]
         CITE -.-> DOC["<b>/documentation-architect</b><br/>reader &amp; doc type · runnable examples · drift"]
+        CITE -.-> SEC["<b>/security-architect</b><br/>trust boundaries · secure sinks · the fix + its test"]
+        CITE -.-> A11Y["<b>/accessibility-architect</b><br/>accessible contract · focus architecture · WCAG 2.2"]
     end
 
     RH -. "doc needs an edit" .-> DOC
@@ -157,7 +162,7 @@ flowchart TD
     classDef meta fill:#f1f5f9,stroke:#475569,color:#1f2937
     class BP,PA,PROD,IA,CR,RH,DEP stage
     class VIS,GIT manual
-    class DES,TST,DOC,CITE know
+    class DES,TST,DOC,SEC,A11Y,CITE know
     class DBG,MNT aside
     class GM meta
     style PIPE fill:#f8fafc,stroke:#94a3b8,color:#334155
@@ -188,6 +193,10 @@ The verbose prompts you've been pasting still work verbatim — but each maps to
 | *(new)* security advisory landed | `/m-skills:maintenance-architect — advisories only` |
 | *(new)* "the README lies / nobody can set this up" | `/m-skills:documentation-architect — audit` |
 | *(new)* write the API reference | `/m-skills:documentation-architect <module> — reference` |
+| *(new)* "is this endpoint safe?" | `/m-skills:security-architect <feature> — model` |
+| *(new)* fix a security finding from review | `/m-skills:security-architect <finding> — remediate` |
+| *(new)* axe log with 40 violations | `/m-skills:accessibility-architect <log> — remediate` |
+| *(new)* "are we WCAG AA?" | `/m-skills:accessibility-architect <screen> — audit` |
 
 **The modifier contract:** a modifier narrows scope, never the honesty bar. "Skip gates" means the output says *"gates not run this session; reported green by the user"* — it never prints a ✅ nobody observed. And no phrasing unlocks git: "ship it", "commit it", "just push" all still stop at unstaged files.
 
@@ -223,14 +232,14 @@ These hold in every skill, in every project:
 | `skills/implementing-architect/check-quality.sh` | Runnable gate pipeline (auto-detects) | ships inside `skills/` |
 | `SKILLS_INDEX.md` | Skill catalog, pipeline diagram, provenance | reference |
 
-The 14 skills: `guidelines-meta`, `brainstorming-planner`, `planning-architect`, `product-architect`, `design-architect`, `testing-architect`, `implementing-architect`, `debugging-architect`, `code-review-architect`, `documentation-architect`, `rolling-history`, `deployment-architect`, `maintenance-architect`, `search-optimization-architect`.
+The 16 skills: `guidelines-meta`, `brainstorming-planner`, `planning-architect`, `product-architect`, `design-architect`, `testing-architect`, `security-architect`, `accessibility-architect`, `implementing-architect`, `debugging-architect`, `code-review-architect`, `documentation-architect`, `rolling-history`, `deployment-architect`, `maintenance-architect`, `search-optimization-architect`.
 
 **Who invokes what** — pipeline stages are yours to trigger; knowledge skills load themselves when relevant:
 
 | Skill | Invocation |
 |---|---|
 | `brainstorming-planner`, `planning-architect`, `product-architect`, `implementing-architect`, `debugging-architect`, `code-review-architect`, `rolling-history`, `deployment-architect`, `maintenance-architect`, `search-optimization-architect` | `disable-model-invocation: true` — **you** trigger them, Claude never starts one on its own |
-| `design-architect`, `testing-architect`, `documentation-architect` | Both — you can call them, and Claude loads them when the work is design-, test-, or docs-shaped |
+| `design-architect`, `testing-architect`, `documentation-architect`, `security-architect`, `accessibility-architect` | Both — you can call them, and Claude loads them when the work is design-, test-, docs-, security-, or accessibility-shaped |
 | `guidelines-meta` | `user-invocable: false` — background knowledge, loaded by the other skills, hidden from the `/` menu |
 
 ---
@@ -248,6 +257,8 @@ So each section is owned by the skill that needs it, and gets filled the first t
 | Identity, Commands | SessionStart hook | first session — auto-detected |
 | Conventions | `implementing-architect` / `testing-architect` | first code or tests |
 | Design | `design-architect` | first UI work |
+| Security | `security-architect` | first untrusted input, authorization, or secret |
+| Accessibility | `accessibility-architect` | first interactive surface, or first a11y gate run |
 | Documentation Targets, Commit Convention | `rolling-history` | first changelog entry |
 | Documentation Standards | `documentation-architect` | first doc written or audited |
 | Product Definition | `product-architect` | first time work is specified or sliced |

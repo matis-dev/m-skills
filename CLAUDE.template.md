@@ -36,7 +36,12 @@ read it. A gate that doesn't exist is `n-a`, never invented.
 6. **YAGNI.** Build what the task demands. No speculative abstractions, config, or future-proofing.
 7. **No fabricated facts.** Every number, path, command, and API in your output is one you read or ran.
    A placeholder beats a plausible invention.
-8. **Never weaken a test to get it green.** Fix the code or surface the disagreement.
+8. **Never weaken a test to get it green.** Fix the code or surface the disagreement. The same holds for a
+   security check or an accessibility rule — never fix a finding by disabling the thing that found it.
+9. **Every security decision fails closed.** A permission, token, or signature check that errors denies and
+   logs. A `catch` never swallows one and continues.
+10. **Never invent an OWASP category, a CWE, or a WCAG success criterion.** Describe the weakness and leave it
+   unnumbered if you aren't certain — these get quoted into tickets and compliance answers.
 
 ## Conventions
 
@@ -60,11 +65,16 @@ Skills live in `.claude/skills/`. The pipeline:
 ```
 /brainstorming-planner → /planning-architect → /implementing-architect → /code-review-architect
                        → /rolling-history → /deployment-architect
-        ⬑ /design-architect (UI) · /testing-architect (tests) · guidelines-meta (always) ⬏
+        ⬑ /design-architect (UI) · /testing-architect (tests) · guidelines-meta (always)
+          /security-architect (input, auth, secrets) · /accessibility-architect (interactive) ⬏
 ```
 
 - Non-trivial change → plan first, get it approved, then implement.
 - UI-visible change → `/design-architect` before calling it done.
+- Untrusted input, an auth change, a secret, or an advisory → `/security-architect`. At plan time it maps the
+  trust boundary; on a finding it writes the fix *and* the regression test that fails without it.
+- Modal, menu, drag, async status, or a client-side route change → `/accessibility-architect`. Focus
+  destination on open **and** on close is decided with the interaction; no scanner reports it.
 - Before I stage anything → `/code-review-architect`.
 - End of session → `/rolling-history` for the changelog and a commit brief.
 - Shipping → `/deployment-architect <env>`. It prepares and verifies; it never fires a deploy without

@@ -24,6 +24,8 @@ Every row carries one of five states. **Never leave a row blank and never guess 
 | Identity, Commands | SessionStart bootstrap | first session — mostly auto-detected |
 | Conventions | `implementing-architect` / `testing-architect` | first time code or tests are written |
 | Design | `design-architect` | first UI work — **established** if the project has no UI yet |
+| Security | `security-architect` | first work touching untrusted input, authorization, or secrets |
+| Accessibility | `accessibility-architect` | first interactive surface, or the first a11y gate run |
 | Search Visibility | `search-optimization-architect` | first GEO / AI-search / crawlability work |
 | Documentation Targets, Commit Convention | `rolling-history` | first changelog entry |
 | Documentation Standards | `documentation-architect` | first doc written, audited, or repaired |
@@ -104,6 +106,31 @@ Adjust if this project's order differs. Cheap-and-fast first; the slow gate that
 - **Default visitor mode:** `<Persuade | Operate | Read | Experience>` — per surface, this is just the common case
 - **Type / colour decisions worth not re-litigating:** `<display face, body face, accent, anything already argued about>`
 - **Deliberate exceptions to the refuse list:** `<pattern + the brief that earned it>`
+
+## Security
+
+*Owner: `security-architect` · filled at the first work touching untrusted input, authorization, or secrets. **Read the repo before asking** (Guidelines §5.3) — the auth model is in the middleware or guard layer, the authorization seam is wherever data access happens, the secret contract is in the env example, the audit gate is in CI. Ask only what the code cannot say: who may reach production data, and which risks were accepted on purpose.*
+
+- **Auth model:** `<session cookie | JWT | OIDC provider | API keys | none yet>`
+- **Authorization enforced at:** `<route guard | data-access layer | both>` — if the answer is "the UI", that is the finding.
+- **Ownership check helper:** `<path:symbol | none — each handler does its own>`
+- **Secrets come from:** `<manager / env source>`; **never** committed. Rotation is user-only.
+- **Untrusted input enters at:** `<public endpoints, forms, uploads, webhooks, imports, message queues, third-party responses>`
+- **Standard tracked:** `<OWASP Top 10:2025 (default) | 2021 | + API Security Top 10 | + LLM Top 10>`
+- **Audit gate:** `<the <audit> command>` — see §Commands; `n-a` if none.
+- **Accepted risks:** `<risk — accepted by <who> on <date> — revisit when <condition>>` — an accepted risk with no revisit condition is an ignored one.
+
+## Accessibility
+
+*Owner: `accessibility-architect` · filled at the first interactive surface or the first `<a11y>` gate run. Read the a11y test setup and the token files first; ask only for the conformance target, the legal driver, and what anyone has actually tested with.*
+
+- **Conformance target:** `<WCAG 2.2 AA (default) | 2.1 AA | A | AAA on: …>`
+- **Legal or contractual driver:** `<named regulation | customer requirement | none stated>` — changes how a claim may be worded, not what gets built.
+- **A11y engine + rule tags:** `<engine, tag set>` — must match the `<a11y>` gate command in §Commands.
+- **Themes the scan must cover:** `<from §Design — contrast findings appear in exactly one>`
+- **Assistive tech actually tested with:** `<screen reader + browser pairs | keyboard-only | none yet>` — this row is what bounds any conformance claim.
+- **Component patterns already solved:** `<path:symbol for the project's dialog, menu, tabs — reuse before rebuilding>`
+- **Known exemptions:** `<component — why it cannot be fixed — accepted by <who>>` — third-party and unfixable only, never convenience.
 
 ## Search Visibility
 

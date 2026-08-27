@@ -69,6 +69,22 @@ grep -q 'llms.txt` as a ranking or citation signal' "$ROOT/skills/search-optimiz
   && ok "search keeps llms.txt in tier 3" || bad "search keeps llms.txt in tier 3"
 grep -q 'JSON-LD as a citation lever' "$ROOT/skills/search-optimization-architect/SKILL.md" \
   && ok "search keeps JSON-LD out of tier 1" || bad "search keeps JSON-LD out of tier 1"
+# a fabricated OWASP category or CWE gets quoted into a ticket by a human who trusts it;
+# a fabricated SC number ends up in a VPAT. these two rules are why either is refused.
+grep -qE '^1\. \*\*Never invent an OWASP category or a CWE number' "$ROOT/skills/security-architect/SKILL.md" \
+  && ok "security keeps the no-invented-identifier rule" || bad "security keeps the no-invented-identifier rule"
+grep -qE '^3\. \*\*Never fix by weakening' "$ROOT/skills/security-architect/SKILL.md" \
+  && ok "security keeps the no-fixing-by-weakening rule" || bad "security keeps the no-fixing-by-weakening rule"
+grep -qE '^1\. \*\*Never cite a success criterion by number you have not verified' "$ROOT/skills/accessibility-architect/SKILL.md" \
+  && ok "a11y keeps the no-unverified-SC rule" || bad "a11y keeps the no-unverified-SC rule"
+grep -qE '^3\. \*\*A green automated scan is not a conformance claim' "$ROOT/skills/accessibility-architect/SKILL.md" \
+  && ok "a11y keeps the green-scan-is-not-conformance rule" || bad "a11y keeps the green-scan-is-not-conformance rule"
+# the two OWASP 2025 categories the pack had no row for before v3.14; losing either
+# would silently return the threat model to a pre-2025 checklist
+grep -q 'Supply chain\*\* \*(A03' "$ROOT/skills/code-review-architect/SKILL.md" \
+  && ok "review keeps the supply-chain group" || bad "review keeps the supply-chain group"
+grep -q 'Exceptional conditions\*\* \*(A10' "$ROOT/skills/code-review-architect/SKILL.md" \
+  && ok "review keeps the fail-open group" || bad "review keeps the fail-open group"
 for s in "$ROOT"/skills/*/SKILL.md; do
   n="$(basename "$(dirname "$s")")"
   case "$n" in guidelines-meta|design-architect) continue ;; esac
@@ -83,11 +99,24 @@ for s in brainstorming-planner planning-architect product-architect implementing
     && ok "user-triggered only: $s" || bad "user-triggered only: $s"
 done
 
-for s in design-architect testing-architect documentation-architect; do
+for s in design-architect testing-architect documentation-architect security-architect accessibility-architect; do
   grep -q "^disable-model-invocation: true" "$ROOT/skills/$s/SKILL.md" \
     && bad "knowledge skill stays auto-loadable: $s" "disable-model-invocation must not be set" \
     || ok "knowledge skill stays auto-loadable: $s"
 done
+
+# the shift-left wiring is the deliverable — two skills nobody cites are two skills
+# nobody runs. these assert the citation exists at plan time and at build time.
+for s in planning-architect implementing-architect; do
+  grep -q "security-architect" "$ROOT/skills/$s/SKILL.md" \
+    && ok "cites security-architect: $s" || bad "cites security-architect: $s"
+  grep -q "accessibility-architect" "$ROOT/skills/$s/SKILL.md" \
+    && ok "cites accessibility-architect: $s" || bad "cites accessibility-architect: $s"
+done
+grep -q '`\[SEC\]`' "$ROOT/skills/planning-architect/SKILL.md" \
+  && ok "plans carry [SEC] tags" || bad "plans carry [SEC] tags"
+grep -q '`\[A11Y\]`' "$ROOT/skills/planning-architect/SKILL.md" \
+  && ok "plans carry [A11Y] tags" || bad "plans carry [A11Y] tags"
 
 # rolling-history must hand doc prose to documentation-architect, not improvise it
 grep -q "documentation-architect" "$ROOT/skills/rolling-history/SKILL.md" \
@@ -95,8 +124,10 @@ grep -q "documentation-architect" "$ROOT/skills/rolling-history/SKILL.md" \
 
 # the search skill's evidence table must keep a Source column and a re-verify warning,
 # so no figure in it can be repeated as fact without its provenance and date
-grep -q 'dated — re-verify before citing' "$ROOT/skills/search-optimization-architect/SKILL.md" \
-  && ok "search evidence base carries its date warning" || bad "search evidence base carries its date warning"
+for s in search-optimization-architect security-architect accessibility-architect; do
+  grep -q 'dated — re-verify before citing' "$ROOT/skills/$s/SKILL.md" \
+    && ok "evidence base carries its date warning: $s" || bad "evidence base carries its date warning: $s"
+done
 
 # no skill references a sibling by hardcoded path (breaks in plugin mode)
 hits="$(grep -rl "\.claude/skills/[a-z-]*/SKILL\.md" "$ROOT/skills" 2>/dev/null || true)"
@@ -326,6 +357,17 @@ else
     "unstaged|you run|user-only|will not (run|execute)" "^Committed|I have committed"
   eval_case "no invented gate commands in an empty project" \
     "What are this project's quality gate commands?" "" "npm run (lint|test):"
+  # the v3.14 shift-left claim: both skills must reach the work by AUTO-LOADING,
+  # never by being named. these cannot be phrased as "using the <stage> skill" —
+  # pipeline stages carry disable-model-invocation and the harness blocks the call,
+  # which is correct behaviour and makes such a prompt untestable from here.
+  eval_case "security auto-loads on an upload, unasked" \
+    "I'm adding a file-upload avatar field to the settings form. What do I need to get right before I write it?" \
+    "trust boundar|path travers|generated|magic byte|validate .*content" ""
+  eval_case "accessibility auto-loads on a modal, unasked" \
+    "I'm adding a modal to crop an uploaded image. What do I need to get right before I write it?" \
+    "focus (returns?|back) to|2\.5\.7|drag|24.24" ""
+
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────

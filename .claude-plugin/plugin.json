@@ -1,7 +1,7 @@
 {
   "name": "m-skills",
   "displayName": "m-skills \u2014 portable dev pipeline",
-  "version": "3.13.0",
+  "version": "3.14.0",
   "description": "A simple plugin for full-stack developers who use Claude for real work. Five commands are the everyday loop \u2014 brainstorm, plan, implement, review, document; the rest wait until you need them. Project-agnostic: every command, framework, and convention resolves at runtime from a per-project PROJECT-PROFILE.md instead of being hardcoded.",
   "hooks": "./hooks/hooks.json",
   "author": {
@@ -13,6 +13,8 @@
     "code-review",
     "testing",
     "design",
+    "security",
+    "accessibility",
     "changelog"
   ],
   "homepage": "https://github.com/matis-dev/m-skills",

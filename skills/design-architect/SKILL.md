@@ -54,6 +54,7 @@ Checks on the **built result**, not on intentions. Run them together in the batc
 - **Depth** — shadows carry an offset *and* a soft blur. A zero-offset colored halo is decoration, not depth. Declare elevation once: border **or** shadow, not a hairline border under a wide soft shadow.
 - **Motion** — one authored moment, not scattered effects, and not one identical entrance on every section. Never `transition: all`. Never animate layout properties (`width`, `height`, `top`, `left`, `margin`, `padding`). Focus rings appear instantly — never fade in. One hover effect per element, not four. Every keyframe needs a reduced-motion fallback.
 - **States** — default, hover, focus-visible, active, disabled, loading, error, empty. Inputs are where almost-right UIs lose: border-width must not change between states (it shifts layout), the focus ring is an outline not a border, input height matches the button beside it, the helper-text slot reserves its space so an error doesn't shove the page down, and disabled needs three channels (dimmed + cursor + the real disabled attribute).
+- **Targets** — every interactive element is at least **24×24**, or spaced so 24px circles around adjacent targets don't overlap. The hit area may exceed the visual box, so this is usually invisible padding rather than a bigger button. Icon-only controls in dense tables are where this fails, and the adjacent control is often destructive.
 - **Browser surfaces** — the parts you didn't draw still carry the design: text selection, caret, scrollbars, focus rings, underline offset, tabular numerals. They ship with defaults belonging to no design system. Theme them from the palette. **This is the cheapest signal that a page was built rather than assembled, and the one most reliably skipped.**
 - **Copy** — the product's own language. Controls name their action; errors name the problem *and* the recovery.
 - **Responsive** — no horizontal scroll at any width from 320px to 1920px. Clickable text (buttons, nav links, CTAs) **never wraps to two lines** — shorten the label or prevent the wrap. Image-bearing flex/grid tracks need an explicit zero minimum or the intrinsic image width blows past the viewport. Display headings need a last-resort break-inside-word rule for long compound words.
@@ -117,7 +118,8 @@ Run the six-axis pre-emit self-critique (Guidelines §18) **first**; anything un
 - [ ] Every color and font references a token; nothing improvised mid-file.
 - [ ] No invented metric, claim, logo, or testimonial (Guidelines §15).
 - [ ] Structure differs from the last output in this project (§4), stamp comment written.
-- [ ] Accessibility: decorative SVG/canvas carries a label or is explicitly hidden; motion has reduced-motion fallbacks; keyboard focus reaches everything and is visible.
+- [ ] Accessibility: decorative SVG/canvas carries a label or is explicitly hidden; motion has reduced-motion fallbacks; keyboard focus reaches everything, is visible, and isn't covered by a sticky header when it lands.
+- [ ] Anything interactive beyond the floor — a dialog, menu, tab set, combobox, drag interaction, or async status — went through the `accessibility-architect` skill. The floor covers how it looks; that one covers whether it can be operated.
 - [ ] Verification stayed within two rounds (Guidelines §16).
 
 If a gate fails, fix it. Don't ship slop.
@@ -144,6 +146,7 @@ If a gate fails, fix it. Don't ship slop.
 - **Implementing Architect** — apply §2 and §5 before declaring a UI change done.
 - **Code Review Architect** — the §3 refuse list and §2 floor are the UI findings source; cite `path:line` like any other finding.
 - **Testing Architect** — visual and a11y coverage for what this skill produces.
+- **Accessibility Architect** — shares this floor. Contrast, focus-visible, target size, states, and reduced motion stay here as design decisions; semantics, focus architecture, and announcement live there. Where a design choice and the operability floor genuinely collide, that skill's Constraint 5 applies: bring a third option, not an ultimatum.
 
 ---
 

@@ -9,6 +9,7 @@ disable-model-invocation: true
 
 > **Apply Guidelines Skill** — load the `guidelines-meta` skill before proceeding.
 > **Modifiers** — trailing plain-language instructions ("tests later", "skip gates", "fix the findings", "proceed") are interpreted per **Guidelines §19**. A modifier narrows scope; anything skipped is named in the output, and none of them unlock git.
+> **Remediation is elsewhere.** This skill writes no code (§Constraints). A security finding is fixed by the `security-architect` skill; an accessibility barrier by the `accessibility-architect` skill; a test gap by the `testing-architect` skill. Name the owning skill on the finding so the fix has somewhere to go — a review that ends in a list nobody can act on is half a deliverable.
 
 **Role:** Lead Reviewer. Evaluate a change set against the project's conventions and produce one unified verdict covering **maintainability, performance, security, correctness, and design craft**.
 **Trigger:** "Use Code Review Architect" / "Review this branch" / "Review PR #N".
@@ -39,9 +40,9 @@ Every review addresses each dimension explicitly. Silence on one is itself a fin
 
 1. **Maintainability** — readability, intent-revealing naming, dead code, duplication vs. reuse, abstraction level, comment hygiene (Guidelines §13), typing discipline, adherence to the project's existing idiom.
 2. **Performance** — algorithmic cost on the hot path, N+1 queries or writes, bundle/binary impact, lazy boundaries, subscription/listener/handle leaks, list rendering keys, asset weight, avoidable re-computation, caching correctness.
-3. **Security** — the threat model in Phase 4.
+3. **Security** — the threat model in Phase 4, anchored to OWASP Top 10:2025 via the `security-architect` skill §1.
 4. **Correctness & Tests** — does the change do what it claims? Tests paired with code (Guidelines §11)? Coverage on new branches? Green-but-lying traps (Testing Architect §3)?
-5. **Design craft** — for UI-visible diffs, the Design Architect floor and refuse list.
+5. **Design craft & accessibility** — for UI-visible diffs, the Design Architect floor and refuse list, plus the operability floor from the `accessibility-architect` skill.
 6. **Project conventions** — the committed design system, architecture topology, and idioms from the profile.
 7. **Inherited guards** — the change set itself contains no committed git/CI bypasses, no auto-update of golden files, no `--no-verify` traces in scripts.
 8. **Goal trace** — every change line traces to a stated objective. Flag drive-by edits.
@@ -94,57 +95,74 @@ Walk the diff file by file.
 - Assets added: weight, format, compression.
 - Lazy boundaries for non-trivial new routes/modules.
 
-**Design craft** *(UI-visible diffs only — cite the `design-architect` skill)*
+**Design craft & accessibility** *(UI-visible diffs only — cite the `design-architect` and `accessibility-architect` skills)*
 - Craft floor: computed contrast, full state set on interactive elements and inputs, spacing on the scale, responsive range clean, motion has reduced-motion fallbacks, focus-visible present.
+- Operability floor: native element used where one exists, or the ARIA role's full contract supplied; every control keyboard-reachable and named; new overlays move focus in, close on Escape, and **return focus to the trigger**; route or status changes announced; targets meet 24×24 or the spacing exception. **If the plan carried `[A11Y]` tags, verify those specific commitments landed** — and note that a green `<a11y>` gate is evidence about the scan, not about focus architecture.
 - Refuse list: any AI-default pattern present that the brief didn't earn.
 - Token discipline: colors and fonts referencing tokens, not improvised values.
 - Honest content: no invented metric, testimonial, or claim (Guidelines §15).
 
 ### Phase 4 — Security Pass
 
-Each item is yes/no/n-a; any "yes" is a finding with severity. Sections with no findings are explicitly noted clean.
+Each item is yes/no/n-a; any "yes" is a finding with severity. Sections with no findings are explicitly noted clean. Group headings carry their **OWASP Top 10:2025** anchor, sourced from the `security-architect` skill §1 — cite the category only when you are certain of it, and describe the weakness without an identifier when you are not (§15).
 
-**Injection & rendering sinks**
+**If the plan carried `[SEC]` tags, start there.** Verify the trust boundaries the plan named actually got their controls, at the place the plan said. That is a cheaper and more reliable pass than re-deriving the threat model from the diff, and a boundary the plan named but the diff does not implement is a finding on its own.
+
+**Injection & rendering sinks** *(A04)*
 - Raw HTML/markup binding without sanitization; a "trust this value" escape hatch without inline justification.
 - User-controlled string interpolated into a URL, template, shell command, or query without validation or parameterization.
 - Dynamic code execution (`eval`, `Function`, string-argument timers, dynamic import of a user-controlled path).
 
-**Untrusted input & deserialization**
+**Untrusted input & deserialization** *(A08)*
 - Parsed user input **merged or spread into an existing object without key filtering** — a prototype-pollution sink. Flag any deep-merge, spread, or assign over untrusted input that doesn't drop dangerous keys or use a null-prototype target. Note that structured cloning does **not** sanitize; it preserves attacker-controlled keys.
 - Imported data trusted for **shape** without passing the sanitizer/validator before it reaches storage, forms, or export.
 - Missing size/type/count limits on uploads or imports.
 
-**Network / IO**
+**Network / IO** *(A02, A05)*
 - Requests to user-controlled URLs; origin pinned?
 - New external `<script>`/`<link>` — pinned version, integrity, crossorigin where applicable?
 - **New external origin loaded** — every place the security policy is declared updated (markup meta *and* server header, dev *and* prod config), with the right directive? A missing host is a functional break, not just hardening. **Blind spot:** a blocked resource renders consistently broken, so its visual baseline still passes — flag as a verification gap; green visual tests are not proof it loads.
 
-**Storage**
+**Storage** *(A01, A05)*
 - Anything sensitive written to client storage without the project's consent/permission flow?
 - PII, tokens, or plaintext secrets stored at all? Keys namespaced against collision?
 
-**Routing / AuthZ**
+**Routing / AuthZ** *(A01)*
 - New route gated where it should be? Public-by-default acceptable only if intentional — flag uncertainty.
 - **IDOR** — an id or index from a route/query used to select or mutate data with no ownership check?
 - **Path traversal** — user- or import-controlled string building a file path, asset URL, dynamic import, or storage key without normalizing `..` and leading-slash segments? Common on import/export filenames.
 
-**Configuration / Secrets**
+**Configuration / Secrets** *(A02, A05)*
 - Any string matching a secret pattern (API key, token, password, private key, cloud key prefix, JWT)? Cite every hit even if it looks intentional.
 - Hardcoded internal infrastructure URLs; production secrets landing in a tracked config file.
 
-**Dependencies**
+**Dependencies** *(A06)*
 - Advisories from `<audit>` tied to changed deps — each is a finding at the audit's severity.
 - New packages: maintainer reputation, last-publish sanity, typo-squat ruled out against the known-good name.
 - Transitive pins via overrides/resolutions — justified?
 
-**Server-rendering / hydration** *(if applicable)*
+**Server-rendering / hydration** *(A04 — if applicable)*
 - User-controlled data escaped through the framework's binding (safe) vs. interpolated raw into HTML (unsafe)?
 - Hydration mismatch enabling DOM clobbering?
 
-**Logging**
+**Supply chain** *(A03 — broader than the advisory scan above)*
+- New dependency, CI action, or base image left **unpinned**, or a lockfile change nobody read for transitive additions?
+- A build or install step fetching a script over the network and executing it?
+- CI credentials or workflow permissions wider than the job needs; a publish step running from an unverified pipeline?
+
+**Exceptional conditions** *(A10 — the one no gate reports)*
+- A `catch` around a permission, signature, token, or verification check that **swallows the failure and continues**?
+- A security decision whose error path returns permissive — `true`, `null`-as-allowed, or a fall-through to the default branch?
+- A dependency timeout or outage that degrades **open** instead of closed?
+- An error message or stack trace reaching the user with internal structure in it?
+> Fail-open code passes every test and every scanner, because it is working code until the day the thing it calls is down. Read the error path deliberately; it will not be flagged for you.
+
+**Logging** *(A09)*
 - New logging of request/response bodies, tokens, or PII?
 - Handlers swallowing security-relevant exceptions silently?
 
+> **Findings are described here; the fix is written by the `security-architect` skill** (`remediate` mode), with the regression test that fails against the unpatched code. Reachability is part of the finding, not an afterthought: state the path from an attacker-controlled input to the sink, or state that you could not establish one.
+>
 > Severity guidance: data exfiltration / auth bypass / RCE-class → **Critical**. Stored injection or a known-CVE dep with an exploit path → **High**. Injection reachable only via developer-controlled input → **Medium**. Defense-in-depth gaps → **Low** or **Nit**.
 
 ### Phase 5 — Synthesis
@@ -160,9 +178,9 @@ Each item is yes/no/n-a; any "yes" is a finding with severity. Sections with no 
 |---|---|---|
 | Maintainability | 25 | Readability, reuse, abstraction level, conventions, comment hygiene, dead code, propagation completeness |
 | Performance | 15 | Hot-path cost, leaks, N+1, bundle/asset weight, rendering hygiene |
-| Security | 30 | The Phase 4 threat model |
+| Security | 30 | The Phase 4 threat model, anchored to OWASP Top 10:2025 |
 | Correctness & Tests | 20 | Gates pass, coverage on new code, paired tests, green-but-lying traps |
-| Design Craft | 10 | Craft floor + refuse list on UI-visible changes (**re-weight to Maintainability when the diff has no UI**) |
+| Design Craft | 10 | Craft floor, refuse list, and the accessibility operability floor on UI-visible changes (**re-weight to Maintainability when the diff has no UI**) |
 | **Total** | **100** | |
 
 ### Severity → Deduction (from the dimension's max)
@@ -264,10 +282,13 @@ A dimension floors at 0. Dimensions sum to `Total / 100`.
 - [ ] Scope explicit (base/head, file count, stated goals).
 - [ ] Every gate in the profile run and recorded; none invented.
 - [ ] Every finding has a `path:line`, a severity, a category, and a concrete fix.
-- [ ] Security pass covered every Phase 4 section; clean sections noted explicitly.
+- [ ] Security pass covered every Phase 4 section, supply chain and exceptional conditions included; clean sections noted explicitly.
+- [ ] Any `[SEC]` / `[A11Y]` commitments the plan made were verified as landed, not re-derived from scratch.
+- [ ] Every OWASP category or CWE cited is one you are certain of; uncertain ones described without an identifier.
+- [ ] Each finding names the skill that owns its fix (this one writes no code).
 - [ ] Change-propagation audit performed when shape / API / origin changed.
 - [ ] Confidence gate applied: every posted finding self-rated ≥ 80; false positives dropped; severe-but-unverified routed to "Worth a second look".
-- [ ] Design craft assessed for UI-visible diffs (or the dimension re-weighted and said so).
+- [ ] Design craft **and** accessibility operability assessed for UI-visible diffs (or the dimension re-weighted and said so).
 - [ ] Test findings sourced from Testing Architect patterns.
 - [ ] Coverage numbers and advisory counts copied from real output, never estimated.
 - [ ] Score breakdown sums to total; deductions trace to listed findings; verdict band matches; Critical override stated if applied.
