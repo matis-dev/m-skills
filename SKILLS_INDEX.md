@@ -79,6 +79,10 @@ Then, in the target project either way:
 - **[Documentation Architect](skills/documentation-architect/SKILL.md)** — Writes, audits, and repairs the docs a project ships. **§1 reader-and-doc-type selection** (tutorial / how-to / reference / explanation) because mixing types is the structural failure that makes accurate docs useless; §2 ground truth — every command, path, flag, and symbol traced to a file actually read, since a fabricated code sample is *executed* by the reader; §3 the documentation floor (prerequisites before the install command, runnable language-tagged blocks, task-shaped headings, resolving links, no time estimates); §4 the refuse list of doc slop; **§5 one-home-per-fact**, because rot is a duplication failure rather than a writing one; §6 the public surface, where failure behaviour and side effects are the halves always missing; §7 an **audit mode that produces a reproducible friction log** and a banded verdict backed by evidence rather than an invented score. Release notes and migration guides live here; the changelog stays with Rolling History.
 - **[Rolling History](skills/rolling-history/SKILL.md)** — Updates the project's changelog to reflect current state, then assesses whether README / architecture / deployment / API / test docs also need a surgical edit (most sessions: none). Produces a **commit brief as text only**, valid against the project's own commit convention. Never executes git.
 
+### 🔎 Search Visibility
+
+- **[Search Optimization Architect](skills/search-optimization-architect/SKILL.md)** — Makes a web property retrievable, extractable, and citable by AI search engines and agents. Built around **§2 the evidence ladder**, which sorts every tactic into *load-bearing* (the first HTTP response contains the content, the crawler is allowed in, position in the document, fan-out coverage, off-site presence), *plausible* (atomic answers, self-contained chunks, statistics and quotations, schema for what it actually earns), and *theater* (`llms.txt` as a ranking signal, JSON-LD as a citation lever, keyword density, one-size "AI SEO"). That ladder is the pack's §15 honesty rule applied to a market that runs on unfalsifiable claims — it deliberately demotes two tactics the industry sells as pillars, and says why with a dated, attributed **§10 evidence base**. Also: the island test and the 40–60 word atomic answer, a rendering audit run against *fetched bytes* rather than the rendered DOM, retrieval-vs-training crawl policy as two separate decisions, query fan-out mapping as the prioritization input in place of keyword volume, and **§6 a measurement protocol with a fixed prompt set, ≥7–8 runs per prompt, medians with spreads, and per-engine segmentation** — because a single-run visibility score is noise. Never projects a citation, a ranking, or a lift.
+
 ---
 
 ## 🔄 The Pipeline
@@ -110,6 +114,8 @@ Planning ──→ Product Architect (decompose) ──→ one Implementing run 
 10. **Shipping it?** → **Deployment Architect**. Readiness gate, pre-flight risk pass, a rollback plan written *before* the deploy, then verification against the real environment. Nothing irreversible fires without your confirmation for that specific environment.
 
 **Upkeep?** → **Maintenance Architect** on a cadence — weekly patches, monthly minors and a rot sweep, quarterly majors one at a time, and a reachable advisory immediately and alone.
+
+**Public site nobody can find inside an AI answer?** → **Search Optimization Architect**. Diagnose in tier order — fetchable, allowed, content in the bytes, ranking for the fan-out set, present off-site — and stop at the first total failure. Most "why aren't we cited" questions end at step three.
 
 **Fast feedback during implementation?** → `check-quality.sh` (see README for the exact path). Full pipeline before claiming done.
 

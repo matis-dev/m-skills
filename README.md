@@ -94,6 +94,7 @@ Commands below use the plugin form — in copy mode, drop the `m-skills:` prefix
 | README, guide, or API reference to write or fix | `/m-skills:documentation-architect` → reader + doc type, runnable examples, drift check |
 | Ready to ship | `/m-skills:deployment-architect <env>` → release brief, rollback plan, post-deploy checks |
 | Upkeep, advisories, upgrades | `/m-skills:maintenance-architect` → triaged by reachability, batched so a break is attributable |
+| Site should be cited by AI search, not just ranked | `/m-skills:search-optimization-architect` → evidence-tiered audit, retrieval-shaped content, honest measurement |
 | Fast feedback mid-work | `bash <skills>/implementing-architect/check-quality.sh` |
 
 `guidelines-meta` is never invoked alone — every other skill opens by loading it.
@@ -214,21 +215,21 @@ These hold in every skill, in every project:
 | `hooks/hooks.json` | Wires both SessionStart hooks | stays put |
 | `scripts/profile-bootstrap.sh` | Detects the stack when no profile exists yet | stays put |
 | `scripts/adhd-always-on.sh` | Applies the reply protocol session-wide when its flag is set | stays put |
-| `tests/run-tests.sh` | The pack's own test suite — 128 assertions, no dependencies | stays put |
-| `skills/` | The 13 skills | plugin: stays put · copy-mode: → `<project>/.claude/skills/` |
+| `tests/run-tests.sh` | The pack's own test suite — 137 assertions, no dependencies | stays put |
+| `skills/` | The 14 skills | plugin: stays put · copy-mode: → `<project>/.claude/skills/` |
 | `skills/guidelines-meta/PROJECT-PROFILE.template.md` | The profile the skills fill in as you work | → `<project>/.claude/PROJECT-PROFILE.md` |
 | `CLAUDE.template.md` | Always-on guards, loaded every session | → `<project>/CLAUDE.md` |
 | `settings.template.json` | Permission allowlist + git denylist | → `<project>/.claude/settings.local.json` |
 | `skills/implementing-architect/check-quality.sh` | Runnable gate pipeline (auto-detects) | ships inside `skills/` |
 | `SKILLS_INDEX.md` | Skill catalog, pipeline diagram, provenance | reference |
 
-The 13 skills: `guidelines-meta`, `brainstorming-planner`, `planning-architect`, `product-architect`, `design-architect`, `testing-architect`, `implementing-architect`, `debugging-architect`, `code-review-architect`, `documentation-architect`, `rolling-history`, `deployment-architect`, `maintenance-architect`.
+The 14 skills: `guidelines-meta`, `brainstorming-planner`, `planning-architect`, `product-architect`, `design-architect`, `testing-architect`, `implementing-architect`, `debugging-architect`, `code-review-architect`, `documentation-architect`, `rolling-history`, `deployment-architect`, `maintenance-architect`, `search-optimization-architect`.
 
 **Who invokes what** — pipeline stages are yours to trigger; knowledge skills load themselves when relevant:
 
 | Skill | Invocation |
 |---|---|
-| `brainstorming-planner`, `planning-architect`, `product-architect`, `implementing-architect`, `debugging-architect`, `code-review-architect`, `rolling-history`, `deployment-architect`, `maintenance-architect` | `disable-model-invocation: true` — **you** trigger them, Claude never starts one on its own |
+| `brainstorming-planner`, `planning-architect`, `product-architect`, `implementing-architect`, `debugging-architect`, `code-review-architect`, `rolling-history`, `deployment-architect`, `maintenance-architect`, `search-optimization-architect` | `disable-model-invocation: true` — **you** trigger them, Claude never starts one on its own |
 | `design-architect`, `testing-architect`, `documentation-architect` | Both — you can call them, and Claude loads them when the work is design-, test-, or docs-shaped |
 | `guidelines-meta` | `user-invocable: false` — background knowledge, loaded by the other skills, hidden from the `/` menu |
 
@@ -410,7 +411,7 @@ Do not run any git command that mutates state. Leave everything unstaged.
 ## 🧪 Testing the pack itself
 
 ```
-bash tests/run-tests.sh        # 128 assertions, ~2s, no dependencies
+bash tests/run-tests.sh        # 137 assertions, ~2s, no dependencies
 bash tests/run-tests.sh -v     # show every passing assertion
 RUN_EVALS=1 bash tests/run-tests.sh   # adds model-in-the-loop checks (costs tokens)
 ```

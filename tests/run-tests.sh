@@ -59,6 +59,16 @@ grep -qE '^1\. \*\*Every number is sourced or labelled' "$ROOT/skills/product-ar
   && ok "product keeps the sourcing rule" || bad "product keeps the sourcing rule"
 grep -q '\*\*A "write the tests" slice' "$ROOT/skills/product-architect/SKILL.md" \
   && ok "product refuses a test-only slice" || bad "product refuses a test-only slice"
+grep -qE '^1\. \*\*Never promise a citation, a ranking, or a lift' "$ROOT/skills/search-optimization-architect/SKILL.md" \
+  && ok "search keeps the no-promised-lift rule" || bad "search keeps the no-promised-lift rule"
+grep -qE '^2\. \*\*Every tactic carries its evidence tier' "$ROOT/skills/search-optimization-architect/SKILL.md" \
+  && ok "search keeps the evidence-tier rule" || bad "search keeps the evidence-tier rule"
+# the two demotions are the point of the skill; a well-meaning edit that restores
+# them as pillars would make it indistinguishable from every other GEO checklist
+grep -q 'llms.txt` as a ranking or citation signal' "$ROOT/skills/search-optimization-architect/SKILL.md" \
+  && ok "search keeps llms.txt in tier 3" || bad "search keeps llms.txt in tier 3"
+grep -q 'JSON-LD as a citation lever' "$ROOT/skills/search-optimization-architect/SKILL.md" \
+  && ok "search keeps JSON-LD out of tier 1" || bad "search keeps JSON-LD out of tier 1"
 for s in "$ROOT"/skills/*/SKILL.md; do
   n="$(basename "$(dirname "$s")")"
   case "$n" in guidelines-meta|design-architect) continue ;; esac
@@ -68,7 +78,7 @@ done
 # guidelines is Claude-only; pipeline stages are user-only
 grep -q "^user-invocable: false" "$ROOT/skills/guidelines-meta/SKILL.md" \
   && ok "guidelines-meta hidden from / menu" || bad "guidelines-meta hidden from / menu"
-for s in brainstorming-planner planning-architect product-architect implementing-architect code-review-architect rolling-history deployment-architect debugging-architect maintenance-architect; do
+for s in brainstorming-planner planning-architect product-architect implementing-architect code-review-architect rolling-history deployment-architect debugging-architect maintenance-architect search-optimization-architect; do
   grep -q "^disable-model-invocation: true" "$ROOT/skills/$s/SKILL.md" \
     && ok "user-triggered only: $s" || bad "user-triggered only: $s"
 done
@@ -82,6 +92,11 @@ done
 # rolling-history must hand doc prose to documentation-architect, not improvise it
 grep -q "documentation-architect" "$ROOT/skills/rolling-history/SKILL.md" \
   && ok "rolling-history defers doc writing" || bad "rolling-history defers doc writing"
+
+# the search skill's evidence table must keep a Source column and a re-verify warning,
+# so no figure in it can be repeated as fact without its provenance and date
+grep -q 'dated — re-verify before citing' "$ROOT/skills/search-optimization-architect/SKILL.md" \
+  && ok "search evidence base carries its date warning" || bad "search evidence base carries its date warning"
 
 # no skill references a sibling by hardcoded path (breaks in plugin mode)
 hits="$(grep -rl "\.claude/skills/[a-z-]*/SKILL\.md" "$ROOT/skills" 2>/dev/null || true)"
