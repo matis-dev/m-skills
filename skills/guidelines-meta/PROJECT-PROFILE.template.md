@@ -63,6 +63,11 @@ Everything below is **repo-wide** unless a package overrides it.
 
 *Owner: SessionStart bootstrap · auto-detected. A role with no command is `n-a`, never invented.*
 
+> **This table is machine-read.** `check-quality.sh` parses these rows and treats them as the authority
+> (Guidelines §5 rule 1), so keep the shape: one row per role, the role in the first cell, the command in
+> the second. A cell left blank, set to `n-a`, or still holding a `<placeholder>` falls through to
+> auto-detection rather than becoming an invented command — so a half-filled table is safe.
+
 | Role | Command | Notes |
 |---|---|---|
 | `<lint>` | | |

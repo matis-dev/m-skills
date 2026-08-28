@@ -20,7 +20,7 @@ disable-model-invocation: true
 ## Operational Constraints (Strict)
 
 1. **No code is written.** This skill produces a plan only.
-2. **Git and golden-file guards are enforced by the plugin's PreToolUse hook**, not merely stated here (Guidelines §9, §10). A `git add` / `commit` / `push` / branch operation, a `--no-verify`, or a snapshot-update command is **denied by the runtime**. Files stay unstaged and visual diffs stay the user's to review. Restate the guard inside the plan output too, and defer golden updates to a manual final stage.
+2. **Git and golden-file guards are enforced by the plugin's PreToolUse hook**, not merely stated here (Guidelines §9, §10). Any git command that writes — and any `gh` command that publishes — is **denied by the runtime**, as is `--no-verify` and any snapshot-update command. Read-only inspection stays open. Files stay unstaged and visual diffs stay the user's to review. Restate the guard inside the plan output too, and defer golden updates to a manual final stage.
 3. **No scope creep.** Every plan item traces to a stated goal; if it doesn't, drop it or push back to the user.
 4. **Confirmation gate is non-negotiable.** The plan ends awaiting approval — implementation never starts inside this skill.
 5. **Tests sourced from Testing Architect.** Fill every `Tests:` line using the `testing-architect` skill. Do not invent ad-hoc test plans.

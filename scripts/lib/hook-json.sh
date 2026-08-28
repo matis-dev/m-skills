@@ -114,6 +114,22 @@ advisory_require_json_engine() {
   [ -n "$M_SKILLS_JSON_ENGINE" ] || exit 0
 }
 
+# Cache key for the resolved gate table. The resolution reads PROJECT-PROFILE.md,
+# quality-gates.conf, and the manifest, so the key folds in their mtimes: editing
+# any of them invalidates the cache. Without this a stale table outlives the edit —
+# and where the runtime exports no CLAUDE_SESSION_ID the state dir is shared, so it
+# outlives the whole session too.
+m_skills_gate_cache_key() {
+  local root="$1" stamps=""
+  local f
+  for f in "$root/.claude/PROJECT-PROFILE.md" "$root/.claude/quality-gates.conf" \
+           "$root/package.json" "$root/Makefile" "$root/pyproject.toml" \
+           "$root/Cargo.toml" "$root/go.mod"; do
+    [ -f "$f" ] && stamps="$stamps|$(date -r "$f" +%s 2>/dev/null || echo 0)"
+  done
+  printf '%s' "$root$stamps" | cksum | cut -d' ' -f1
+}
+
 # A per-session marker directory, so an advisory can fire once rather than every
 # time the same file is touched. Keyed on the session id when the runtime supplies
 # one, so two concurrent sessions don't silence each other.

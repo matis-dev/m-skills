@@ -28,7 +28,7 @@ disable-model-invocation: true
 5. **No speculative fixes.** "This might help" is not a fix. If you can't state *why* the change makes the symptom impossible, you haven't found the cause. Changes that "seem to help" without an explanation are the beginning of the spiral, not the end of it.
 6. **Revert your own probes.** Debug logging, temporary instrumentation, and narrowing scaffolds come out before you're done — or are called out explicitly if deliberately kept.
 7. **Production first, diagnosis second.** If users are affected, `deployment-architect`'s Rollback Mode runs *first*. Restore service, then debug the artifact at leisure. Production is not a debugging environment.
-8. **Git and golden-file guards are enforced by the plugin's PreToolUse hook**, not merely stated here (Guidelines §9, §10). A `git add` / `commit` / `push` / branch operation, a `--no-verify`, or a snapshot-update command is **denied by the runtime**. Files stay unstaged and visual diffs stay the user's to review. `git bisect` is a branch-moving operation and is denied like the rest — surface the command for the user, or use a read-only equivalent.
+8. **Git and golden-file guards are enforced by the plugin's PreToolUse hook**, not merely stated here (Guidelines §9, §10). Any git command that writes — and any `gh` command that publishes — is **denied by the runtime**, as is `--no-verify` and any snapshot-update command. Read-only inspection stays open. Files stay unstaged and visual diffs stay the user's to review. `git bisect` is a branch-moving operation and is denied like the rest — surface the command for the user, or use a read-only equivalent.
 
 ---
 
@@ -78,7 +78,7 @@ Test:        <the single change or probe that discriminates>
 Rules:
 - **The prediction must be falsifiable.** "It'll probably work better" tests nothing. "The value will be `undefined` at line 42" is a real test.
 - **A disproved hypothesis is progress** — record it. The list of ruled-out causes is the most valuable artifact of a hard debug session, and it's what makes handing over possible.
-- **Confidence gate (from `code-review-architect` §7).** Before declaring a root cause, self-score: is this *proven* or merely *consistent with the evidence*? Below ~80, say so plainly and keep it labelled as a theory. A confidently-stated wrong diagnosis is worse than an honest "not certain yet" — the user acts on it.
+- **Confidence gate (from `code-review-architect` constraint 6).** Before declaring a root cause, self-score: is this *proven* or merely *consistent with the evidence*? Below ~80, say so plainly and keep it labelled as a theory. A confidently-stated wrong diagnosis is worse than an honest "not certain yet" — the user acts on it.
 - **Count the passes.** At three disproved hypotheses, stop (§3). Not a suggestion.
 
 **Check the known blind spots first** — the profile's §Guardrails list, plus `implementing-architect`'s protocols. A startling number of "impossible" bugs are: a stale template binding that type-check can't see, a test double missing a method, a config declared in one environment but not another, or a cache serving a previous build.

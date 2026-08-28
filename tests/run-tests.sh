@@ -235,6 +235,45 @@ printf 'LINT="custom-linter --strict"\n' > "$TMP/conf/.claude/quality-gates.conf
 out="$(cd "$TMP/conf" && bash "$CQ" --list)"
 assert_contains "quality-gates.conf overrides detection" "$out" "custom-linter --strict"
 
+# ── PROJECT-PROFILE.md is the authority (guidelines-meta §5 rule 1). This is what
+#    skill-preamble.sh injects as the resolved gate table, so a script that ignored
+#    the profile would hand Claude auto-detected commands under the profile's name.
+mkdir -p "$TMP/prof/.claude"
+printf '{"scripts":{"lint":"eslint .","test":"vitest run","build":"vite build"}}' > "$TMP/prof/package.json"
+cat > "$TMP/prof/.claude/PROJECT-PROFILE.md" <<'PROF'
+# Project Profile
+## Commands
+| Role | Command | Notes |
+|---|---|---|
+| `<lint>` | `pnpm run lint:strict` | the real gate |
+| `<typecheck>` | | not filled in |
+| `<test>` | `pnpm run test:ci` | with coverage |
+| `<e2e>` | `n-a` | none here |
+| `<visual>` | `<command>` | still a placeholder |
+
+**Golden / snapshot update command (USER-ONLY — never run by a skill):** `pnpm run snap`
+PROF
+out="$(cd "$TMP/prof" && bash "$CQ" --list)"
+assert_contains "profile overrides detection"        "$out" "pnpm run lint:strict"
+assert_contains "profile supplies test command"      "$out" "pnpm run test:ci"
+assert_contains "profile names its own update cmd"   "$out" "pnpm run snap"
+assert_contains "profile named as the source"        "$out" "PROJECT-PROFILE.md"
+assert_contains "blank profile row falls through"    "$out" "npm run build"
+# a half-filled profile is the normal state (§5 "progressive, not a questionnaire"):
+# n-a and <placeholder> rows must not become invented commands
+assert_missing  "placeholder row not taken literally" "$out" "<command>"
+
+# profile beats conf, conf still beats detection
+printf 'LINT="conf-linter"
+BUILD="make release"
+' > "$TMP/prof/.claude/quality-gates.conf"
+out="$(cd "$TMP/prof" && bash "$CQ" --list)"
+assert_contains "profile outranks quality-gates.conf" "$out" "pnpm run lint:strict"
+assert_contains "conf still fills what profile omits" "$out" "make release"
+# an env var passed on the invocation is the most explicit signal and outranks both
+out="$(cd "$TMP/prof" && LINT="env-linter" bash "$CQ" --list)"
+assert_contains "env var outranks profile and conf"   "$out" "env-linter"
+
 # --list must never execute a gate
 mkdir -p "$TMP/side"; printf '{"scripts":{"lint":"touch SIDE_EFFECT"}}' > "$TMP/side/package.json"
 ( cd "$TMP/side" && bash "$CQ" --list >/dev/null 2>&1 )
@@ -447,16 +486,54 @@ expect "deny: cargo insta accept"      deny  "$(decision guard-mutations.sh "$(b
 expect "allow: curl -u"                allow "$(decision guard-mutations.sh "$(bash_payload 'curl -u user:pass https://x')")"
 expect "allow: plain test run"         allow "$(decision guard-mutations.sh "$(bash_payload 'npm test')")"
 
+# ── §9 is "no git write", not "no four specific verbs". These were denied by the
+#    hook while Guidelines §9 listed only six bullets; the prose now matches, so
+#    pin the breadth against a future narrowing.
+expect "deny: git fetch"               deny  "$(decision guard-mutations.sh "$(bash_payload 'git fetch origin main')")"
+expect "deny: git pull"                deny  "$(decision guard-mutations.sh "$(bash_payload 'git pull')")"
+expect "deny: git merge"               deny  "$(decision guard-mutations.sh "$(bash_payload 'git merge feature')")"
+expect "deny: git restore"             deny  "$(decision guard-mutations.sh "$(bash_payload 'git restore --staged .')")"
+# debugging-architect §8 claims bisect is denied; it was not, until it was added
+expect "deny: git bisect"              deny  "$(decision guard-mutations.sh "$(bash_payload 'git bisect start')")"
+expect "deny: git apply"               deny  "$(decision guard-mutations.sh "$(bash_payload 'git apply patch.diff')")"
+# read-only git is the review path and must never close
+expect "allow: git merge-base"         allow "$(decision guard-mutations.sh "$(bash_payload 'git merge-base main HEAD')")"
+expect "allow: git describe"           allow "$(decision guard-mutations.sh "$(bash_payload 'git describe --tags')")"
+
 # ── catastrophic filesystem operations
 expect "deny: rm -rf ~"                deny  "$(decision guard-mutations.sh "$(bash_payload 'rm -rf ~')")"
 expect "deny: dd of=/dev/sda"          deny  "$(decision guard-mutations.sh "$(bash_payload 'dd if=/dev/zero of=/dev/sda')")"
 expect "allow: scoped rm -rf"          allow "$(decision guard-mutations.sh "$(bash_payload 'rm -rf ./node_modules')")"
 
-# ── H2 outward-facing actions ask, never deny
-expect "ask: npm publish"              ask   "$(decision guard-outward.sh "$(bash_payload 'npm publish')")"
-expect "ask: fly deploy"               ask   "$(decision guard-outward.sh "$(bash_payload 'fly deploy')")"
-expect "ask: kubectl apply"            ask   "$(decision guard-outward.sh "$(bash_payload 'kubectl apply -f k8s/')")"
+# ── H2 outward-facing actions are handed over, not fired. deployment-architect
+#    constraint 2: the runbook is the deliverable, the button is the user's.
+expect "deny: npm publish"             deny  "$(decision guard-outward.sh "$(bash_payload 'npm publish')")"
+expect "deny: fly deploy"              deny  "$(decision guard-outward.sh "$(bash_payload 'fly deploy')")"
+expect "deny: kubectl apply"           deny  "$(decision guard-outward.sh "$(bash_payload 'kubectl apply -f k8s/')")"
+expect "deny: prisma migrate deploy"   deny  "$(decision guard-outward.sh "$(bash_payload 'npx prisma migrate deploy')")"
+# reversible work is what keeps the skill useful — it must stay open (constraint 3)
 expect "allow: terraform plan"         allow "$(decision guard-outward.sh "$(bash_payload 'terraform plan')")"
+expect "allow: kubectl get pods"       allow "$(decision guard-outward.sh "$(bash_payload 'kubectl get pods')")"
+expect "allow: docker build"           allow "$(decision guard-outward.sh "$(bash_payload 'docker build -t x .')")"
+
+# ── H2b gh writes join the git family (Guidelines §9): they publish to a surface
+#    other people see. Read-only gh must stay open — code-review-architect reviews
+#    a PR by fetching it with the platform CLI.
+expect "deny: gh pr create"            deny  "$(decision guard-outward.sh "$(bash_payload 'gh pr create --fill')")"
+expect "deny: gh pr merge"             deny  "$(decision guard-outward.sh "$(bash_payload 'gh pr merge 12 --squash')")"
+expect "deny: gh pr comment"           deny  "$(decision guard-outward.sh "$(bash_payload 'gh pr comment 3 -b hi')")"
+expect "deny: gh issue create"         deny  "$(decision guard-outward.sh "$(bash_payload 'gh issue create -t x')")"
+expect "deny: gh release create"       deny  "$(decision guard-outward.sh "$(bash_payload 'gh release create v1.0')")"
+expect "deny: gh secret set"           deny  "$(decision guard-outward.sh "$(bash_payload 'gh secret set API_KEY')")"
+expect "deny: gh workflow run"         deny  "$(decision guard-outward.sh "$(bash_payload 'gh workflow run deploy.yml')")"
+expect "deny: gh api -X POST"          deny  "$(decision guard-outward.sh "$(bash_payload 'gh api -X POST /repos/x/y/issues')")"
+expect "allow: gh pr view"             allow "$(decision guard-outward.sh "$(bash_payload 'gh pr view 12')")"
+expect "allow: gh pr diff"             allow "$(decision guard-outward.sh "$(bash_payload 'gh pr diff 12')")"
+expect "allow: gh pr list"             allow "$(decision guard-outward.sh "$(bash_payload 'gh pr list')")"
+expect "allow: gh pr checks"           allow "$(decision guard-outward.sh "$(bash_payload 'gh pr checks 12')")"
+expect "allow: gh issue list"          allow "$(decision guard-outward.sh "$(bash_payload 'gh issue list')")"
+expect "allow: gh run view"            allow "$(decision guard-outward.sh "$(bash_payload 'gh run view 5')")"
+expect "allow: gh api read"            allow "$(decision guard-outward.sh "$(bash_payload 'gh api /repos/x/y')")"
 
 # ── H5 secrets: writes denied, reads and example files untouched. The example-file
 #    exemption is load-bearing — profile-bootstrap.sh and deployment-architect both
@@ -493,6 +570,46 @@ out="$(printf '{"hook_event_name":"UserPromptExpansion","command_name":"some-oth
 assert_empty "preamble silent for other plugins" "$out"
 out="$(printf '{"hook_event_name":"UserPromptExpansion","command_name":"m-skills:guidelines-meta"}' | bash "$ROOT/scripts/skill-preamble.sh" 2>/dev/null)"
 assert_empty "preamble silent for guidelines-meta itself" "$out"
+
+# It is registered with no matcher, so it runs on EVERY user prompt: it must decide
+# "not mine" with a shell builtin, before spending a jq/python3 spawn on it.
+out="$(printf '{"hook_event_name":"UserPromptExpansion","prompt":"what does this repo do?"}' | bash "$ROOT/scripts/skill-preamble.sh" 2>/dev/null)"
+assert_empty "preamble silent on an ordinary prompt" "$out"
+
+# Silence alone does not prove it was cheap — an early `exit 0` after the jq call
+# looks identical from outside. Poison the JSON engines: if either is invoked, it
+# leaves a marker. This is the assertion that actually pins the per-turn cost.
+SPY="$TMP/spy"; mkdir -p "$SPY"
+for engine in jq python3; do
+  printf '#!/bin/sh\ntouch "%s/spawned"\nexit 1\n' "$SPY" > "$SPY/$engine"
+  chmod +x "$SPY/$engine"
+done
+rm -f "$SPY/spawned"
+printf '{"hook_event_name":"UserPromptExpansion","prompt":"an ordinary question"}' \
+  | PATH="$SPY:$PATH" bash "$ROOT/scripts/skill-preamble.sh" >/dev/null 2>&1
+if [ -f "$SPY/spawned" ]; then
+  bad "preamble spawns no JSON engine on an ordinary prompt" "jq/python3 was invoked; the cheap-exit is gone"
+else
+  ok "preamble spawns no JSON engine on an ordinary prompt"
+fi
+# ...but it must still spawn one when the prompt IS a pack command, or it cannot work
+rm -f "$SPY/spawned"
+printf '{"hook_event_name":"UserPromptExpansion","command_name":"m-skills:code-review-architect"}' \
+  | PATH="$SPY:$PATH" bash "$ROOT/scripts/skill-preamble.sh" >/dev/null 2>&1
+if [ -f "$SPY/spawned" ]; then
+  ok "preamble still parses a real pack invocation"
+else
+  bad "preamble still parses a real pack invocation" "cheap-exit swallowed a genuine m-skills command"
+fi
+
+# Once per skill per session. A skill arriving via BOTH the slash command and the
+# Skill tool used to inject the identical ~40 lines twice.
+out="$(printf '{"hook_event_name":"UserPromptExpansion","command_name":"m-skills:deployment-architect"}' | bash "$ROOT/scripts/skill-preamble.sh" 2>/dev/null)"
+assert_contains "preamble injects on first invocation" "$out" "deployment-architect"
+out="$(printf '{"hook_event_name":"PostToolUse","tool_input":{"skill":"m-skills:deployment-architect"}}' | bash "$ROOT/scripts/skill-preamble.sh" 2>/dev/null)"
+assert_empty "preamble does not inject the same skill twice" "$out"
+out="$(printf '{"hook_event_name":"PostToolUse","tool_input":{"skill":"m-skills:design-architect"}}' | bash "$ROOT/scripts/skill-preamble.sh" 2>/dev/null)"
+assert_contains "a different skill still injects" "$out" "design-architect"
 
 # ── the opt-out must release every guard, or the pack is unusable for anyone who
 #    wants Claude to touch git at all

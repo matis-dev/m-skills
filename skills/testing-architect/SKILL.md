@@ -19,7 +19,7 @@ argument-hint: "[target area] [+ modifiers: make gates green | hold coverage]"
 
 ## Operational Constraints (Strict — restated from Guidelines)
 
-1. **Git and golden-file guards are enforced by the plugin's PreToolUse hook**, not merely stated here (Guidelines §9, §10). A `git add` / `commit` / `push` / branch operation, a `--no-verify`, or a snapshot-update command is **denied by the runtime**. Files stay unstaged and visual diffs stay the user's to review.
+1. **Git and golden-file guards are enforced by the plugin's PreToolUse hook**, not merely stated here (Guidelines §9, §10). Any git command that writes — and any `gh` command that publishes — is **denied by the runtime**, as is `--no-verify` and any snapshot-update command. Read-only inspection stays open. Files stay unstaged and visual diffs stay the user's to review.
 2. **Tests are part of the deliverable** (§11) — no "tests TBD", no merge-ready code without paired tests.
 3. **Never weaken a test to make it pass.** Loosening a tolerance, deleting an assertion, adding a skip, or widening a mock to swallow the failure is a defect. Fix the code or surface the disagreement.
 
@@ -126,7 +126,7 @@ describe('<feature> — visual', () => {
 ### Screenshot Naming & Tolerance
 - Pattern: `<area>-<state>-<theme>`. Baselines land in the framework's own directory — never hand-edit them.
 - **Every theme the project ships gets covered.** Contrast and color-scheme bugs appear in exactly one theme.
-- Respect the project's diff tolerance. **Never loosen it to make a diff pass** — that is the test weakening rule (§Constraint 5).
+- Respect the project's diff tolerance. **Never loosen it to make a diff pass** — that is the test weakening rule (§Constraint 3).
 
 ### When Visual Diffs Appear
 Surface them literally and stop:
@@ -178,7 +178,7 @@ If a change genuinely needs no layer, say so explicitly:
 
 ## 7. Verification (when invoked from Implementing Architect)
 
-Run the profile's gates in the profile's order — abort and report on the first hard failure:
+Run the profile's gates in the profile's order, **as one batch** — record every result; don't stop at the first failure unless it genuinely blocks the gates after it (`implementing-architect` §Procedure 7, `code-review-architect` Phase 2, and Guidelines §16 all run the batch, not the first failure):
 
 `<lint>` → `<typecheck>` → `<test>` (confirm new branches covered) → `<build>` → `<e2e>` (on diff: **stop** and surface) → `<visual>` → `<a11y>`
 
@@ -211,4 +211,4 @@ Then **manual** review by the user, then a manual smoke of the running app if th
 
 ---
 
-_Skill Version: v2.0 — Genericized: §0 resolves layers, frameworks, commands, helper paths, and theme names from the Project Profile instead of hardcoding one project's stack; visual/a11y sections restated framework-agnostically ("all themes the project ships", "the project's a11y engine"). §3 promotes the green-but-lying traps to their own section and generalizes them — the fake-timer/construction-time-subscription trap now reads as a scheduler-scope rule rather than one framework's gotcha, joined by compiler-silenced fixtures, hand-maintained test doubles, gates with blind spots, and the limits of automated a11y scans. Adds constraint 5 (never weaken a test to get green), the "would deleting the implementation fail this test?" check, an integration layer, and a Design Architect cross-reference for the a11y items scans miss. Prior v1.3 — companion tooling docs; v1.2 — security-regression TDD cases; v1.1 — zoneless fakeAsync trap_
+_Skill Version: v2.0 — Genericized: §0 resolves layers, frameworks, commands, helper paths, and theme names from the Project Profile instead of hardcoding one project's stack; visual/a11y sections restated framework-agnostically ("all themes the project ships", "the project's a11y engine"). §3 promotes the green-but-lying traps to their own section and generalizes them — the fake-timer/construction-time-subscription trap now reads as a scheduler-scope rule rather than one framework's gotcha, joined by compiler-silenced fixtures, hand-maintained test doubles, gates with blind spots, and the limits of automated a11y scans. Adds constraint 3 (never weaken a test to get green), the "would deleting the implementation fail this test?" check, an integration layer, and a Design Architect cross-reference for the a11y items scans miss. Prior v1.3 — companion tooling docs; v1.2 — security-regression TDD cases; v1.1 — zoneless fakeAsync trap_

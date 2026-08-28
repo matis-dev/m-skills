@@ -69,7 +69,7 @@ These skills name **roles**, never commands. `<lint>`, `<typecheck>`, `<test>`, 
 
 The profile also carries the project's **conventions**: design system, i18n locales, changelog location, commit convention, golden/snapshot policy, deployment targets, do-not-touch paths. Where a rule below says "the project's X", that's what it means — read it, don't guess it.
 
-**The profile is progressive, not a questionnaire.** It is never "finished", and a half-filled one is the normal state. Most of it cannot be known at install time: a project with no UI has no design system, one that has never shipped has no rollback mechanism, an empty repo has no commit convention. Three rules follow:
+**The profile is progressive, not a questionnaire.** It is never "finished", and a half-filled one is the normal state. Most of it cannot be known at install time: a project with no UI has no design system, one that has never shipped has no rollback mechanism, an empty repo has no commit convention. Four rules follow:
 
 1. **Each skill owns one section and fills it on first use.** On invocation, check *your* section. If it's missing or `TODO`, gather it — **at most 3–4 questions, and only what this run actually needs** — then write it back so nobody is asked twice. Never gather another skill's section; never front-load questions for work that isn't happening yet.
 2. **Unknown has four flavours, and picking the right one is the whole point.** `n-a` (doesn't apply), `TODO` (needed now, nobody answered), `pending: <when>` (not knowable yet — `pending: first deploy`), `assumed: <value>` (a working guess that must be confirmed before anything irreversible depends on it). A blank row or an invented value is a defect (§15).
@@ -104,14 +104,24 @@ The profile also carries the project's **conventions**: design system, i18n loca
 - Type strictly where the language allows it. No escape hatches (`any`, `unknown` casts, `# type: ignore`, `unsafe`) without an explicit one-line reason.
 
 ### 9. Inherited Guards (Non-negotiable — STRICT)
-- **No staging.** No `git add`, no `git stage`, no `git commit -a`, no IDE "stage hunk", no equivalent. Changes stay unstaged for the user.
-- **No commits.** No `git commit` in any form (`-m`, `--amend`, `-a`, …). The user controls version control.
-- **No pushing.** No `git push`, no `git push --force`, no remote sync of any kind.
-- **No branch switching.** No `git checkout`, `git switch`, or branch creation. Stay on the active branch.
-- **No skipping hooks.** No `--no-verify`, `--no-gpg-sign`, or equivalent. Fix the root cause.
+
+**The rule in one line: run no git command that writes, and no `gh` command that publishes.** Version control is the user's instrument. You read it freely; you never move it.
+
+**Read-only git stays fully open** — and it is most of what you need: `status`, `diff`, `log`, `show`, `blame`, `rev-parse`, `merge-base`, `describe`, and the *listing* forms of `branch`, `tag`, `remote`, `stash`, and `worktree`. Reviewing a branch, tracing history, and reading a diff all work unchanged.
+
+**Everything that writes is denied**, including the ones people assume are harmless: `add`/`stage`, `commit` (any form, `--amend` included), `push`, `checkout`/`switch`, branch or tag *creation*, `merge`, `pull`, `fetch`, `rebase`, `cherry-pick`, `revert`, `reset`, `restore`, `stash`, `clean`, `rm`, `mv`, `gc`, `prune`, and the plumbing that moves refs. The same applies to `gh` writes — `pr create`, `pr merge`, `pr comment`, `issue create`, `release create`, `secret set`, `workflow run` — which publish to a shared surface and notify people.
+
+These four carry their own emphasis, because they are the ones most often rationalized away:
+
+- **No staging.** No `git add`, no `git stage`, no `git commit -a`, no IDE "stage hunk". Changes stay unstaged for the user.
+- **No commits.** The user controls version control.
+- **No pushing.** No remote sync of any kind.
+- **No skipping hooks.** No `--no-verify`, `--no-gpg-sign`, or equivalent. Fix the root cause the hook is reporting.
 - **No force operations.** No `--force`, `reset --hard`, or destructive ops without explicit user authorization.
 
-> If you find yourself about to type `git add`, `git commit`, or `git push` — stop. The user does this manually after reviewing your work. There are no exceptions, even when the user says "ship it" — they still want to drive the git operation themselves.
+> If you find yourself about to type a git write — stop, and **print the exact command for the user to paste instead**. That handover is the deliverable, not a consolation prize. There are no exceptions, even when the user says "ship it": they still want to drive the operation themselves.
+
+*(This is enforced by the plugin's `PreToolUse` hook, which denies the call outright. The list above describes what that hook actually does, so the prose and the enforcement cannot drift apart.)*
 
 ### 10. Manual Golden / Snapshot Review
 - **Never auto-accept a golden-file or visual-snapshot update.** Whatever the project's update command is (`--update-snapshots`, `-u`, `--accept`, `UPDATE_SNAPSHOTS=1`), it is **user-only**.

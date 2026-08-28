@@ -1,6 +1,6 @@
 ---
 name: deployment-architect
-description: Take a reviewed change set to production safely. Use when the user wants to deploy, ship, release, cut a version, promote to staging or prod, or roll back. Covers the readiness gate, release preparation (version, changelog, notes), the pre-flight risk pass (config and secrets, migrations, assets and caching, external origins, feature flags), a rollback plan written before deploying, post-deploy verification against the real environment, and the blind spots a green pipeline cannot cover. Stack-agnostic — resolves targets and commands from the Project Profile. Prepares and verifies; never fires an irreversible deploy without explicit confirmation.
+description: Take a reviewed change set to production safely. Use when the user wants to deploy, ship, release, cut a version, promote to staging or prod, or roll back. Covers the readiness gate, release preparation (version, changelog, notes), the pre-flight risk pass (config and secrets, migrations, assets and caching, external origins, feature flags), a rollback plan written before deploying, post-deploy verification against the real environment, and the blind spots a green pipeline cannot cover. Stack-agnostic — resolves targets and commands from the Project Profile. Prepares and verifies, then hands over a copy-paste runbook; never fires a deploy, migration, publish, or rollback itself.
 argument-hint: "[target env] [+ modifiers: prepare only | deploy it | rollback | skip gates]"
 disable-model-invocation: true
 ---
@@ -22,9 +22,9 @@ disable-model-invocation: true
 
 ## Operational Constraints (Strict)
 
-1. **Git and golden-file guards are enforced by the plugin's PreToolUse hook**, not merely stated here (Guidelines §9, §10). A `git add` / `commit` / `push` / branch operation, a `--no-verify`, or a snapshot-update command is **denied by the runtime**. Files stay unstaged and visual diffs stay the user's to review. That includes **release tags** — a tag is still a git write the user owns. Produce the command; they run it.
-2. **Never fire an irreversible action unasked.** Deploying, promoting, publishing a package, running a migration against a shared database, and rotating a secret are **outward-facing and hard to undo.** Each requires explicit confirmation *in this session*, naming the target environment. Approval to deploy staging is never approval to deploy production.
-3. **Reversible work proceeds freely** — production builds, artifact inspection, config diffing, dry runs, health checks, reading logs. Do these without asking.
+1. **Git and golden-file guards are enforced by the plugin's PreToolUse hook**, not merely stated here (Guidelines §9, §10). Any git command that writes — and any `gh` command that publishes — is **denied by the runtime**, as is `--no-verify` and any snapshot-update command. Read-only inspection stays open. Files stay unstaged and visual diffs stay the user's to review. That includes **release tags** — a tag is still a git write the user owns. Produce the command; they run it.
+2. **Never fire an outward-facing action at all — hand it over.** Deploying, promoting, publishing a package, running a migration against a shared database, and rotating a secret are the user's to run, exactly like a git write (Guidelines §9), and for the same reason: they are hard to undo and the person accountable for them should be the person who triggers them. No phrasing unlocks this — not "deploy it", not "just ship it", not a prior approval for another environment. **Your deliverable is the runbook** (§Output Format): what they set, what they run, in what order, and how they know each step worked. This is enforced by the plugin's PreToolUse hook, which denies the call.
+3. **Reversible work proceeds freely** — production builds, artifact inspection, config diffing, dry runs (`terraform plan`, `--dry-run`, `--dry-run=client`), health checks, reading logs. Do these without asking. **This is the half that makes the skill useful rather than merely restrictive:** you can prove the artifact is right, prove the config resolves, and prove the health check answers — you just do not push the button.
 4. **The rollback plan is written before the deploy, not after.** A deploy with no stated way back is not ready, regardless of how green the gates are. This is a hard gate, not advice.
 5. **Never deploy an unreviewed or unverified change set.** If the gates weren't run, say so and stop — or proceed only under an explicit "skip gates" modifier, with the gap named in the brief (Guidelines §15).
 6. **Never invent a command, host, env var, or URL.** Read it from the profile, a config file, or CI. An unknown is a blocking question, not a guess.
@@ -150,17 +150,21 @@ If a one-way door exists and can't be avoided, say so explicitly and let the use
 
 ---
 
-## Phase 5 — Deploy
+## Phase 5 — Handover
 
-1. **Confirm.** State the target environment, what's shipping, and the rollback mechanism, then ask for explicit go-ahead (Constraint 2). Confirmation for one environment never carries to the next.
-2. **Run the sequence** in order, or hand it over if the user drives. Stop on the first failure — do not improvise past a failed deploy step.
-3. **Watch the deploy itself**, not just its exit code: the platform reporting success is not the app being healthy.
+You assemble; the user fires (Constraint 2).
+
+1. **Resolve every placeholder.** A runbook with `<your-project-id>` still in it is not finished work. Read the real value from the profile, a config file, or CI — or mark it as a blocking question (Constraint 6).
+2. **State the target environment and what is shipping**, in one line at the top, so the person pasting cannot be on autopilot about which environment they are in.
+3. **Emit the runbook** in the §Output Format shape: config and secrets first, then one numbered, copy-paste step per command, each with *what it does* and *how you know it worked*, then the rollback plan with its one-way doors named.
+4. **Say what to watch during the deploy**, not just its exit code — the platform reporting success is not the app being healthy. Name the signal.
+5. **Stop.** Do not run the sequence. If a step fails when the user runs it, they come back with the output and you diagnose (`debugging-architect`) — never improvise past a failed deploy step on their behalf.
 
 ---
 
 ## Phase 6 — Post-Deploy Verification
 
-Against the **real environment**, never against local state or a green CI run.
+Runs **after the user reports the deploy landed**, and uses only the reversible checks Constraint 3 already permits — health endpoints, reading logs, exercising a path in a browser or with `curl`. Against the **real environment**, never against local state or a green CI run.
 
 1. **Health check** — the endpoint or signal from the profile.
 2. **The critical path** — actually exercise the thing that matters (log in, load the main screen, submit the core form). One real path beats ten green checks.
@@ -208,19 +212,52 @@ State the verdict plainly: **verified**, **rolled back**, or **watching** with w
 - 🔴 / 🟠 / 🟡 **[Config|Data|Cache|Policy|Runtime|Blast radius] <title>** — <why it matters> → <fix>
 - *(state "no findings" per clean category rather than omitting it)*
 
-## Required Operator Actions
-- <new env var to set in the target, migration to run, cache to purge — or "none">
+## Before you start — config and secrets
 
-## Deploy Sequence
+*Set these in `<environment>` first; the runbook assumes they are present. Names only — values
+are yours to fill, and are never printed here (Constraint 7). This is also where a local `.env`
+gets built: paste the block, fill the right-hand side yourself.*
+
+| Variable | Where it is set | Why this release needs it |
+|---|---|---|
+| `<NAME>` | `<platform dashboard / CI secret / .env>` | `<one line>` |
+
+```bash
+# confirms they landed — expect <N> lines, no blanks
+<the one command that lists the resolved vars in the target>
 ```
-<exact commands, in order>
+
+Other prerequisites: `<migration to run, cache to purge, DNS record, quota raise — or "none">`
+
+## Runbook — you run these
+
+*One step per block, in order. Copy a block, run it, check the "verify" line, move on.
+Nothing here has been executed for you (Constraint 2).*
+
+**1. `<what this step does, in the user's words>`**
+```bash
+<exact command, no placeholders left>
 ```
+*Verify:* `<the observable that says it worked>` · *If it fails:* `<stop / rerun / go to rollback>`
+
+**2. `<…>`**
+```bash
+<exact command>
+```
+*Verify:* `<…>` · *If it fails:* `<…>`
 
 ## Rollback Plan
-- **Trigger:** <signal + threshold>
-- **Mechanism:** `<exact command>`
-- **Time to recover:** <realistic estimate>
-- **Does NOT undo:** <migrations, sent mail, charges, client caches — or "nothing, fully reversible">
+
+*Read this before step 1, not after step 4.*
+
+- **Trigger:** <signal + threshold — decided now, before the pressure>
+- **Time to recover:** <realistic estimate from decision to restored service>
+
+```bash
+<the exact rollback command, copy-ready>
+```
+
+- **Does NOT undo:** <migrations, sent mail, charges, client-side caches — or "nothing, fully reversible">
 
 ## Post-Deploy Verification
 1. <health check>
@@ -229,8 +266,9 @@ State the verdict plainly: **verified**, **rolled back**, or **watching** with w
 4. <watch window: what and how long>
 
 ## Guards
-- No `git add`, `commit`, `push`, or `tag` was run — release tagging is user-only.
-- <deploy fired with explicit confirmation for `<env>` / not fired, awaiting go-ahead>
+- No git command that writes was run — staging, committing, pushing, and release tagging are user-only.
+- Nothing above was executed. Deploys, migrations, publishes, and rollbacks are yours to fire (Constraint 2).
+- <reversible checks actually run: production build / config diff / dry run / health check — or "none yet">
 ```
 
 ---
@@ -240,7 +278,7 @@ State the verdict plainly: **verified**, **rolled back**, or **watching** with w
 Invoked with "roll back". Skip straight to it — the readiness gate is irrelevant when something is already broken.
 
 1. **State the current symptom** in one line. Don't diagnose first; restore first.
-2. **Execute the rollback mechanism** from the plan (or resolve it now if none exists).
+2. **Hand over the rollback command** from the plan — resolved, copy-ready, one step (or resolve it now if no plan exists). A rollback is a production write, so it is the user's to run under Constraint 2; speed comes from the command already being correct, not from you typing it.
 3. **Verify recovery** with the same health check and critical path.
 4. **Name what rollback did not undo** and what still needs manual repair.
 5. **Only then** investigate cause. Write the finding into the changelog and, if it's a recurring class, into the profile's blind spots so the next release checks for it.
@@ -257,8 +295,9 @@ Invoked with "roll back". Skip straight to it — the readiness gate is irreleva
 - [ ] Migration reversibility and ordering assessed; backup/restore point confirmed where state changes.
 - [ ] Cache and service-worker behavior considered — including its effect on rollback.
 - [ ] Rollback plan written **before** deploying, with the one-way doors named honestly.
-- [ ] Explicit confirmation obtained for this specific environment before anything irreversible ran.
-- [ ] Post-deploy verification run against the real environment, including one real user path.
+- [ ] Nothing outward-facing was executed — the deploy, migration, publish, or rollback was handed over as a runbook (Constraint 2).
+- [ ] Every runbook step is copy-ready: no unresolved placeholder, each with what it does and how the user knows it worked.
+- [ ] Post-deploy verification run against the real environment *after the user reported it landed*, including one real user path.
 - [ ] Verdict stated plainly: verified / rolled back / watching.
 - [ ] **No `git add`, `commit`, `push`, or `tag`** — every git operation left to the user.
 
@@ -267,8 +306,8 @@ Invoked with "roll back". Skip straight to it — the readiness gate is irreleva
 ## When to Use This Skill
 
 - After `code-review-architect` passes and `rolling-history` has logged the change — the last stage of the pipeline.
-- To assess readiness *without* deploying ("prepare only") — useful well before the release, when findings are still cheap to fix.
-- To roll back a release that's misbehaving.
+- To assess readiness well before the release, when findings are still cheap to fix. (Every run is "prepare only" — this skill never deploys.)
+- To produce the rollback command for a release that's misbehaving, fast and correct, for the user to run.
 - To write the Deployment section of a Project Profile for a project that has never documented how it ships.
 
 ---
@@ -283,4 +322,4 @@ Invoked with "roll back". Skip straight to it — the readiness gate is irreleva
 
 ---
 
-_Skill Version: v1.0 — New skill closing the pipeline. Framework- and platform-agnostic: hosting model, environments, deploy mechanism, rollback mechanism, and health checks all resolve from the Project Profile §Deployment, and an unanswerable row is a blocking question rather than a guess. Structured around the four things a green pipeline structurally cannot see — per-environment config, pre-existing data, caches that outlive the deploy, and the absence of a way back — with the rollback plan as a hard gate written before deploying and its one-way doors named explicitly. Inherits the pack's git guards including release tags, and treats deploying, publishing, migrating shared state, and rotating secrets as outward-facing actions needing per-environment confirmation._
+_Skill Version: v1.0 — New skill closing the pipeline. Framework- and platform-agnostic: hosting model, environments, deploy mechanism, rollback mechanism, and health checks all resolve from the Project Profile §Deployment, and an unanswerable row is a blocking question rather than a guess. Structured around the four things a green pipeline structurally cannot see — per-environment config, pre-existing data, caches that outlive the deploy, and the absence of a way back — with the rollback plan as a hard gate written before deploying and its one-way doors named explicitly. Inherits the pack's git guards including release tags, and treats deploying, publishing, migrating shared state, and rotating secrets as actions the user fires — this skill assembles the runbook and never pushes the button, enforced by the plugin's `guard-outward.sh` hook rather than stated as advice._

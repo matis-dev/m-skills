@@ -20,6 +20,18 @@ cd "$PROJECT" 2>/dev/null || exit 0
 PROFILE=".claude/PROJECT-PROFILE.md"
 OPTOUT=".claude/.m-skills-no-bootstrap"
 
+# Fingerprint of the inputs a profile is derived from. Used by BOTH paths: the
+# drift check compares it against the marker in an existing profile, and the
+# draft writer stamps it so that check has something to compare against later.
+# $1 is the package.json script list (may be empty).
+m_skills_fingerprint() {
+  printf '%s' "$(printf '%s|' "$1" \
+    "$(ls package.json Makefile pyproject.toml Cargo.toml go.mod 2>/dev/null | sort | tr '\n' ' ')" \
+    "$(ls CHANGELOG.md README.md docs/*.md Documentation/*.md 2>/dev/null | sort | tr '\n' ' ')" \
+    "$(ls Dockerfile vercel.json netlify.toml fly.toml Procfile serverless.yml 2>/dev/null | sort | tr '\n' ' ')")" \
+  | cksum | cut -d' ' -f1
+}
+
 # ── Silence conditions ────────────────────────────────────────────────────────
 [ -f "$OPTOUT" ] && exit 0
 
@@ -63,11 +75,7 @@ EOF
 
   # 2. FINGERPRINT (cheap change-detection). Hash the inputs the profile was derived
   #    from. Different hash = something it depends on moved; re-verify it.
-  FP_INPUT="$(printf '%s|' "$PKG_SCRIPTS" \
-    "$(ls package.json Makefile pyproject.toml Cargo.toml go.mod 2>/dev/null | sort | tr '\n' ' ')" \
-    "$(ls CHANGELOG.md README.md docs/*.md Documentation/*.md 2>/dev/null | sort | tr '\n' ' ')" \
-    "$(ls Dockerfile vercel.json netlify.toml fly.toml Procfile serverless.yml 2>/dev/null | sort | tr '\n' ' ')")"
-  FP_NOW="$(printf '%s' "$FP_INPUT" | cksum | cut -d' ' -f1)"
+  FP_NOW="$(m_skills_fingerprint "$PKG_SCRIPTS")"
   FP_OLD="$(grep -oE '<!-- m-skills-fingerprint: [0-9]+ -->' "$PROFILE" 2>/dev/null | grep -oE '[0-9]+' | head -1)"
   if [ -n "$FP_OLD" ] && [ "$FP_OLD" != "$FP_NOW" ]; then
     DRIFT="$DRIFT
@@ -238,8 +246,16 @@ esac
 WROTE=""
 if [ "${M_SKILLS_AUTOPROFILE:-0}" = "1" ]; then
   mkdir -p .claude
+  DRAFT_PKG_SCRIPTS=""
+  if [ -f package.json ] && command -v node >/dev/null 2>&1; then
+    DRAFT_PKG_SCRIPTS="$(node -e "const s=require('./package.json').scripts||{};console.log(Object.keys(s).join('\n'))" 2>/dev/null)"
+  fi
+  FP_NOW="$(m_skills_fingerprint "$DRAFT_PKG_SCRIPTS")"
   {
     echo "# Project Profile"
+    # The drift check above looks for this marker; a draft without one can never
+    # report fingerprint drift. Re-record it whenever the profile is edited.
+    echo "<!-- m-skills-fingerprint: $FP_NOW -->"
     echo
     echo "> Draft written by the m-skills SessionStart bootstrap on $(date +%Y-%m-%d)."
     echo "> Rows below the divider are DETECTED facts. Rows marked TODO need someone to read the code."
