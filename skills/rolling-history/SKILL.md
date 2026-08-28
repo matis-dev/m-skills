@@ -103,7 +103,7 @@ Display in chat. **Never run any git command.** This is text the user copies.
 
 ## Guardrails
 
-- **Run no git command that mutates anything** — no `add`, `commit`, `push`, `tag`, `checkout`. Read-only inspection (`diff`, `log`, `status`) is fine. This skill produces text; the user runs the command.
+- **Git and golden-file guards are enforced by the plugin's PreToolUse hook**, not merely stated here (Guidelines §9, §10). A `git add` / `commit` / `push` / branch operation, a `--no-verify`, or a snapshot-update command is **denied by the runtime**. Files stay unstaged and visual diffs stay the user's to review. Read-only inspection (`diff`, `log`, `status`) is fine and is what this skill runs. It produces commit text; the user runs the command.
 - **Never invent history.** If a change's purpose is unclear, ask. Fabricated rationale in a changelog outlives everyone who could correct it (Guidelines §15).
 - **Never let the baseline drift.** It is a current-state summary, not an archive.
 - **Never pad the doc-impact assessment.** Most sessions reach no secondary doc; saying so is the correct answer, not a lazy one.

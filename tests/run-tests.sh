@@ -47,7 +47,7 @@ grep -qE '^1\. \*\*Never bundle an upgrade with a refactor' "$ROOT/skills/mainte
   && ok "maintenance keeps the no-bundling rule" || bad "maintenance keeps the no-bundling rule"
 grep -qE '^4\. \*\*The rollback plan is written before the deploy' "$ROOT/skills/deployment-architect/SKILL.md" \
   && ok "deployment keeps rollback-before-deploy" || bad "deployment keeps rollback-before-deploy"
-grep -qE '^5\. \*\*Never weaken a test' "$ROOT/skills/testing-architect/SKILL.md" \
+grep -qE '^3\. \*\*Never weaken a test' "$ROOT/skills/testing-architect/SKILL.md" \
   && ok "testing keeps the never-weaken rule" || bad "testing keeps the never-weaken rule"
 grep -qE '^1\. \*\*Document what exists, not what is planned' "$ROOT/skills/documentation-architect/SKILL.md" \
   && ok "docs keep the document-what-exists rule" || bad "docs keep the document-what-exists rule"
@@ -166,6 +166,36 @@ fi
 for s in "$ROOT"/scripts/*.sh "$ROOT"/skills/*/*.sh "$ROOT"/tests/*.sh; do
   bash -n "$s" 2>/dev/null && ok "parses: ${s#$ROOT/}" || bad "parses: ${s#$ROOT/}"
 done
+
+# every hook script named in hooks.json must exist and parse
+HOOKS_JSON="$ROOT/hooks/hooks.json"
+if command -v jq >/dev/null 2>&1; then
+  jq empty "$HOOKS_JSON" 2>/dev/null && ok "hooks.json is valid JSON" || bad "hooks.json is valid JSON"
+  for s in $(jq -r '.hooks[][].hooks[].args[0]' "$HOOKS_JSON" 2>/dev/null | sed 's|${CLAUDE_PLUGIN_ROOT}/||' | sort -u); do
+    [ -f "$ROOT/$s" ] && ok "hook script exists: $s" || bad "hook script exists: $s"
+    bash -n "$ROOT/$s" 2>/dev/null && ok "hook script parses: $s" || bad "hook script parses: $s"
+  done
+  # the enforcement claim the skills now make must be wired to a real event
+  assert_contains "git guard wired to PreToolUse" "$(jq -r '.hooks.PreToolUse[].hooks[].args[0]' "$HOOKS_JSON")" "guard-mutations.sh"
+  assert_contains "preamble wired to UserPromptExpansion" "$(jq -r '.hooks.UserPromptExpansion[].hooks[].args[0]' "$HOOKS_JSON")" "skill-preamble.sh"
+else
+  skip "hooks.json wiring" "jq not installed"
+fi
+
+# guards must fail closed, advisories must fail open — asserted on the source,
+# because a hook that silently allows is indistinguishable from one that passed
+for g in guard-mutations guard-outward guard-secrets; do
+  grep -q 'guard_require_json_engine' "$ROOT/scripts/$g.sh" \
+    && ok "$g fails closed without a JSON engine" || bad "$g fails closed without a JSON engine"
+done
+for a in skill-preamble warn-test-weakening advise-propagation; do
+  grep -q 'advisory_require_json_engine' "$ROOT/scripts/$a.sh" \
+    && ok "$a fails open without a JSON engine" || bad "$a fails open without a JSON engine"
+done
+
+# the skills must point at the hook rather than restating the rule
+grep -q 'enforced by the plugin' "$ROOT/skills/implementing-architect/SKILL.md" \
+  && ok "implementing cites the hook, not a restatement" || bad "implementing cites the hook, not a restatement"
 
 # ─────────────────────────────────────────────────────────────────────────────
 section "2. Behaviour — check-quality.sh gate resolution"
@@ -337,7 +367,148 @@ assert_contains "global flag activates" "$(run_ad)" "all projects"
 rm "$TMP/home/.claude/.m-skills-adhd-always"
 
 # ─────────────────────────────────────────────────────────────────────────────
-section "5. Eval — model in the loop (opt-in)"
+section "5. Behaviour — the enforcement hooks"
+
+# These are the assertions that matter most in the pack: the rules they cover used
+# to live only in prose, so a regression here silently returns the pack to the state
+# where §9 was restated eleven times and enforced zero times.
+
+if ! command -v jq >/dev/null 2>&1 && ! command -v python3 >/dev/null 2>&1; then
+  skip "hook behaviour" "neither jq nor python3 available"
+else
+
+# Isolate the hooks' per-session state so one run cannot silence the next.
+export CLAUDE_SESSION_ID="test-$$"
+export CLAUDE_PROJECT_DIR="$TMP/hookproj"
+export CLAUDE_CONFIG_DIR="$TMP/hookconfig"
+mkdir -p "$CLAUDE_PROJECT_DIR/.claude" "$CLAUDE_CONFIG_DIR"
+
+esc() { printf '%s' "$1" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))'; }
+
+# decision <script> <json-payload> → "deny" | "ask" | "block" | "allow"
+decision() {
+  local out
+  out="$(printf '%s' "$2" | bash "$ROOT/scripts/$1" 2>/dev/null)"
+  [ -z "$out" ] && { echo allow; return; }
+  printf '%s' "$out" | python3 -c '
+import json,sys
+try: d = json.load(sys.stdin)
+except Exception: print("allow"); sys.exit()
+h = d.get("hookSpecificOutput") or {}
+print(h.get("permissionDecision") or d.get("decision") or "allow")
+' 2>/dev/null || echo allow
+}
+bash_payload()  { printf '{"tool_name":"Bash","tool_input":{"command":%s}}' "$(esc "$1")"; }
+write_payload() { printf '{"tool_name":"%s","tool_input":{"file_path":%s}}' "$1" "$(esc "$2")"; }
+edit_payload()  { printf '{"tool_name":"Edit","tool_input":{"file_path":%s,"old_string":%s,"new_string":%s}}' "$(esc "$1")" "$(esc "$2")" "$(esc "$3")"; }
+
+expect() { # <label> <expected> <actual>
+  if [ "$2" = "$3" ]; then ok "$1"; else bad "$1" "expected $2, got $3"; fi
+}
+
+# ── §9 git guards. The four chained/flag forms are the class the prefix-matching
+#    deny list in settings.template.json cannot see, which is why this hook exists.
+expect "deny: git commit"              deny  "$(decision guard-mutations.sh "$(bash_payload 'git commit -m x')")"
+expect "deny: git -C <path> push"      deny  "$(decision guard-mutations.sh "$(bash_payload 'git -C /tmp/x push')")"
+expect "deny: git add behind &&"       deny  "$(decision guard-mutations.sh "$(bash_payload 'cd foo && git add .')")"
+expect "deny: git push inside bash -c" deny  "$(decision guard-mutations.sh "$(bash_payload 'bash -c "git push --force"')")"
+expect "deny: --git-dir= form"         deny  "$(decision guard-mutations.sh "$(bash_payload 'git --git-dir=/r/.git commit -m y')")"
+expect "deny: --no-verify anywhere"    deny  "$(decision guard-mutations.sh "$(bash_payload 'pre-commit run --no-verify')")"
+expect "deny: git reset --hard"        deny  "$(decision guard-mutations.sh "$(bash_payload 'git reset --hard HEAD~1')")"
+
+# read-only git must survive, or the review and history skills stop working
+expect "allow: git status"             allow "$(decision guard-mutations.sh "$(bash_payload 'git status')")"
+expect "allow: git diff HEAD"          allow "$(decision guard-mutations.sh "$(bash_payload 'git diff HEAD')")"
+expect "allow: git log --oneline"      allow "$(decision guard-mutations.sh "$(bash_payload 'git log --oneline -20')")"
+expect "allow: git show"               allow "$(decision guard-mutations.sh "$(bash_payload 'git show HEAD:file.ts')")"
+
+# listing forms are read-only and must survive — denying them is the over-block
+# that sends people to the opt-out, which would disarm the guard entirely
+expect "deny: git branch <name>"       deny  "$(decision guard-mutations.sh "$(bash_payload 'git branch feature/x')")"
+expect "deny: git branch -D"           deny  "$(decision guard-mutations.sh "$(bash_payload 'git branch -D old')")"
+expect "deny: git tag <name>"          deny  "$(decision guard-mutations.sh "$(bash_payload 'git tag v1.0')")"
+expect "deny: git remote add"          deny  "$(decision guard-mutations.sh "$(bash_payload 'git remote add origin url')")"
+expect "deny: git stash (bare)"        deny  "$(decision guard-mutations.sh "$(bash_payload 'git stash')")"
+expect "deny: git stash pop"           deny  "$(decision guard-mutations.sh "$(bash_payload 'git stash pop')")"
+expect "allow: git branch (list)"      allow "$(decision guard-mutations.sh "$(bash_payload 'git branch')")"
+expect "allow: git branch -a"          allow "$(decision guard-mutations.sh "$(bash_payload 'git branch -a')")"
+expect "allow: git branch --show-current" allow "$(decision guard-mutations.sh "$(bash_payload 'git branch --show-current')")"
+expect "allow: git tag -l"             allow "$(decision guard-mutations.sh "$(bash_payload 'git tag -l')")"
+expect "allow: git remote -v"          allow "$(decision guard-mutations.sh "$(bash_payload 'git remote -v')")"
+expect "allow: git stash list"         allow "$(decision guard-mutations.sh "$(bash_payload 'git stash list')")"
+expect "allow: git rev-parse"          allow "$(decision guard-mutations.sh "$(bash_payload 'git rev-parse --show-toplevel')")"
+
+# ── §10 golden updates
+expect "deny: --update-snapshots"      deny  "$(decision guard-mutations.sh "$(bash_payload 'npx playwright test --update-snapshots')")"
+expect "deny: jest -u"                 deny  "$(decision guard-mutations.sh "$(bash_payload 'jest -u')")"
+expect "deny: UPDATE_SNAPSHOTS=1"      deny  "$(decision guard-mutations.sh "$(bash_payload 'UPDATE_SNAPSHOTS=1 npm test')")"
+expect "deny: cargo insta accept"      deny  "$(decision guard-mutations.sh "$(bash_payload 'cargo insta accept')")"
+# -u only means snapshots next to a runner that defines it
+expect "allow: curl -u"                allow "$(decision guard-mutations.sh "$(bash_payload 'curl -u user:pass https://x')")"
+expect "allow: plain test run"         allow "$(decision guard-mutations.sh "$(bash_payload 'npm test')")"
+
+# ── catastrophic filesystem operations
+expect "deny: rm -rf ~"                deny  "$(decision guard-mutations.sh "$(bash_payload 'rm -rf ~')")"
+expect "deny: dd of=/dev/sda"          deny  "$(decision guard-mutations.sh "$(bash_payload 'dd if=/dev/zero of=/dev/sda')")"
+expect "allow: scoped rm -rf"          allow "$(decision guard-mutations.sh "$(bash_payload 'rm -rf ./node_modules')")"
+
+# ── H2 outward-facing actions ask, never deny
+expect "ask: npm publish"              ask   "$(decision guard-outward.sh "$(bash_payload 'npm publish')")"
+expect "ask: fly deploy"               ask   "$(decision guard-outward.sh "$(bash_payload 'fly deploy')")"
+expect "ask: kubectl apply"            ask   "$(decision guard-outward.sh "$(bash_payload 'kubectl apply -f k8s/')")"
+expect "allow: terraform plan"         allow "$(decision guard-outward.sh "$(bash_payload 'terraform plan')")"
+
+# ── H5 secrets: writes denied, reads and example files untouched. The example-file
+#    exemption is load-bearing — profile-bootstrap.sh and deployment-architect both
+#    read .env.example, so a guard that blocked it would break the pack itself.
+expect "deny: write .env"              deny  "$(decision guard-secrets.sh "$(write_payload Write '/p/.env')")"
+expect "deny: write .env.production"   deny  "$(decision guard-secrets.sh "$(write_payload Write '/p/.env.production')")"
+expect "deny: write server.pem"        deny  "$(decision guard-secrets.sh "$(write_payload Write '/p/certs/server.pem')")"
+expect "deny: append into .env"        deny  "$(decision guard-secrets.sh "$(bash_payload 'echo "KEY=v" >> .env')")"
+expect "allow: write .env.example"     allow "$(decision guard-secrets.sh "$(write_payload Write '/p/.env.example')")"
+expect "allow: edit .env.sample"       allow "$(decision guard-secrets.sh "$(write_payload Edit '/p/.env.sample')")"
+expect "allow: read .env via cat"      allow "$(decision guard-secrets.sh "$(bash_payload 'cat .env')")"
+expect "allow: write ordinary source"  allow "$(decision guard-secrets.sh "$(write_payload Write '/p/src/app.ts')")"
+
+# ── H4 test weakening: only a NEWLY introduced marker fires
+expect "block: spec gains it.skip"     block "$(decision warn-test-weakening.sh "$(edit_payload 'src/a.spec.ts' 'it("x", () => {})' 'it.skip("x", () => {})')")"
+expect "block: spec gains .only"       block "$(decision warn-test-weakening.sh "$(edit_payload 'src/a.spec.ts' 'it("x", () => {})' 'it.only("x", () => {})')")"
+expect "allow: spec edit, no marker"   allow "$(decision warn-test-weakening.sh "$(edit_payload 'src/a.spec.ts' 'it("x", () => {})' 'it("y", () => {})')")"
+expect "allow: spec LOSES a skip"      allow "$(decision warn-test-weakening.sh "$(edit_payload 'src/a.spec.ts' 'it.skip("x", () => {})' 'it("x", () => {})')")"
+expect "allow: skip in non-test file"  allow "$(decision warn-test-weakening.sh "$(edit_payload 'src/a.ts' 'a' 'it.skip("x")')")"
+
+# ── H6 propagation: fires once per file per session, silent elsewhere
+expect "block: models/ first edit"     block "$(decision advise-propagation.sh "$(edit_payload 'src/models/user.ts' 'a' 'b')")"
+expect "allow: models/ second edit"    allow "$(decision advise-propagation.sh "$(edit_payload 'src/models/user.ts' 'b' 'c')")"
+expect "block: schema.prisma"          block "$(decision advise-propagation.sh "$(edit_payload 'prisma/schema.prisma' 'a' 'b')")"
+expect "allow: ordinary util file"     allow "$(decision advise-propagation.sh "$(edit_payload 'src/utils/format.ts' 'a' 'b')")"
+expect "allow: a test file"            allow "$(decision advise-propagation.sh "$(edit_payload 'src/models/user.spec.ts' 'a' 'b')")"
+
+# ── H3 preamble: this pack's skills only, and it must carry the resolved gates
+out="$(printf '{"hook_event_name":"UserPromptExpansion","command_name":"m-skills:testing-architect"}' | bash "$ROOT/scripts/skill-preamble.sh" 2>/dev/null)"
+assert_contains "preamble injects gate resolution" "$out" "Gate resolution"
+assert_contains "preamble injects §9"              "$out" "Inherited Guards"
+assert_contains "preamble names the skill"         "$out" "testing-architect"
+out="$(printf '{"hook_event_name":"UserPromptExpansion","command_name":"some-other-plugin:thing"}' | bash "$ROOT/scripts/skill-preamble.sh" 2>/dev/null)"
+assert_empty "preamble silent for other plugins" "$out"
+out="$(printf '{"hook_event_name":"UserPromptExpansion","command_name":"m-skills:guidelines-meta"}' | bash "$ROOT/scripts/skill-preamble.sh" 2>/dev/null)"
+assert_empty "preamble silent for guidelines-meta itself" "$out"
+
+# ── the opt-out must release every guard, or the pack is unusable for anyone who
+#    wants Claude to touch git at all
+touch "$CLAUDE_PROJECT_DIR/.claude/.m-skills-no-guards"
+expect "opt-out releases git guard"     allow "$(decision guard-mutations.sh "$(bash_payload 'git commit -m x')")"
+expect "opt-out releases secret guard"  allow "$(decision guard-secrets.sh "$(write_payload Write '/p/.env')")"
+expect "opt-out releases outward gate"  allow "$(decision guard-outward.sh "$(bash_payload 'npm publish')")"
+rm -f "$CLAUDE_PROJECT_DIR/.claude/.m-skills-no-guards"
+expect "guard re-arms once flag is gone" deny "$(decision guard-mutations.sh "$(bash_payload 'git commit -m x')")"
+
+rm -rf "${TMPDIR:-/tmp}/m-skills-$(id -u 2>/dev/null || echo 0)/$CLAUDE_SESSION_ID"
+unset CLAUDE_SESSION_ID CLAUDE_PROJECT_DIR CLAUDE_CONFIG_DIR
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────
+section "6. Eval — model in the loop (opt-in)"
 
 if [ "${RUN_EVALS:-0}" != "1" ]; then
   skip "behavioural evals" "set RUN_EVALS=1 to run; costs tokens"

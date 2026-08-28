@@ -21,16 +21,15 @@ disable-model-invocation: true
 ## Operational Constraints (Strict)
 
 1. **Read-only.** Writes no production code. May read freely and run gates; every fix is the user's call.
-2. **No staging, commits, pushes, branching, force ops, or `--no-verify`** (Guidelines §9). Restate inside the review output.
-3. **No auto golden/snapshot updates.** Visual diffs are deferred to manual user review.
-4. **No scope creep in findings.** Comment only on the change set unless an issue *outside* the diff is directly load-bearing for it. If you stray, label it `[OUT-OF-DIFF]` and justify in one line.
-5. **Cite, don't recite.** Every finding carries a `path/to/file:42` reference. No floating "consider improving X".
-6. **Tests evaluated via Testing Architect**; **UI evaluated via Design Architect.** Don't invent ad-hoc critique in either domain.
-7. **Confidence gate — report only what you're sure of.** Before listing a finding, self-score your confidence that it is real, introduced by this change set, and worth the user's attention (0 = probable false positive, 100 = certain). **Post only findings you'd rate ≥ 80.** Below that, drop it silently rather than padding — a noisy review trains the user to ignore it.
+2. **Git and golden-file guards are enforced by the plugin's PreToolUse hook**, not merely stated here (Guidelines §9, §10). A `git add` / `commit` / `push` / branch operation, a `--no-verify`, or a snapshot-update command is **denied by the runtime**. Files stay unstaged and visual diffs stay the user's to review. Restate the guard inside the review output.
+3. **No scope creep in findings.** Comment only on the change set unless an issue *outside* the diff is directly load-bearing for it. If you stray, label it `[OUT-OF-DIFF]` and justify in one line.
+4. **Cite, don't recite.** Every finding carries a `path/to/file:42` reference. No floating "consider improving X".
+5. **Tests evaluated via Testing Architect**; **UI evaluated via Design Architect.** Don't invent ad-hoc critique in either domain.
+6. **Confidence gate — report only what you're sure of.** Before listing a finding, self-score your confidence that it is real, introduced by this change set, and worth the user's attention (0 = probable false positive, 100 = certain). **Post only findings you'd rate ≥ 80.** Below that, drop it silently rather than padding — a noisy review trains the user to ignore it.
    **Do not report** (false positives, not findings): a pre-existing issue the diff didn't introduce (unless `[OUT-OF-DIFF]` load-bearing); code that *looks* buggy but is functionally correct; pedantic nitpicks with no behavioral or maintainability cost; anything the linter already catches; a line carrying an explicit "safe because …" justification that actually holds.
    Correctness/security items you're under 80 on **but that would be severe if true**: don't drop them — list under a short **"Worth a second look (unverified)"** note, kept separate from the scored findings.
-8. **Every number is real** (Guidelines §15). Coverage percentages, advisory counts, and line references come from output you actually saw.
-9. **Bounded** (Guidelines §16). One gate batch, one diff pass, one synthesis. Don't re-read the diff hunting for a fifth Medium.
+7. **Every number is real** (Guidelines §15). Coverage percentages, advisory counts, and line references come from output you actually saw.
+8. **Bounded** (Guidelines §16). One gate batch, one diff pass, one synthesis. Don't re-read the diff hunting for a fifth Medium.
 
 ---
 

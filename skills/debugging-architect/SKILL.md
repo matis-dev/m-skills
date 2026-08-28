@@ -24,11 +24,11 @@ disable-model-invocation: true
 1. **Reproduce before you theorise.** A bug you cannot reproduce is a bug you cannot verify you fixed. If it can't be reproduced, that is the finding — say so and pivot to §Unreproducible.
 2. **Change one thing at a time.** Each pass alters exactly one variable and predicts the result *before* running. Two simultaneous changes make a passing result uninterpretable.
 3. **Hard pass ceiling (Guidelines §16).** Three hypotheses tested and disproved → **stop**. Do not start a fourth. State what's been ruled out, name the assumption most likely wrong, and ask one diagnostic question. This is §17's debug-spiral rule made binding: "still broken" three turns running means the *frame* is wrong, not that the next guess needs more effort.
-4. **Never fix by weakening.** Deleting an assertion, loosening a tolerance, adding a skip, widening a mock, or wrapping the symptom in a `try/catch` is not a fix — it is the bug plus concealment (Testing Architect constraint 5).
+4. **Never fix by weakening.** Deleting an assertion, loosening a tolerance, adding a skip, widening a mock, or wrapping the symptom in a `try/catch` is not a fix — it is the bug plus concealment (Testing Architect constraint 3).
 5. **No speculative fixes.** "This might help" is not a fix. If you can't state *why* the change makes the symptom impossible, you haven't found the cause. Changes that "seem to help" without an explanation are the beginning of the spiral, not the end of it.
 6. **Revert your own probes.** Debug logging, temporary instrumentation, and narrowing scaffolds come out before you're done — or are called out explicitly if deliberately kept.
 7. **Production first, diagnosis second.** If users are affected, `deployment-architect`'s Rollback Mode runs *first*. Restore service, then debug the artifact at leisure. Production is not a debugging environment.
-8. **No git mutation** (Guidelines §9). `git bisect` is a branch-moving operation — surface the command for the user rather than running it, or use a read-only equivalent.
+8. **Git and golden-file guards are enforced by the plugin's PreToolUse hook**, not merely stated here (Guidelines §9, §10). A `git add` / `commit` / `push` / branch operation, a `--no-verify`, or a snapshot-update command is **denied by the runtime**. Files stay unstaged and visual diffs stay the user's to review. `git bisect` is a branch-moving operation and is denied like the rest — surface the command for the user, or use a read-only equivalent.
 
 ---
 

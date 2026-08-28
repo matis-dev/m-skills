@@ -208,7 +208,7 @@ Any skill in this pack may be invoked with trailing instructions in plain langua
 |---|---|---|
 | "wait with the testing until I confirm it works", "tests later" | **defer tests** | Implement and run the non-test gates. Author no tests yet. End by naming what still needs test coverage, and state plainly that the change is **not** done. |
 | "skip testing, I already ran it", "tests were handled in another session" | **skip gates** | Don't re-run the gates. Take the user's word for their state and **say so in the output** — "gates not run this session; reported green by the user". Never print a ✅ you didn't observe (§15). |
-| "make sure it runs green", "coverage stays above N", "make the suite pass" | **gates green** | The goal is a passing suite at the stated bar. Fix the code, never the test (Testing Architect constraint 5). If the bar can't be met honestly, stop and say why. |
+| "make sure it runs green", "coverage stays above N", "make the suite pass" | **gates green** | The goal is a passing suite at the stated bar. Fix the code, never the test (Testing Architect constraint 3). If the bar can't be met honestly, stop and say why. |
 | "fix the findings" | **fix findings** | Treat the prior review's findings as the input plan. Fix in severity order, one batch. Report per finding: fixed / skipped + why / no change needed. |
 | "proceed", "go ahead", "implement it" | **proceed** | The approval gate is satisfied for the artifact under discussion. It is **not** approval to stage, commit, or push — §9 still holds absolutely. |
 | "skip the plan", "just do it", trivial one-liner | **no plan** | Skip the plan gate. Say in one line that you skipped it and why. |
