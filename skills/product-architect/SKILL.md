@@ -44,7 +44,7 @@ The upstream path cannot be moved downstream, and pretending otherwise is how sp
 3. **Non-goals are a deliverable, not a courtesy.** Every artifact names what it is *not* doing. Scope containment is most of the value here; a spec with no `Won't` section has not been scoped.
 4. **Slices are vertical.** Every slice delivers observable value end to end. "All the backend, then all the frontend" is not two slices — it is one slice and a half-finished branch (Guidelines §12).
 5. **Never invent a persona, quote, or user need.** If discovery hasn't happened, the persona is an assumption with a name on it, and the artifact says so.
-6. **This skill writes documents and tickets. It never writes code and never touches git** (Guidelines §9).
+6. **This skill writes documents and tickets, never code.** **Git and golden-file guards are enforced by the plugin's PreToolUse hook**, not merely stated here (Guidelines §9, §10). A `git add` / `commit` / `push` / branch operation, a `--no-verify`, or a snapshot-update command is **denied by the runtime**. Files stay unstaged and visual diffs stay the user's to review.
 
 ---
 

@@ -19,11 +19,9 @@ argument-hint: "[target area] [+ modifiers: make gates green | hold coverage]"
 
 ## Operational Constraints (Strict — restated from Guidelines)
 
-1. **No staging, no commits, no pushes** (§9). The user owns version control end-to-end.
-2. **No branching**, no `--no-verify`, no force ops.
-3. **No auto golden/snapshot updates** (§10). Visual diffs are the user's to review.
-4. **Tests are part of the deliverable** (§11) — no "tests TBD", no merge-ready code without paired tests.
-5. **Never weaken a test to make it pass.** Loosening a tolerance, deleting an assertion, adding a skip, or widening a mock to swallow the failure is a defect. Fix the code or surface the disagreement.
+1. **Git and golden-file guards are enforced by the plugin's PreToolUse hook**, not merely stated here (Guidelines §9, §10). A `git add` / `commit` / `push` / branch operation, a `--no-verify`, or a snapshot-update command is **denied by the runtime**. Files stay unstaged and visual diffs stay the user's to review.
+2. **Tests are part of the deliverable** (§11) — no "tests TBD", no merge-ready code without paired tests.
+3. **Never weaken a test to make it pass.** Loosening a tolerance, deleting an assertion, adding a skip, or widening a mock to swallow the failure is a defect. Fix the code or surface the disagreement.
 
 ---
 

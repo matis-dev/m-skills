@@ -22,7 +22,7 @@ disable-model-invocation: true
 
 ## Operational Constraints (Strict)
 
-1. **No git mutation.** No `git add`, `commit`, `push`, `tag`, or branch operation — including release tags (Guidelines §9). A release tag is still a git write the user owns. Produce the command; they run it.
+1. **Git and golden-file guards are enforced by the plugin's PreToolUse hook**, not merely stated here (Guidelines §9, §10). A `git add` / `commit` / `push` / branch operation, a `--no-verify`, or a snapshot-update command is **denied by the runtime**. Files stay unstaged and visual diffs stay the user's to review. That includes **release tags** — a tag is still a git write the user owns. Produce the command; they run it.
 2. **Never fire an irreversible action unasked.** Deploying, promoting, publishing a package, running a migration against a shared database, and rotating a secret are **outward-facing and hard to undo.** Each requires explicit confirmation *in this session*, naming the target environment. Approval to deploy staging is never approval to deploy production.
 3. **Reversible work proceeds freely** — production builds, artifact inspection, config diffing, dry runs, health checks, reading logs. Do these without asking.
 4. **The rollback plan is written before the deploy, not after.** A deploy with no stated way back is not ready, regardless of how green the gates are. This is a hard gate, not advice.

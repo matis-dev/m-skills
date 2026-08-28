@@ -25,6 +25,8 @@ read it. A gate that doesn't exist is `n-a`, never invented.
 
 ## Non-negotiable guards
 
+> If you installed the `m-skills` **plugin**, guards 1–3 are enforced by its `PreToolUse` hook — the call is denied by the runtime, not just discouraged here. They stay written out because this file is also the backstop for a copy-the-skills install with no hook wiring. Release all three with `touch .claude/.m-skills-no-guards`.
+
 1. **No git automation.** Never `git add`, `git commit`, `git push`, `git tag`, `git checkout`, `git switch`,
    `--no-verify`, or any force op. Changes stay **unstaged**. This holds even when I say "ship it" — I run the
    git command myself after reviewing.

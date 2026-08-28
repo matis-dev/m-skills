@@ -178,25 +178,28 @@ The verbose prompts you've been pasting still work verbatim — but each maps to
 | What you used to paste | Now |
 |---|---|
 | "Please use /brainstorming-planner skill to help me come up with a clear instruction…" | `/m-skills:brainstorming-planner <the idea>` |
+| "This is a brand-new empty project, please use /brainstorming-planner kickoff to guide the initial setup" | `/m-skills:brainstorming-planner kickoff` |
+| "Here is the prompt from brainstorming, please make an implementation PLAN for it" | `/m-skills:planning-architect <prompt>` |
+| "This plan is too big to ship in one go, please DECOMPOSE it into vertical slices" | `/m-skills:product-architect — decompose` |
 | "PROCEED and IMPLEMENT it… but wait with the testing before I confirm" | `/m-skills:implementing-architect <plan> — tests later` |
 | "Please take this story and IMPLEMENT it" | `/m-skills:implementing-architect <story>` |
+| "Please FIX the findings" | `/m-skills:implementing-architect — fix the findings` |
 | "CODE REVIEW of uncommitted changes… Skip testing, I just finished it in the other session" | `/m-skills:code-review-architect — skip gates` |
 | "Make sure CHECK QUALITY runs green… coverage stays above 80… e2e passes" | `/m-skills:testing-architect — make gates green, hold coverage at 80` |
-| "Please FIX the findings" | `/m-skills:implementing-architect — fix the findings` |
+| "Please use /design-architect to review the UI and audit this screen against the craft floor" | `/m-skills:design-architect <target> — audit` |
+| "Can you threat model this new endpoint and check for authentication or injection risks?" | `/m-skills:security-architect <feature> — model` |
+| "Please fix the SQL injection vulnerability found in review and add a regression test" | `/m-skills:security-architect <finding> — remediate` |
+| "Please audit this modal component to ensure it complies with WCAG 2.2 AA standards" | `/m-skills:accessibility-architect <screen> — audit` |
+| "Here is the axe scan log with accessibility violations, please fix and remediate them" | `/m-skills:accessibility-architect <log> — remediate` |
+| "The login API is failing with a 500 error, please REPRODUCE and DEBUG the root cause" | `/m-skills:debugging-architect <symptom>` |
+| "This test is failing intermittently on CI, please investigate why it's flaky" | `/m-skills:debugging-architect <test> — flaky` |
+| "We have high-severity security advisories from the package audit, please upgrade what's vulnerable" | `/m-skills:maintenance-architect — advisories only` |
+| "The README setup instructions are out of date and broken, please audit the documentation" | `/m-skills:documentation-architect — audit` |
+| "Please write a complete API reference with runnable examples for this module" | `/m-skills:documentation-architect <module> — reference` |
+| "Please check if the release is safe for production, but prepare only and do not deploy yet" | `/m-skills:deployment-architect prod — prepare only` |
+| "Production is throwing errors after the deploy, please ROLL BACK to the previous version" | `/m-skills:deployment-architect — roll back` |
+| "Please audit our site content so AI search and answer engines can properly cite our pages" | `/m-skills:search-optimization-architect — audit` |
 | "Run /rolling-history, skip the tests, already handled" | `/m-skills:rolling-history — skip gates` |
-| *(new)* design or audit a screen | `/m-skills:design-architect <target> — audit` |
-| *(new)* check a release is safe without shipping | `/m-skills:deployment-architect prod — prepare only` |
-| *(new)* something broke in prod | `/m-skills:deployment-architect — roll back` |
-| *(new)* brand-new empty project | `/m-skills:brainstorming-planner kickoff` |
-| *(new)* "why is this failing?" | `/m-skills:debugging-architect <symptom>` |
-| *(new)* a test fails intermittently | `/m-skills:debugging-architect <test> — flaky` |
-| *(new)* security advisory landed | `/m-skills:maintenance-architect — advisories only` |
-| *(new)* "the README lies / nobody can set this up" | `/m-skills:documentation-architect — audit` |
-| *(new)* write the API reference | `/m-skills:documentation-architect <module> — reference` |
-| *(new)* "is this endpoint safe?" | `/m-skills:security-architect <feature> — model` |
-| *(new)* fix a security finding from review | `/m-skills:security-architect <finding> — remediate` |
-| *(new)* axe log with 40 violations | `/m-skills:accessibility-architect <log> — remediate` |
-| *(new)* "are we WCAG AA?" | `/m-skills:accessibility-architect <screen> — audit` |
 
 **The modifier contract:** a modifier narrows scope, never the honesty bar. "Skip gates" means the output says *"gates not run this session; reported green by the user"* — it never prints a ✅ nobody observed. And no phrasing unlocks git: "ship it", "commit it", "just push" all still stop at unstaged files.
 
@@ -221,11 +224,18 @@ These hold in every skill, in every project:
 |---|---|---|
 | `.claude-plugin/plugin.json` | Plugin manifest | stays put — read on install |
 | `.claude-plugin/marketplace.json` | Single-plugin marketplace catalog | stays put — read by `/plugin marketplace add` |
-| `hooks/hooks.json` | Wires both SessionStart hooks | stays put |
+| `hooks/hooks.json` | Wires all eight hooks | stays put |
+| `scripts/lib/hook-json.sh` | Shared hook plumbing — payload parsing, decision emitters, the opt-out check | stays put |
 | `scripts/profile-bootstrap.sh` | Detects the stack when no profile exists yet | stays put |
 | `scripts/adhd-always-on.sh` | Applies the reply protocol session-wide when its flag is set | stays put |
-| `tests/run-tests.sh` | The pack's own test suite — 137 assertions, no dependencies | stays put |
-| `skills/` | The 14 skills | plugin: stays put · copy-mode: → `<project>/.claude/skills/` |
+| `scripts/guard-mutations.sh` | **Denies** git mutations, golden-file updates, catastrophic `rm`/`dd` | stays put |
+| `scripts/guard-outward.sh` | **Asks** before a deploy, publish, migration, or infra apply | stays put |
+| `scripts/guard-secrets.sh` | **Denies** writes into secret-bearing files; reads and `.env.example` untouched | stays put |
+| `scripts/skill-preamble.sh` | Injects the resolved gates + §9/§10/§15/§19 when a pack skill starts | stays put |
+| `scripts/warn-test-weakening.sh` | Flags a newly added `.skip` / `.only` in a test file | stays put |
+| `scripts/advise-propagation.sh` | Prompts the Protocol A sweep when a shared-shape file is edited | stays put |
+| `tests/run-tests.sh` | The pack's own test suite — 255 assertions, no dependencies | stays put |
+| `skills/` | The 16 skills | plugin: stays put · copy-mode: → `<project>/.claude/skills/` |
 | `skills/guidelines-meta/PROJECT-PROFILE.template.md` | The profile the skills fill in as you work | → `<project>/.claude/PROJECT-PROFILE.md` |
 | `CLAUDE.template.md` | Always-on guards, loaded every session | → `<project>/CLAUDE.md` |
 | `settings.template.json` | Permission allowlist + git denylist | → `<project>/.claude/settings.local.json` |
@@ -298,6 +308,61 @@ Only what the repo genuinely cannot say gets asked, and it's a short list: inten
 ### Monorepos
 
 A repo with several packages usually has several *stacks*. The hook enumerates workspace packages (pnpm / turbo / nx / lerna / npm-yarn workspaces / go.work) rather than just noting that a monorepo exists, and the profile carries a §Packages table for what differs. Skills then **resolve the package from the paths they're touching**, read its rows first, and fall back to the shared rows — with a change spanning packages taking the **union** of their constraints, not the loosest. If one package requires an a11y gate, a change touching it runs that gate even though its sibling has none.
+
+### Enforcement: the rules that are no longer advice
+
+Prose in a skill only binds while the model has that file in context. That was fine for
+judgment calls and wrong for the pack's hardest rules: `guidelines-meta` §9 (never stage,
+commit, push, or branch) and §10 (never auto-accept a golden update) were restated across
+28 lines in 11 skill files and enforced **nowhere** — `settings.template.json` is a template
+you copy by hand, and its prefix matching cannot see inside `cd x && git commit`, `git -C .
+push`, or `bash -c "git add ."` anyway.
+
+Six hooks close that gap. Three **guards** decide, three **advisories** inform.
+
+| Hook | Event | Decision | Converts |
+|---|---|---|---|
+| `guard-mutations.sh` | `PreToolUse` · Bash | **deny** | §9 git guards, §10 golden updates, plus `rm -rf /`-class commands |
+| `guard-outward.sh` | `PreToolUse` · Bash | **ask** | `deployment-architect` constraint 2 — deploy, publish, migrate, infra apply |
+| `guard-secrets.sh` | `PreToolUse` · Write/Edit/Bash | **deny** | `security-architect` constraint 5 — writes into `.env`, `*.pem`, `id_rsa`, … |
+| `skill-preamble.sh` | `UserPromptExpansion` + `PostToolUse` · Skill | inject | the resolved gate table and §9/§10/§15/§19, so 16 skills stop re-deriving them |
+| `warn-test-weakening.sh` | `PostToolUse` · Write/Edit | advise | the never-weaken rule — a **newly added** `.skip` / `.only` in a test file |
+| `advise-propagation.sh` | `PostToolUse` · Write/Edit | advise | `implementing-architect` Protocol A, once per shared-shape file per session |
+
+Three properties are deliberate and worth knowing before you rely on them:
+
+- **The guards fail closed; the advisories fail open.** A guard that cannot parse its input
+  denies rather than waving the command through — allowing on failure is exactly the
+  fail-open pattern `code-review-architect` Phase 4 flags under OWASP A10. A missed advisory
+  costs nothing, so it exits quietly.
+- **Reads are never blocked.** `guard-secrets.sh` denies *writes* into `.env`; `cat .env` and
+  every `.env.example` variant stay open in both directions, because `guidelines-meta` §5,
+  `deployment-architect` Phase 0, and `profile-bootstrap.sh` all read the env contract. A
+  guard that blocked reads would break the pack itself.
+- **Read-only git stays open.** `status`, `diff`, `log`, `show`, `blame`, and `rev-parse` are
+  untouched — the review and history skills are built on them.
+
+**Turning it off.** One flag file releases all three guards, per project or globally:
+
+| Flag file | Scope |
+|---|---|
+| `.claude/.m-skills-no-guards` | This project only |
+| `~/.claude/.m-skills-no-guards` | Every project |
+
+Every denial names that file in its reason, so you never have to remember it. The advisories
+respect the same flag; the preamble injection does not, since it is context rather than
+enforcement.
+
+**Dependencies.** The hook scripts need `jq` **or** `python3` — parsing a shell command out of
+JSON with `sed` is how a guard gets bypassed by a quoted newline. Everything else in the pack,
+`tests/run-tests.sh` included, remains bash + coreutils only.
+
+**What deliberately stayed prose.** Hooks that cannot decide correctly are worse than no hook.
+The design craft floor and refuse list judge a *rendered* result, so no script can check them.
+§15 honest output cannot verify a number's provenance. Confidence gates, scoring bands, and
+mode selection are judgment. And a `Stop` hook that re-runs the suite until green was rejected
+outright: it is the open loop §16 forbids, and it overrides the §19 `skip gates` / `tests
+later` modifiers it structurally cannot see.
 
 ### Session-wide reply protocol
 

@@ -1,5 +1,5 @@
 {
-  "description": "Two SessionStart hooks, both silent unless opted in. (1) Detects the project's stack once when no PROJECT-PROFILE.md exists yet and hands Claude verified values to build one from. (2) Applies the guidelines-meta §17 reply protocol session-wide when a flag file is present, including after a context clear.",
+  "description": "m-skills lifecycle hooks. Two SessionStart context hooks (silent unless opted in), three PreToolUse guards enforcing the rules the skills previously only stated, and three advisories. Guards honour .claude/.m-skills-no-guards (project) or the same file in $CLAUDE_CONFIG_DIR (global).",
   "hooks": {
     "SessionStart": [
       {
@@ -35,6 +35,85 @@
             "command": "bash",
             "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/profile-bootstrap.sh"],
             "timeout": 20
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/guard-mutations.sh"],
+            "timeout": 10,
+            "statusMessage": "m-skills: checking git and golden-file guards..."
+          },
+          {
+            "type": "command",
+            "command": "bash",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/guard-outward.sh"],
+            "timeout": 5,
+            "statusMessage": "m-skills: checking for outward-facing actions..."
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit|NotebookEdit|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/guard-secrets.sh"],
+            "timeout": 5,
+            "statusMessage": "m-skills: checking for secret-bearing paths..."
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Skill",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/skill-preamble.sh"],
+            "timeout": 15,
+            "statusMessage": "m-skills: resolving gates and guidelines..."
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/warn-test-weakening.sh"],
+            "timeout": 5,
+            "statusMessage": "m-skills: checking for new skip markers..."
+          },
+          {
+            "type": "command",
+            "command": "bash",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/advise-propagation.sh"],
+            "timeout": 5,
+            "statusMessage": "m-skills: checking for shared-shape edits..."
+          }
+        ]
+      }
+    ],
+    "UserPromptExpansion": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/skill-preamble.sh"],
+            "timeout": 15,
+            "statusMessage": "m-skills: resolving gates and guidelines..."
           }
         ]
       }

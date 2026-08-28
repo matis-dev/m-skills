@@ -20,16 +20,15 @@ disable-model-invocation: true
 ## Operational Constraints (Strict)
 
 1. **No code is written.** This skill produces a plan only.
-2. **No staging, no commits, no pushes, no branching** (Guidelines §9). Restate these inside the plan output too.
-3. **No automatic golden/snapshot updates.** Plans defer them to a manual final stage (Guidelines §10).
-4. **No scope creep.** Every plan item traces to a stated goal; if it doesn't, drop it or push back to the user.
-5. **Confirmation gate is non-negotiable.** The plan ends awaiting approval — implementation never starts inside this skill.
-6. **Tests sourced from Testing Architect.** Fill every `Tests:` line using the `testing-architect` skill. Do not invent ad-hoc test plans.
-7. **UI steps sourced from Design Architect.** Any step with a user-facing surface names its visitor mode and the design-system components used, per the `design-architect` skill.
-8. **Security sourced from Security Architect.** Any step that accepts untrusted input, changes authorization, touches secrets or storage, or adds a dependency names its trust boundary and carries a `[SEC]` tag, per the `security-architect` skill. A feature that crosses no boundary says so explicitly.
-9. **Accessibility sourced from Accessibility Architect.** Any step with an interactive surface names its keyboard map and its accessible name/role, and carries an `[A11Y]` tag, per the `accessibility-architect` skill.
-10. **Per-step model routing is mandatory.** Every step declares a `Model:` line so the user can switch tiers between steps and save tokens.
-11. **Every command in the plan is real.** Read from the profile or a manifest file. An absent gate is written `n-a`, never guessed (Guidelines §15).
+2. **Git and golden-file guards are enforced by the plugin's PreToolUse hook**, not merely stated here (Guidelines §9, §10). A `git add` / `commit` / `push` / branch operation, a `--no-verify`, or a snapshot-update command is **denied by the runtime**. Files stay unstaged and visual diffs stay the user's to review. Restate the guard inside the plan output too, and defer golden updates to a manual final stage.
+3. **No scope creep.** Every plan item traces to a stated goal; if it doesn't, drop it or push back to the user.
+4. **Confirmation gate is non-negotiable.** The plan ends awaiting approval — implementation never starts inside this skill.
+5. **Tests sourced from Testing Architect.** Fill every `Tests:` line using the `testing-architect` skill. Do not invent ad-hoc test plans.
+6. **UI steps sourced from Design Architect.** Any step with a user-facing surface names its visitor mode and the design-system components used, per the `design-architect` skill.
+7. **Security sourced from Security Architect.** Any step that accepts untrusted input, changes authorization, touches secrets or storage, or adds a dependency names its trust boundary and carries a `[SEC]` tag, per the `security-architect` skill. A feature that crosses no boundary says so explicitly.
+8. **Accessibility sourced from Accessibility Architect.** Any step with an interactive surface names its keyboard map and its accessible name/role, and carries an `[A11Y]` tag, per the `accessibility-architect` skill.
+9. **Per-step model routing is mandatory.** Every step declares a `Model:` line so the user can switch tiers between steps and save tokens.
+10. **Every command in the plan is real.** Read from the profile or a manifest file. An absent gate is written `n-a`, never guessed (Guidelines §15).
 
 ---
 

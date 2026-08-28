@@ -33,20 +33,15 @@ If invoked without one:
 
 ## Core Operational Constraints (Strict)
 
-1. **No Staging** — never `git add`, `git stage`, `git commit -a`, or an IDE "stage hunk". Changes stay **unstaged**.
-2. **No Commits** — never `git commit` in any form.
-3. **No Pushes** — never `git push` or any remote sync.
-4. **No Branching** — never `git checkout`, `git switch`, or branch creation.
-5. **No Skipping Hooks** — never `--no-verify` or equivalent. Fix the root cause.
-6. **No Auto Golden/Snapshot Updates** — the update command is user-only (§Manual Visual Review).
-7. **Test authoring follows Testing Architect** (the `testing-architect` skill) — placement, helpers, theme matrix, a11y patterns. No ad-hoc test setups.
-8. **UI work follows Design Architect** (the `design-architect` skill) — the craft floor and refuse list apply before a UI change is called done.
-9. **`[SEC]` steps follow Security Architect** (the `security-architect` skill, `harden` mode) — the sink is built correctly the first time: parameterized, encoded at the sink, authorization checked at the data access, error path failing **closed**. Never fix a finding by weakening a check.
-10. **`[A11Y]` steps follow Accessibility Architect** (the `accessibility-architect` skill, `build` mode) — native element first, and every overlay moves focus in, traps it, closes on Escape, and **returns focus to the trigger**. A green `<a11y>` gate does not cover any of that.
-11. **Every gate in the profile must pass** — lint, types, tests + coverage, build, e2e, visual, a11y, audit, whichever exist. A gate that doesn't exist is `n-a`; a gate that fails is reported, never skipped.
-12. **Bounded passes** (Guidelines §16) — implement fully, run the gates once as a batch, fix in one batch, re-run once. Not an open loop.
+1. **Git and golden-file guards are enforced by the plugin's PreToolUse hook**, not merely stated here (Guidelines §9, §10). A `git add` / `commit` / `push` / branch operation, a `--no-verify`, or a snapshot-update command is **denied by the runtime**. Files stay unstaged and visual diffs stay the user's to review. The update command stays user-only (§Manual Visual Review).
+2. **Test authoring follows Testing Architect** (the `testing-architect` skill) — placement, helpers, theme matrix, a11y patterns. No ad-hoc test setups.
+3. **UI work follows Design Architect** (the `design-architect` skill) — the craft floor and refuse list apply before a UI change is called done.
+4. **`[SEC]` steps follow Security Architect** (the `security-architect` skill, `harden` mode) — the sink is built correctly the first time: parameterized, encoded at the sink, authorization checked at the data access, error path failing **closed**. Never fix a finding by weakening a check.
+5. **`[A11Y]` steps follow Accessibility Architect** (the `accessibility-architect` skill, `build` mode) — native element first, and every overlay moves focus in, traps it, closes on Escape, and **returns focus to the trigger**. A green `<a11y>` gate does not cover any of that.
+6. **Every gate in the profile must pass** — lint, types, tests + coverage, build, e2e, visual, a11y, audit, whichever exist. A gate that doesn't exist is `n-a`; a gate that fails is reported, never skipped.
+7. **Bounded passes** (Guidelines §16) — implement fully, run the gates once as a batch, fix in one batch, re-run once. Not an open loop.
 
-> The git constraints (1–4) are absolute. Even when the user says "ship it" or "looks good", they still drive `git add`, `git commit`, and `git push` themselves.
+> Constraint 1 is absolute and now mechanical. Even when the user says "ship it" or "looks good", they still drive `git add`, `git commit`, and `git push` themselves — and the hook denies the call if you reach for it anyway.
 
 ---
 
