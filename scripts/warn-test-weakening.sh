@@ -2,7 +2,7 @@
 # m-skills — PostToolUse advisory: a skip marker just appeared in a test file.
 #
 # The narrowest defensible slice of the pack's four never-weaken rules
-# (testing-architect 5, debugging-architect 4, security-architect 3,
+# (testing-architect 3, debugging-architect 4, security-architect 3,
 # maintenance-architect 5). Those rules only bind while their skill is loaded;
 # adding `.skip` is exactly the shortcut taken when it isn't.
 #
@@ -52,7 +52,7 @@ ADDED="$(printf '%s' "$NEW" | grep -Eo "$MARKERS" | sort -u | tr '\n' ' ')"
 
 emit_block "m-skills advisory — \`${FILE}\` gained a skip/only marker (${ADDED}).
 
-Testing Architect constraint 5: never weaken a test to make it pass. Loosening a tolerance, deleting an assertion, adding a skip, or widening a mock to swallow the failure is a defect, not a fix — the same rule appears in debugging-architect 4, security-architect 3, and maintenance-architect 5.
+Testing Architect constraint 3: never weaken a test to make it pass. Loosening a tolerance, deleting an assertion, adding a skip, or widening a mock to swallow the failure is a defect, not a fix — the same rule appears in debugging-architect 4, security-architect 3, and maintenance-architect 5.
 
 If this is a deliberate, temporary quarantine: say so in one line, name what re-enables it, and keep it out of the \"gates green\" claim. If it is standing in for a fix, revert it and fix the cause instead. A \`.only\` in particular silently stops every other test in the file from running, which reads as green.
 

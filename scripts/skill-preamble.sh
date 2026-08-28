@@ -5,7 +5,7 @@
 # memory files, memory_type User|Project|Local|Managed — not skills). This covers
 # both invocation paths instead:
 #
-#   UserPromptExpansion  → the user typed /m-skills:<name>. Covers the 13 skills
+#   UserPromptExpansion  → the user typed /m-skills:<name>. Covers the 10 skills
 #                          with disable-model-invocation: true. Emits additionalContext.
 #   PostToolUse (Skill)  → the model invoked an auto-loadable knowledge skill
 #                          (design, testing, security, accessibility, documentation).
@@ -24,10 +24,15 @@ DIR="$(cd "$(dirname -- "$0")" 2>/dev/null && pwd)" || exit 0
 # shellcheck source=lib/hook-json.sh
 . "$DIR/lib/hook-json.sh" 2>/dev/null || exit 0
 
-advisory_require_json_engine
-
 INPUT="$(hook_read_input)"
 [ -z "$INPUT" ] && exit 0
+
+# UserPromptExpansion is registered with no matcher, so this fires on EVERY user
+# prompt. Decide "not mine" with a shell builtin before spending a jq/python3
+# spawn on it — an ordinary message must cost nothing.
+case "$INPUT" in *m-skills:*) ;; *) exit 0 ;; esac
+
+advisory_require_json_engine
 
 EVENT="$(json_field "$INPUT" "hook_event_name")"
 
@@ -54,6 +59,20 @@ esac
 GUIDELINES="$DIR/../skills/guidelines-meta/SKILL.md"
 [ -f "$GUIDELINES" ] || exit 0
 
+# Once per skill per session. A skill invoked through the Skill tool AND its slash
+# command satisfies both arms below, which injected the same ~40 lines twice; the
+# marker makes that impossible and also stops a re-invocation repeating it.
+# Same idiom as advise-propagation.sh.
+#
+# Trade-off, stated because it is real: after a context compaction the preamble is
+# gone and will not re-fire for an already-marked skill. Acceptable — §9 and §10 are
+# enforced by guard-mutations.sh whether or not Claude remembers them, and the gate
+# table is re-derivable with `check-quality.sh --list`.
+MARK="$(m_skills_state_dir)/preamble/$SKILL"
+[ -f "$MARK" ] && exit 0
+mkdir -p "$(dirname "$MARK")" 2>/dev/null || exit 0
+: > "$MARK" 2>/dev/null || exit 0
+
 # Extract one numbered section: its heading through to the next heading or rule.
 section() {
   awk -v n="$1" '
@@ -70,7 +89,7 @@ gates() {
   local state cache root
   root="$(git -C "${CLAUDE_PROJECT_DIR:-$PWD}" rev-parse --show-toplevel 2>/dev/null || printf '%s' "${CLAUDE_PROJECT_DIR:-$PWD}")"
   state="$(m_skills_state_dir)"
-  cache="$state/gates-$(printf '%s' "$root" | cksum | cut -d' ' -f1)"
+  cache="$state/gates-$(m_skills_gate_cache_key "$root")"
   if [ -f "$cache" ]; then cat "$cache"; return 0; fi
   mkdir -p "$state" 2>/dev/null || return 1
   (cd "$root" 2>/dev/null && bash "$DIR/../skills/implementing-architect/check-quality.sh" --list 2>/dev/null) \

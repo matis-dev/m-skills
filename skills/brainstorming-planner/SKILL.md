@@ -94,7 +94,7 @@ The same is true of the two questions above. If the surface is interactive, name
 
 ## Strict Guardrails
 
-1. **Git and golden-file guards are enforced by the plugin's PreToolUse hook**, not merely stated here (Guidelines §9, §10). A `git add` / `commit` / `push` / branch operation, a `--no-verify`, or a snapshot-update command is **denied by the runtime**. Files stay unstaged and visual diffs stay the user's to review. At this stage that also means never *proposing* a git step: work stays on the active branch, and no plan you emit suggests a new one.
+1. **Git and golden-file guards are enforced by the plugin's PreToolUse hook**, not merely stated here (Guidelines §9, §10). Any git command that writes — and any `gh` command that publishes — is **denied by the runtime**, as is `--no-verify` and any snapshot-update command. Read-only inspection stays open. Files stay unstaged and visual diffs stay the user's to review. At this stage that also means never *proposing* a git step: work stays on the active branch, and no plan you emit suggests a new one.
 2. **Reuse as DNA** — new features are composed from existing components, services, and patterns. Cite them by path when you propose them.
 3. **No Over-Engineering (YAGNI)** — only what was asked; no speculative abstractions or future-proofing the user didn't request. Favor the simplest implementation that works (Guidelines §2).
 4. **Tests planned via Testing Architect** — when the prompt mentions tests, defer the *how* to the `testing-architect` skill (cited by the downstream Planning Architect). Same deferral for security and accessibility: surface the boundary and the assistive path here, and let `security-architect` and `accessibility-architect` own the answers downstream.

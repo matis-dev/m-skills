@@ -42,7 +42,7 @@ OPTOUT_LINE="Opt out for this project with: touch .claude/.m-skills-no-guards"
 GIT_PREFIX='(^|[^[:alnum:]_./-])git([[:space:]]+(-[cC][[:space:]]+[^[:space:]]+|--[^[:space:]]+=[^[:space:]]+|--no-pager|--paginate|--bare|--literal-pathspecs))*[[:space:]]+'
 
 # Always mutating. No read-only form exists.
-GIT_HARD='(add|stage|commit|push|checkout|switch|reset|rebase|cherry-pick|revert|clean|am|mv|rm|merge|pull|fetch|gc|prune|filter-branch|update-ref|symbolic-ref|restore)'
+GIT_HARD='(add|stage|commit|push|checkout|switch|reset|rebase|cherry-pick|revert|clean|am|mv|rm|merge|pull|fetch|gc|prune|filter-branch|update-ref|symbolic-ref|restore|bisect|apply|notes|replace)'
 
 # Mutating only in some forms. Listing branches, tags, remotes, worktrees, and
 # stashes is read-only and genuinely useful — denying it would send people to the
@@ -58,7 +58,7 @@ elif printf '%s' "$CMD" | grep -Eq "${GIT_PREFIX}${GIT_SOFT}"; then
 fi
 
 if [ -n "$GIT_DENIED" ]; then
-  emit_deny "Blocked by m-skills (Guidelines §9): \`git ${GIT_DENIED}\` mutates the repository, and staging, committing, pushing, and branching are user-only — no exceptions, including when the user says \"ship it\". Leave the changes unstaged and hand the user the command to run themselves. Read-only git stays open: status, diff, log, show, blame, rev-parse, and the listing forms of branch/tag/remote/stash. ${OPTOUT_LINE}"
+  emit_deny "Blocked by m-skills (Guidelines §9): \`git ${GIT_DENIED}\` writes to the repository, and every git write is the user's to run — no exceptions, including when the user says \"ship it\". Print the exact command for them to paste; leave the working tree as it is. Read-only git stays open: status, diff, log, show, blame, rev-parse, merge-base, describe, and the listing forms of branch/tag/remote/stash/worktree. ${OPTOUT_LINE}"
 fi
 
 # --no-verify / --no-gpg-sign are git-only flags; their presence anywhere is the rule break.
@@ -85,7 +85,7 @@ resolve_update_cmd() {
   local state cache root
   root="$(git -C "${CLAUDE_PROJECT_DIR:-$PWD}" rev-parse --show-toplevel 2>/dev/null || printf '%s' "${CLAUDE_PROJECT_DIR:-$PWD}")"
   state="$(m_skills_state_dir)"
-  cache="$state/updatecmd-$(printf '%s' "$root" | cksum | cut -d' ' -f1)"
+  cache="$state/updatecmd-$(m_skills_gate_cache_key "$root")"
   if [ -f "$cache" ]; then
     cat "$cache"
     return 0

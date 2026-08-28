@@ -95,7 +95,7 @@ Commands below use the plugin form — in copy mode, drop the `m-skills:` prefix
 | Plan is too big to ship in one go | `/m-skills:product-architect — decompose` → vertical slices, INVEST, acceptance criteria |
 | PRD, product brief, or research plan needed | `/m-skills:product-architect — prd \| brief \| research` |
 | README, guide, or API reference to write or fix | `/m-skills:documentation-architect` → reader + doc type, runnable examples, drift check |
-| Ready to ship | `/m-skills:deployment-architect <env>` → release brief, rollback plan, post-deploy checks |
+| Ready to ship | `/m-skills:deployment-architect <env>` → runbook you paste, rollback plan first, post-deploy checks |
 | Upkeep, advisories, upgrades | `/m-skills:maintenance-architect` → triaged by reachability, batched so a break is attributable |
 | Site should be cited by AI search, not just ranked | `/m-skills:search-optimization-architect` → evidence-tiered audit, retrieval-shaped content, honest measurement |
 | Fast feedback mid-work | `bash <skills>/implementing-architect/check-quality.sh` |
@@ -121,7 +121,7 @@ flowchart TD
         CR["<b>/code-review-architect</b><br/>one 0-100 score, writes no code<br/><i>out:</i> findings"]
         RH["<b>/rolling-history</b><br/><i>out:</i> changelog + commit brief as text"]
         GIT["<b>You run git</b><br/>stage · commit · push"]
-        DEP["<b>/deployment-architect</b><br/>readiness gate, rollback plan first<br/><i>out:</i> release brief"]
+        DEP["<b>/deployment-architect</b><br/>readiness gate, rollback plan first<br/><i>out:</i> runbook you run"]
         PROD["<b>/product-architect</b><br/>cuts the plan into shippable slices<br/><i>out:</i> INVEST slices + acceptance criteria"]
 
         BP --> PA --> IA --> VIS --> CR
@@ -196,8 +196,8 @@ The verbose prompts you've been pasting still work verbatim — but each maps to
 | "We have high-severity security advisories from the package audit, please upgrade what's vulnerable" | `/m-skills:maintenance-architect — advisories only` |
 | "The README setup instructions are out of date and broken, please audit the documentation" | `/m-skills:documentation-architect — audit` |
 | "Please write a complete API reference with runnable examples for this module" | `/m-skills:documentation-architect <module> — reference` |
-| "Please check if the release is safe for production, but prepare only and do not deploy yet" | `/m-skills:deployment-architect prod — prepare only` |
-| "Production is throwing errors after the deploy, please ROLL BACK to the previous version" | `/m-skills:deployment-architect — roll back` |
+| "Please check if the release is safe for production" | `/m-skills:deployment-architect prod` — it never deploys; you get the runbook either way |
+| "Production is throwing errors after the deploy, please ROLL BACK to the previous version" | `/m-skills:deployment-architect — roll back` → the resolved rollback command, for you to run |
 | "Please audit our site content so AI search and answer engines can properly cite our pages" | `/m-skills:search-optimization-architect — audit` |
 | "Run /rolling-history, skip the tests, already handled" | `/m-skills:rolling-history — skip gates` |
 
@@ -209,7 +209,7 @@ The verbose prompts you've been pasting still work verbatim — but each maps to
 
 These hold in every skill, in every project:
 
-1. **No git automation.** No staging, committing, pushing, branching, tagging, `--no-verify`, or force ops. Files stay unstaged — even when you say "ship it".
+1. **No git automation.** Claude runs **no git command that writes** — staging, committing, pushing, branching, tagging, merging, pulling, fetching, rebasing, stashing, `--no-verify`, force ops, all of it — and no `gh` command that publishes. Files stay unstaged, even when you say "ship it"; you get the exact command to paste. Read-only git stays fully open (`status`, `diff`, `log`, `show`, `blame`, and the listing forms), because reviewing a branch is built on it.
 2. **No auto-updating golden files or visual baselines.** The diff gets surfaced with its report path; the update command is yours.
 3. **Tests ship with the code.** No "tests TBD".
 4. **Honest output.** Every number, path, and command is one that was read or run. A placeholder beats a plausible invention.
@@ -229,17 +229,17 @@ These hold in every skill, in every project:
 | `scripts/profile-bootstrap.sh` | Detects the stack when no profile exists yet | stays put |
 | `scripts/adhd-always-on.sh` | Applies the reply protocol session-wide when its flag is set | stays put |
 | `scripts/guard-mutations.sh` | **Denies** git mutations, golden-file updates, catastrophic `rm`/`dd` | stays put |
-| `scripts/guard-outward.sh` | **Asks** before a deploy, publish, migration, or infra apply | stays put |
+| `scripts/guard-outward.sh` | **Denies** a deploy, publish, migration, infra apply, or `gh` write — you get a runbook instead | stays put |
 | `scripts/guard-secrets.sh` | **Denies** writes into secret-bearing files; reads and `.env.example` untouched | stays put |
 | `scripts/skill-preamble.sh` | Injects the resolved gates + §9/§10/§15/§19 when a pack skill starts | stays put |
 | `scripts/warn-test-weakening.sh` | Flags a newly added `.skip` / `.only` in a test file | stays put |
 | `scripts/advise-propagation.sh` | Prompts the Protocol A sweep when a shared-shape file is edited | stays put |
-| `tests/run-tests.sh` | The pack's own test suite — 255 assertions, no dependencies | stays put |
+| `tests/run-tests.sh` | The pack's own test suite — 296 assertions, no dependencies | stays put |
 | `skills/` | The 16 skills | plugin: stays put · copy-mode: → `<project>/.claude/skills/` |
 | `skills/guidelines-meta/PROJECT-PROFILE.template.md` | The profile the skills fill in as you work | → `<project>/.claude/PROJECT-PROFILE.md` |
 | `CLAUDE.template.md` | Always-on guards, loaded every session | → `<project>/CLAUDE.md` |
 | `settings.template.json` | Permission allowlist + git denylist | → `<project>/.claude/settings.local.json` |
-| `skills/implementing-architect/check-quality.sh` | Runnable gate pipeline (auto-detects) | ships inside `skills/` |
+| `skills/implementing-architect/check-quality.sh` | Runnable gate pipeline (profile → conf → auto-detect) | ships inside `skills/` |
 | `SKILLS_INDEX.md` | Skill catalog, pipeline diagram, provenance | reference |
 
 The 16 skills: `guidelines-meta`, `brainstorming-planner`, `planning-architect`, `product-architect`, `design-architect`, `testing-architect`, `security-architect`, `accessibility-architect`, `implementing-architect`, `debugging-architect`, `code-review-architect`, `documentation-architect`, `rolling-history`, `deployment-architect`, `maintenance-architect`, `search-optimization-architect`.
@@ -312,9 +312,9 @@ A repo with several packages usually has several *stacks*. The hook enumerates w
 ### Enforcement: the rules that are no longer advice
 
 Prose in a skill only binds while the model has that file in context. That was fine for
-judgment calls and wrong for the pack's hardest rules: `guidelines-meta` §9 (never stage,
-commit, push, or branch) and §10 (never auto-accept a golden update) were restated across
-28 lines in 11 skill files and enforced **nowhere** — `settings.template.json` is a template
+judgment calls and wrong for the pack's hardest rules: `guidelines-meta` §9 (run no git
+command that writes) and §10 (never auto-accept a golden update) were restated across
+10 skill files and enforced **nowhere** — `settings.template.json` is a template
 you copy by hand, and its prefix matching cannot see inside `cd x && git commit`, `git -C .
 push`, or `bash -c "git add ."` anyway.
 
@@ -323,7 +323,7 @@ Six hooks close that gap. Three **guards** decide, three **advisories** inform.
 | Hook | Event | Decision | Converts |
 |---|---|---|---|
 | `guard-mutations.sh` | `PreToolUse` · Bash | **deny** | §9 git guards, §10 golden updates, plus `rm -rf /`-class commands |
-| `guard-outward.sh` | `PreToolUse` · Bash | **ask** | `deployment-architect` constraint 2 — deploy, publish, migrate, infra apply |
+| `guard-outward.sh` | `PreToolUse` · Bash | **deny** | `deployment-architect` constraint 2 — deploy, publish, migrate, infra apply; plus `gh` writes (PRs, issues, releases, secrets) under §9 |
 | `guard-secrets.sh` | `PreToolUse` · Write/Edit/Bash | **deny** | `security-architect` constraint 5 — writes into `.env`, `*.pem`, `id_rsa`, … |
 | `skill-preamble.sh` | `UserPromptExpansion` + `PostToolUse` · Skill | inject | the resolved gate table and §9/§10/§15/§19, so 16 skills stop re-deriving them |
 | `warn-test-weakening.sh` | `PostToolUse` · Write/Edit | advise | the never-weaken rule — a **newly added** `.skip` / `.only` in a test file |
@@ -339,8 +339,11 @@ Three properties are deliberate and worth knowing before you rely on them:
   every `.env.example` variant stay open in both directions, because `guidelines-meta` §5,
   `deployment-architect` Phase 0, and `profile-bootstrap.sh` all read the env contract. A
   guard that blocked reads would break the pack itself.
-- **Read-only git stays open.** `status`, `diff`, `log`, `show`, `blame`, and `rev-parse` are
-  untouched — the review and history skills are built on them.
+- **Read-only git and `gh` stay open.** `status`, `diff`, `log`, `show`, `blame`, `rev-parse`,
+  `merge-base`, and the *listing* forms of `branch` / `tag` / `remote` / `stash` are untouched, as
+  are `gh pr view|list|diff|checks`, `gh issue view|list`, and `gh run view|list`. The review and
+  history skills are built on them, so a guard that closed them would break the pack — the same
+  asymmetry as reads on `.env`.
 
 **Turning it off.** One flag file releases all three guards, per project or globally:
 
@@ -487,7 +490,7 @@ Do not run any git command that mutates state. Leave everything unstaged.
 ## 🧪 Testing the pack itself
 
 ```
-bash tests/run-tests.sh        # 137 assertions, ~2s, no dependencies
+bash tests/run-tests.sh        # 296 assertions, ~10s, no dependencies
 bash tests/run-tests.sh -v     # show every passing assertion
 RUN_EVALS=1 bash tests/run-tests.sh   # adds model-in-the-loop checks (costs tokens)
 ```

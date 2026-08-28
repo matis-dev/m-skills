@@ -5,9 +5,14 @@
 #   lint → typecheck → test → build → e2e → visual → a11y → audit
 #
 # Resolution order for each gate:
-#   1. .claude/quality-gates.conf   (explicit, wins — see template at the bottom of this file)
-#   2. auto-detection from the project's manifest (package.json / Makefile / pyproject.toml / Cargo.toml / go.mod)
-#   3. skipped as n-a — a gate that does not exist is never invented
+#   1. .claude/PROJECT-PROFILE.md   (the authority — guidelines-meta §5 rule 1)
+#   2. .claude/quality-gates.conf   (explicit override for anything the profile leaves blank)
+#   3. auto-detection from the project's manifest (package.json / Makefile / pyproject.toml / Cargo.toml / go.mod)
+#   4. skipped as n-a — a gate that does not exist is never invented
+#
+# §5 rule 1 says the profile "is the authority; use it verbatim". This script is what
+# skill-preamble.sh injects as the resolved gate table, so if it ignored the profile the
+# hook would hand Claude auto-detected commands under the profile's name.
 #
 # Snapshot policy: NEVER runs a golden/snapshot update command. Diffs are surfaced for manual review.
 # Usage: bash .claude/skills/implementing-architect/check-quality.sh [--list]
@@ -18,6 +23,7 @@ ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 cd "$ROOT" || exit 1
 
 CONF=".claude/quality-gates.conf"
+PROFILE=".claude/PROJECT-PROFILE.md"
 GATE_KEYS=(LINT TYPECHECK TEST BUILD E2E VISUAL A11Y AUDIT)
 GATE_LABELS=("Lint" "Type-check" "Tests + Coverage" "Build" "E2E" "Visual regression" "Accessibility" "Dependency audit")
 
@@ -25,13 +31,96 @@ for k in "${GATE_KEYS[@]}"; do eval "$k=\"\${$k:-}\""; done
 VISUAL_REPORT="${VISUAL_REPORT:-}"
 UPDATE_CMD="${UPDATE_CMD:-}"
 
-# ── 1. Explicit config wins ───────────────────────────────────────────────────
+# Which of these arrived from the environment (LINT=x bash check-quality.sh)? That
+# is the most explicit signal available, so it outranks the profile too. Everything
+# not marked here is fair game for the profile to override.
+ENV_PINNED=""
+for k in "${GATE_KEYS[@]}" VISUAL_REPORT UPDATE_CMD; do
+  if [ -n "${!k}" ]; then
+    ENV_PINNED="$ENV_PINNED $k"
+    printf -v "ENVVAL_$k" '%s' "${!k}"
+  fi
+done
+env_pinned() { case " $ENV_PINNED " in *" $1 "*) return 0 ;; *) return 1 ;; esac; }
+# Sourcing the conf below blindly assigns, which used to silently clobber a value
+# passed on the invocation. Re-apply the pinned ones afterwards so precedence reads
+# the way anyone would expect: env > profile > conf > detection.
+restore_env_pinned() {
+  local k v
+  for k in $ENV_PINNED; do v="ENVVAL_$k"; printf -v "$k" '%s' "${!v}"; done
+}
+
+# ── 1. Explicit config ────────────────────────────────────────────────────────
 if [ -f "$CONF" ]; then
   # shellcheck disable=SC1090
   . "$CONF"
+  restore_env_pinned
   SOURCE="$CONF"
 else
   SOURCE="auto-detected"
+fi
+
+# ── 1b. The Project Profile outranks it (guidelines-meta §5 rule 1) ───────────
+# Parses the §Commands table the profile template defines:
+#   | `<lint>` | pnpm run lint | notes |
+# A cell that is empty, `n-a`, or still a `<placeholder>` is treated as unset and
+# falls through to the conf / detection below — so a half-filled profile is safe,
+# which is the normal state (§5 "progressive, not a questionnaire").
+# No eval: awk emits KEY<TAB>VALUE and the loop assigns by an explicit case.
+if [ -f "$PROFILE" ]; then
+  PROFILE_SET=0
+  while IFS="$(printf '\t')" read -r pkey pval; do
+    [ -z "$pkey" ] && continue
+    env_pinned "$pkey" && continue
+    case "$pkey" in
+      LINT|TYPECHECK|TEST|BUILD|E2E|VISUAL|A11Y|AUDIT|UPDATE_CMD|VISUAL_REPORT)
+        printf -v "$pkey" '%s' "$pval"; PROFILE_SET=1 ;;
+    esac
+  done <<PROFILE_ROWS
+$(awk '
+  function clean(c) {
+    gsub(/^[ \t]+|[ \t]+$/, "", c); gsub(/`/, "", c)
+    gsub(/^[ \t]+|[ \t]+$/, "", c); return c
+  }
+  # unusable: empty, n-a, or a leftover <placeholder>
+  function unusable(v) { return (v == "" || v == "n-a" || v == "n/a" || v ~ /^</ || v ~ /…/) }
+  /^[ \t]*\|/ {
+    n = split($0, cell, "|")
+    if (n < 3) next
+    role = tolower(clean(cell[2])); cmd = clean(cell[3])
+    gsub(/^</, "", role); gsub(/>$/, "", role)
+    if (unusable(cmd)) next
+    if (role == "lint")            print "LINT\t"      cmd
+    else if (role ~ /^type-?check$/) print "TYPECHECK\t" cmd
+    else if (role == "test")       print "TEST\t"      cmd
+    else if (role == "build")      print "BUILD\t"     cmd
+    else if (role == "e2e")        print "E2E\t"       cmd
+    else if (role == "visual")     print "VISUAL\t"    cmd
+    else if (role == "a11y")       print "A11Y\t"      cmd
+    else if (role == "audit")      print "AUDIT\t"     cmd
+    next
+  }
+  # **Golden / snapshot update command (USER-ONLY …):** `pnpm run e2e:update`
+  /[Gg]olden.*update command|snapshot-update command/ {
+    if (match($0, /`[^`]+`[^`]*$/)) {
+      v = substr($0, RSTART + 1, RLENGTH - 2); sub(/`.*$/, "", v)
+      if (!unusable(v)) print "UPDATE_CMD\t" v
+    }
+    next
+  }
+  /[Rr]eport location for failed visual diffs/ {
+    if (match($0, /`[^`]+`/)) {
+      v = substr($0, RSTART + 1, RLENGTH - 2)
+      if (!unusable(v)) print "VISUAL_REPORT\t" v
+    }
+    next
+  }
+' "$PROFILE")
+PROFILE_ROWS
+  if [ "$PROFILE_SET" -eq 1 ]; then
+    if [ -f "$CONF" ]; then SOURCE="$PROFILE, then $CONF, then auto-detection"
+    else SOURCE="$PROFILE, then auto-detection"; fi
+  fi
 fi
 
 # ── 2. Auto-detection ─────────────────────────────────────────────────────────

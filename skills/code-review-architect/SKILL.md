@@ -21,7 +21,7 @@ disable-model-invocation: true
 ## Operational Constraints (Strict)
 
 1. **Read-only.** Writes no production code. May read freely and run gates; every fix is the user's call.
-2. **Git and golden-file guards are enforced by the plugin's PreToolUse hook**, not merely stated here (Guidelines §9, §10). A `git add` / `commit` / `push` / branch operation, a `--no-verify`, or a snapshot-update command is **denied by the runtime**. Files stay unstaged and visual diffs stay the user's to review. Restate the guard inside the review output.
+2. **Git and golden-file guards are enforced by the plugin's PreToolUse hook**, not merely stated here (Guidelines §9, §10). Any git command that writes — and any `gh` command that publishes — is **denied by the runtime**, as is `--no-verify` and any snapshot-update command. Read-only inspection stays open. Files stay unstaged and visual diffs stay the user's to review. Restate the guard inside the review output.
 3. **No scope creep in findings.** Comment only on the change set unless an issue *outside* the diff is directly load-bearing for it. If you stray, label it `[OUT-OF-DIFF]` and justify in one line.
 4. **Cite, don't recite.** Every finding carries a `path/to/file:42` reference. No floating "consider improving X".
 5. **Tests evaluated via Testing Architect**; **UI evaluated via Design Architect.** Don't invent ad-hoc critique in either domain.
