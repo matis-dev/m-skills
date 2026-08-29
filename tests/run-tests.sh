@@ -57,7 +57,7 @@ grep -qE '^4\. \*\*Slices are vertical' "$ROOT/skills/product-architect/SKILL.md
   && ok "product keeps the vertical-slice rule" || bad "product keeps the vertical-slice rule"
 grep -qE '^1\. \*\*Every number is sourced or labelled' "$ROOT/skills/product-architect/SKILL.md" \
   && ok "product keeps the sourcing rule" || bad "product keeps the sourcing rule"
-grep -q '\*\*A "write the tests" slice' "$ROOT/skills/product-architect/SKILL.md" \
+grep -rq '\*\*A "write the tests" slice' "$ROOT/skills/product-architect/" \
   && ok "product refuses a test-only slice" || bad "product refuses a test-only slice"
 grep -qE '^1\. \*\*Never promise a citation, a ranking, or a lift' "$ROOT/skills/search-optimization-architect/SKILL.md" \
   && ok "search keeps the no-promised-lift rule" || bad "search keeps the no-promised-lift rule"
@@ -81,13 +81,13 @@ grep -qE '^3\. \*\*A green automated scan is not a conformance claim' "$ROOT/ski
   && ok "a11y keeps the green-scan-is-not-conformance rule" || bad "a11y keeps the green-scan-is-not-conformance rule"
 # the two OWASP 2025 categories the pack had no row for before v3.14; losing either
 # would silently return the threat model to a pre-2025 checklist
-grep -q 'Supply chain\*\* \*(A03' "$ROOT/skills/code-review-architect/SKILL.md" \
-  && ok "review keeps the supply-chain group" || bad "review keeps the supply-chain group"
-grep -q 'Exceptional conditions\*\* \*(A10' "$ROOT/skills/code-review-architect/SKILL.md" \
-  && ok "review keeps the fail-open group" || bad "review keeps the fail-open group"
+grep -rq 'Supply chain\*\* \*(A03' "$ROOT/skills/module-threat-model/" \
+  && ok "threat model keeps the supply-chain group" || bad "threat model keeps the supply-chain group"
+grep -rq 'Exceptional conditions\*\* \*(A10' "$ROOT/skills/module-threat-model/" \
+  && ok "threat model keeps the fail-open group" || bad "threat model keeps the fail-open group"
 for s in "$ROOT"/skills/*/SKILL.md; do
   n="$(basename "$(dirname "$s")")"
-  case "$n" in guidelines-meta|design-architect) continue ;; esac
+  case "$n" in guidelines-meta|design-architect|module-*) continue ;; esac
   grep -q "Apply Guidelines Skill" "$s" && ok "cites guidelines: $n" || bad "cites guidelines: $n"
 done
 
@@ -125,9 +125,79 @@ grep -q "documentation-architect" "$ROOT/skills/rolling-history/SKILL.md" \
 # the search skill's evidence table must keep a Source column and a re-verify warning,
 # so no figure in it can be repeated as fact without its provenance and date
 for s in search-optimization-architect security-architect accessibility-architect; do
-  grep -q 'dated — re-verify before citing' "$ROOT/skills/$s/SKILL.md" \
+  grep -rq 'dated — re-verify before citing' "$ROOT/skills/$s/" \
     && ok "evidence base carries its date warning: $s" || bad "evidence base carries its date warning: $s"
 done
+
+# ── modules: the shared tier ────────────────────────────────────────────────
+# A module is a block two or more architects would otherwise each restate. The
+# assertions below encode what makes one legitimate: it is addressed by NAME (the
+# only identifier that resolves in both plugin and copy installs), it is invocable
+# by the model (a module nothing can load is a file nothing reads), it is hidden
+# from the / menu, it has at least two citers, and its content exists in exactly
+# one place under skills/.
+for m in "$ROOT"/skills/module-*/; do
+  n="$(basename "$m")"
+  grep -q "^user-invocable: false" "$m/SKILL.md" \
+    && ok "module hidden from / menu: $n" || bad "module hidden from / menu: $n"
+  grep -q "^disable-model-invocation: true" "$m/SKILL.md" \
+    && bad "module stays model-invocable: $n" "a module nothing can load is a file nothing reads" \
+    || ok "module stays model-invocable: $n"
+  grep -q "^\*\*Loaded by:\*\*" "$m/SKILL.md" \
+    && ok "module names its citers: $n" || bad "module names its citers: $n"
+  # cited by two or more architects — a single-citer module belongs inline
+  citers="$(grep -rl "\`$n\`" "$ROOT"/skills/*/SKILL.md | grep -v "/$n/SKILL.md" | wc -l)"
+  [ "$citers" -ge 2 ] \
+    && ok "module has >=2 citers: $n ($citers)" \
+    || bad "module has >=2 citers: $n" "found $citers — inline it instead"
+  # one level of composition only. A module may POINT at a sibling ("handled in
+  # module-x") — that is a cross-reference. It may not INSTRUCT loading one, which
+  # is what turns the tier into a chain with a load order nobody can debug.
+  chain="$(grep -oE "load the \`module-[a-z-]+\`" "$m/SKILL.md" | sort -u | tr '\n' ' ')"
+  [ -z "$chain" ] && ok "module loads no other module: $n" \
+    || bad "module loads no other module: $n" "loads: $chain"
+done
+
+# every module named in a skill file exists on disk
+missing_mod=""
+for n in $(grep -rhoE "module-[a-z-]+" "$ROOT"/skills/*/SKILL.md | sort -u); do
+  [ -f "$ROOT/skills/$n/SKILL.md" ] || missing_mod="$missing_mod $n"
+done
+assert_empty "every cited module exists" "$missing_mod"
+
+# a module's content lives in exactly one file — this is the whole point of the
+# tier, and re-pasting a block back into an architect is the regression it guards
+dupes=""
+while read -r phrase; do
+  [ -z "$phrase" ] && continue
+  hits="$(grep -rl "$phrase" "$ROOT"/skills/ | wc -l)"
+  [ "$hits" -eq 1 ] || dupes="$dupes [$phrase x$hits]"
+done <<'ANCHORS'
+Parallel subsystems
+Spy/mock object name lists
+semantic site list
+falls through to the default branch
+Fake timers vs. subscriptions born outside them
+button text within a hair of its own fill
+roving-tabindex pattern
+trains the reader to ignore the whole thing
+Describe the weakness or barrier precisely
+Someone pasting a command they do not understand
+blame them when they fail
+Validate at the boundary, encode at the sink
+prototype-polluting keys
+ANCHORS
+assert_empty "module-owned blocks appear in exactly one file" "$dupes"
+
+# every references/ file a skill cites must exist
+missing_ref=""
+while read -r r; do
+  [ -z "$r" ] && continue
+  found=0
+  for d in "$ROOT"/skills/*/; do [ -f "$d$r" ] && found=1; done
+  [ $found -eq 1 ] || missing_ref="$missing_ref $r"
+done < <(grep -rhoE 'references/[a-z0-9-]+\.md' "$ROOT"/skills/*/SKILL.md | sort -u)
+assert_empty "every cited reference file exists" "$missing_ref"
 
 # no skill references a sibling by hardcoded path (breaks in plugin mode)
 hits="$(grep -rl "\.claude/skills/[a-z-]*/SKILL\.md" "$ROOT/skills" 2>/dev/null || true)"
@@ -140,10 +210,13 @@ while read -r l; do [ -e "$ROOT/$l" ] || missing="$missing $l"; done < <(
   | tr -d '])' | sed 's/^(//' | sort -u )
 assert_empty "internal links resolve" "$missing"
 
-# skill count in docs matches reality
-count="$(find "$ROOT/skills" -maxdepth 1 -mindepth 1 -type d | wc -l)"
-grep -q "The $count skills:" "$ROOT/README.md" \
-  && ok "README skill count is $count" || bad "README skill count is $count" "README says something else"
+# architect and module counts in docs match reality
+acount="$(find "$ROOT/skills" -maxdepth 1 -mindepth 1 -type d ! -name 'module-*' | wc -l)"
+mcount="$(find "$ROOT/skills" -maxdepth 1 -mindepth 1 -type d -name 'module-*' | wc -l)"
+grep -q "The $acount architects:" "$ROOT/README.md" \
+  && ok "README architect count is $acount" || bad "README architect count is $acount" "README says something else"
+grep -q "The $mcount modules:" "$ROOT/README.md" \
+  && ok "README module count is $mcount" || bad "README module count is $mcount" "README says something else"
 
 # manifests are valid JSON and agree on version
 for j in "$ROOT"/.claude-plugin/*.json "$ROOT"/hooks/hooks.json "$ROOT"/settings.template.json; do
@@ -181,6 +254,18 @@ if command -v jq >/dev/null 2>&1; then
 else
   skip "hooks.json wiring" "jq not installed"
 fi
+
+# the preamble's composition map must be derived from the skill file, not a static
+# table — a hardcoded list is one more cross-reference to rot, which is the failure
+# the module tier exists to remove
+# fresh session id: the preamble is once-per-skill-per-session by design
+out="$(printf '{"hook_event_name":"UserPromptExpansion","command_name":"m-skills:code-review-architect"}' | CLAUDE_SESSION_ID="test-$$-a" bash "$ROOT/scripts/skill-preamble.sh" 2>/dev/null)"
+assert_contains "preamble emits the composition map" "$out" "What this skill composes from"
+assert_contains "composition map lists a module" "$out" "module-threat-model"
+assert_contains "composition map lists a reference" "$out" "references/output-format.md"
+# a module is a fragment loaded by an architect that already got the preamble
+out="$(printf '{"hook_event_name":"UserPromptExpansion","command_name":"m-skills:module-propagation"}' | CLAUDE_SESSION_ID="test-$$-b" bash "$ROOT/scripts/skill-preamble.sh" 2>/dev/null)"
+assert_empty "preamble silent for a module" "$out"
 
 # guards must fail closed, advisories must fail open — asserted on the source,
 # because a hook that silently allows is indistinguishable from one that passed

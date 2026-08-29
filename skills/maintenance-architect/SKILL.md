@@ -26,9 +26,21 @@ disable-model-invocation: true
 3. **Green before, green after — with the same gates.** Establish a passing baseline *first*. Upgrading on top of an already-failing suite means you cannot attribute the failure, and you will blame the upgrade.
 4. **Never upgrade to silence a warning you haven't read.** Deprecation warnings name a migration path. Read it. Bumping the version to make the message go away, without following the migration, defers the break to a worse moment.
 5. **Never weaken to pass.** Not a suppression, not a skip, not a pinned-back transitive to dodge a real incompatibility (Testing Architect constraint 3). A suppression added during maintenance is rot created by rot-control.
-6. **Git and golden-file guards are enforced by the plugin's PreToolUse hook**, not merely stated here (Guidelines §9, §10). Any git command that writes — and any `gh` command that publishes — is **denied by the runtime**, as is `--no-verify` and any snapshot-update command. Read-only inspection stays open. Files stay unstaged and visual diffs stay the user's to review. Lockfile changes stay unstaged. **The lockfile is the rollback** — surface `git checkout <lockfile>` as a command; the hook will deny it if you try to run it yourself.
+6. **Git and golden-file guards are enforced by the plugin's PreToolUse hook**, not merely stated here (Guidelines §9, §10). Any git command that writes — and any `gh` command that publishes — is **denied by the runtime**, as is `--no-verify` and any snapshot-update command. Read-only inspection stays open. Files stay unstaged and visual diffs stay the user's to review. Lockfile changes stay unstaged. **The lockfile is the rollback** — surface `git checkout <lockfile>` as a command per `module-handover` §4; the hook denies it if you run it yourself.
 7. **An upgrade is a deploy.** Anything that reaches production goes through the `deployment-architect` skill. A dependency bump is a production change wearing a smaller hat.
 8. **Bounded** (Guidelines §16). One inventory pass, one batch of changes, one verification round per batch. Not an open loop of nudging versions until CI turns green.
+
+---
+
+## What to Read, and When
+
+| Read | When |
+|---|---|
+| `${CLAUDE_SKILL_DIR}/references/rot-sweep.md` | Phase 5 — the findings no gate reports because nothing fails. |
+| `${CLAUDE_SKILL_DIR}/references/report-format.md` | Assembling the output. |
+| `module-threat-model` §5 | Triaging an advisory by reachability. |
+| `module-gate-battery` | Between batches, and for the visual-diff stop. |
+| `module-handover` | The revert command, the lockfile rollback. |
 
 ---
 
@@ -60,7 +72,7 @@ Read, don't guess. Resolve `<audit>` and the rest from the profile.
 | **Routine** | Patch and minor bumps, tooling, types | Batch it (§3) |
 | **Deliberate hold** | Breaking major with no benefit here · a rewrite in disguise · a dependency being removed anyway | **Record the reason in the profile** and stop re-examining it |
 
-**Reachability is the honest question** for advisories, and it takes minutes to answer. "Critical" on a package used only by a build script that never sees untrusted input is not a production emergency — say so plainly rather than performing urgency. Equally, a "moderate" on a parser fed by user uploads deserves the Now tier. **Never inflate a rating to look diligent, and never downgrade one to avoid work** (Guidelines §15).
+**Reachability is the honest question** for advisories (`module-threat-model` §5), and it takes minutes to answer. "Critical" on a package used only by a build script that never sees untrusted input is not a production emergency — say so plainly rather than performing urgency. Equally, a "moderate" on a parser fed by user uploads deserves the Now tier. **Never inflate a rating to look diligent, and never downgrade one to avoid work** (Guidelines §15).
 
 ---
 
@@ -74,7 +86,7 @@ Order matters — cheapest-to-verify and least-coupled first:
 4. **Each major, individually.** Never two majors in one batch. Never a major alongside anything else.
 5. **Framework or runtime majors — their own change entirely**, with their own plan via the `planning-architect` skill. These are projects, not chores, and calling one a "bump" is how a week disappears.
 
-Between every batch: run the gates. A batch that breaks something is **reverted, not debugged in place** — restore the lockfile, then split the batch and retry the halves. That is bisection, and it beats staring at a diff of forty version numbers.
+Between every batch: run the gates (`module-gate-battery`). A batch that breaks something is **reverted, not debugged in place** — restore the lockfile, then split the batch and retry the halves. That is bisection, and it beats staring at a diff of forty version numbers.
 
 ---
 
@@ -86,67 +98,16 @@ Gates prove the code compiles and the tests still pass. Upgrades break things ga
 - **Bundle or artifact size** — a dependency that doubled is a finding.
 - **The peer/engine graph** — an unmet peer that resolves today but warns is tomorrow's break.
 - **Anything with a native or platform build step** — verify on the target, not only locally.
-- **Visual and golden tests** for anything touching rendering (`design-architect`, `testing-architect`). A styling dependency's minor bump moves pixels; that diff is reviewed manually like any other (Guidelines §10).
+- **Visual and golden tests** for anything touching rendering (`module-craft-floor`, `testing-architect`). A styling dependency's minor bump moves pixels; that diff is surfaced and reviewed manually like any other (`module-gate-battery` §4).
 - **Lockfile churn** — an unexpectedly large diff for a small bump means something transitive moved. Look before shipping.
 
 ---
 
 ## Phase 5 — The Rot Sweep
 
-Findings no gate reports, because nothing fails. Run it periodically, report as findings, and **fix only what the user approves** — this phase generates a list, not a rewrite.
+The findings no gate reports, because nothing fails: suppressions, permanently-skipped tests masquerading as coverage, unused dependencies, dead code, stale TODOs, doc drift, config drift, duplicate transitives.
 
-- **Suppressions** — lint-ignores, type-ignores, skipped tests. Each is a debt with no due date. Count them; a growing count is the signal. Any without a reason comment is a finding.
-- **Skipped and flaky tests** — a permanently skipped test is worse than a deleted one, because it looks like coverage. Hand flakes to the `debugging-architect` skill; delete or fix the skips.
-- **Unused dependencies** — in the manifest, imported nowhere. Removal is the cheapest possible upgrade.
-- **Dead code** — unreferenced exports, unreachable branches, files nothing imports. Propose removal; do not delete pre-existing dead code unasked (Guidelines §3).
-- **Stale TODO/FIXME** — with no ticket and no date. Either it matters and gets tracked, or it doesn't and goes.
-- **Doc drift** — the profile's doc targets describing a version of the system that no longer exists. `rolling-history` owns the fix.
-- **Config drift** — settings for tools no longer used, env vars nothing reads.
-- **Duplicate transitive versions** — three copies of the same library is a bundle-size and correctness hazard.
-
----
-
-## Output Format (Fixed)
-
-```markdown
-# Maintenance Report — <date>
-
-**Status:** <N now · N soon · N routine · N held>
-**Next action:** <the single thing the user does now>
-
-## Now — reachable advisories
-- **<package> <cur> → <fix>** — <advisory id>, <severity>
-  Reachable: <yes — called at `path:LN` on an untrusted-input path>
-  Fix: <upgrade | override + expiry condition>
-
-## Soon
-- **<package>** — <why, and the deadline that makes it soon>
-
-## Routine — batched
-| Batch | Contents | Revert |
-|---|---|---|
-| 1 | dev tooling + types | `git checkout <lockfile> <manifest>` |
-| 2 | patch bumps (N packages) | `…` |
-| 3 | `<pkg>` major — alone | `…` |
-
-## Deliberate holds (recorded in the profile)
-- **<package>** — held at `<version>` because <reason>. Revisit when <condition>.
-
-## Rot Sweep
-- Suppressions: <N> (<M> without a reason comment) — `<paths>`
-- Skipped tests: <N> — `<paths>`
-- Unused dependencies: `<names>`
-- Stale TODOs: <N>
-- Doc drift: <files whose claims no longer hold>
-
-## Verification
-- Baseline before: <gate results>
-- After batch N: <gate results, bundle delta, visual diffs awaiting review>
-
-## Guards
-- No `git add`, `commit`, or `push` — lockfile changes left unstaged.
-- Nothing was suppressed, skipped, or pinned back to force a pass.
-```
+**Read `${CLAUDE_SKILL_DIR}/references/rot-sweep.md`.** Run it periodically, report per `module-findings`, and **fix only what the user approves** — this phase generates a list, not a rewrite.
 
 ---
 

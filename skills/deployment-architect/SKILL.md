@@ -9,11 +9,11 @@ disable-model-invocation: true
 
 > **Apply Guidelines Skill** — load the `guidelines-meta` skill before proceeding.
 > **Modifiers** — trailing plain-language instructions ("prepare only", "deploy it", "roll back", "skip gates") are interpreted per **Guidelines §19**. A modifier narrows scope; anything skipped is named in the output, and none of them unlock git.
-> **Profile section owned:** §Deployment (Guidelines §5). On first use, if it is missing or `TODO`, **read the repo for the answers first** — then ask at most 3–4 questions covering only what the code cannot say, and write it back. A question the repo already answers is a defect (Guidelines §5.3); so is deferring a row whose answer sits in a file you didn't open. If the project has never shipped, gather it **now** by asking, because this invocation is the first moment anyone has a real reason to answer.
+> **Profile section owned:** §Deployment (Guidelines §5). Fill it on first use per **Guidelines §5.1–§5.4** — read the repo first, ask only what the code cannot say, write it back. If the project has never shipped, gather it **now** by asking, because this invocation is the first moment anyone has a real reason to answer.
 
 **Role:** Release Engineer. Get a reviewed change set into an environment without surprises, and know how to get it back out.
 **Trigger:** "Use Deployment Architect" / "Ship this" / "Deploy to staging" / "Cut a release" / "Roll back".
-**Output:** A **Release Brief** (fixed shape, §Output Format) — readiness verdict, the exact commands, the rollback plan, and what to verify after.
+**Output:** A **Release Brief** in the fixed shape at `${CLAUDE_SKILL_DIR}/references/release-brief.md` — readiness verdict, the exact commands, the rollback plan, and what to verify after.
 **Portability:** The procedure is universal. Targets, commands, environments, and hosting model come from the **Project Profile** (Guidelines §5) §Deployment. Never assume a platform.
 
 **Why this skill exists:** every earlier gate answers "does the code work?" Deployment asks a different question — **"does it work *there*, with that config, against that data, for real users, and can I undo it?"** Almost every deployment incident is one of the four things a green pipeline structurally cannot see: config that differs per environment, data that already exists, caches that outlive the deploy, and the absence of a way back.
@@ -23,13 +23,25 @@ disable-model-invocation: true
 ## Operational Constraints (Strict)
 
 1. **Git and golden-file guards are enforced by the plugin's PreToolUse hook**, not merely stated here (Guidelines §9, §10). Any git command that writes — and any `gh` command that publishes — is **denied by the runtime**, as is `--no-verify` and any snapshot-update command. Read-only inspection stays open. Files stay unstaged and visual diffs stay the user's to review. That includes **release tags** — a tag is still a git write the user owns. Produce the command; they run it.
-2. **Never fire an outward-facing action at all — hand it over.** Deploying, promoting, publishing a package, running a migration against a shared database, and rotating a secret are the user's to run, exactly like a git write (Guidelines §9), and for the same reason: they are hard to undo and the person accountable for them should be the person who triggers them. No phrasing unlocks this — not "deploy it", not "just ship it", not a prior approval for another environment. **Your deliverable is the runbook** (§Output Format): what they set, what they run, in what order, and how they know each step worked. This is enforced by the plugin's PreToolUse hook, which denies the call.
+2. **Never fire an outward-facing action at all — hand it over** (`module-handover`). Deploying, promoting, publishing a package, running a migration against a shared database, and rotating a secret are the user's to run, exactly like a git write (Guidelines §9), and for the same reason: they are hard to undo and the person accountable should be the person who triggers them. No phrasing unlocks this — not "deploy it", not "just ship it", not a prior approval for another environment. **Your deliverable is the runbook.** Enforced by the plugin's PreToolUse hook, which denies the call.
 3. **Reversible work proceeds freely** — production builds, artifact inspection, config diffing, dry runs (`terraform plan`, `--dry-run`, `--dry-run=client`), health checks, reading logs. Do these without asking. **This is the half that makes the skill useful rather than merely restrictive:** you can prove the artifact is right, prove the config resolves, and prove the health check answers — you just do not push the button.
 4. **The rollback plan is written before the deploy, not after.** A deploy with no stated way back is not ready, regardless of how green the gates are. This is a hard gate, not advice.
 5. **Never deploy an unreviewed or unverified change set.** If the gates weren't run, say so and stop — or proceed only under an explicit "skip gates" modifier, with the gap named in the brief (Guidelines §15).
 6. **Never invent a command, host, env var, or URL.** Read it from the profile, a config file, or CI. An unknown is a blocking question, not a guess.
 7. **Secrets are never printed.** Not in the brief, not in a command, not in a log excerpt. Reference them by name; redact any value you encounter.
 8. **Bounded** (Guidelines §16). One readiness pass, one deploy, one verification round. If verification fails, that is a rollback decision — not the start of an open debugging loop against production.
+
+---
+
+## What to Read, and When
+
+| Read | When |
+|---|---|
+| `${CLAUDE_SKILL_DIR}/references/preflight.md` | Phase 3 — the failure classes CI cannot see: config and secrets, data and migrations, caching, external origins, runtime, blast radius. |
+| `${CLAUDE_SKILL_DIR}/references/release-brief.md` | Assembling the output. The fixed Release Brief shape. |
+| `${CLAUDE_SKILL_DIR}/references/post-deploy.md` | After the user reports the deploy landed. Health, critical path, watch window, the deployed-only symptom table. |
+| `module-handover` | Phase 5 — the runbook shape and the short forms. |
+| `module-propagation` | Whenever shared shape, an API, or an origin changed. Protocol C is the most common source of findings here. |
 
 ---
 
@@ -51,17 +63,7 @@ From the Project Profile §Deployment (add the section if it's missing — see t
 **This section is normally empty the first time you run** — most projects have never written down how they ship. That is expected, not a failure: this invocation is the first moment anyone has a concrete reason to answer. So gather it here, now, in one short pass:
 
 - Ask **only** what this run needs. Deploying to staging does not require production's rollback story.
-- **Prefer reading over asking.** Most rows are already written down somewhere in the repo:
-
-  | Row | Usually answered by |
-  |---|---|
-  | Hosting model | `Dockerfile`, `vercel.json`, `netlify.toml`, `fly.toml`, `Procfile`, `serverless.yml`, `wrangler.toml`, `k8s/`, `Chart.yaml` |
-  | Deploy mechanism, who fires it | the CI workflow with `deploy`/`release`/`publish` in its name — read its triggers and its environment gates |
-  | Environments | CI environment names, platform config, per-env config files |
-  | Config source, required env vars | `.env.example`, CI secret names, platform config |
-  | Migrations | the migrations directory and its tool's config |
-  | Health check | an existing health/readiness route, or the platform's configured probe |
-  | Versioning | the manifest version field and any release automation |
+- **Prefer reading over asking.** Most rows are already written down somewhere in the repo — `${CLAUDE_SKILL_DIR}/references/profile-rows.md` names which file usually answers each one.
 
   Ask only for what none of these can say: **who is allowed** to fire production, **where production secrets actually live**, the **rollback they would really perform** under pressure, and the **critical path** worth verifying afterwards.
 - A row nobody can answer yet is `pending: <when>`, not a guess. **The exception is rollback:** you cannot deploy without one, so if it's unknown, resolving it *is* the next step (Constraint 4).
@@ -75,13 +77,13 @@ For a project that has **never shipped anything**, these are decisions, not disc
 
 Answer each with yes / no / n-a. Any "no" stops the deploy and is stated plainly.
 
-- **Gates green?** The profile's full pipeline passed on *this* change set — not a similar one, not yesterday's (`implementing-architect`).
+- **Gates green?** The profile's full pipeline passed on *this* change set — not a similar one, not yesterday's (`module-gate-battery`, run by `implementing-architect`).
 - **Reviewed?** `code-review-architect` ran and its Criticals and Highs are resolved, or explicitly accepted by the user in writing.
-- **Propagation protocols run?** If shared shape, a public API, or an external origin changed, Protocols A/B/C completed. **These are the change classes that pass CI and break in production.**
+- **Propagation protocols run?** If shared shape, a public API, or an external origin changed, the `module-propagation` protocols A/B/C completed. **These are the change classes that pass CI and break in production.**
 - **Production build, not a dev build?** Built with the production configuration, correct base path, optimizations on, source maps handled per policy.
 - **Changelog current?** `rolling-history` ran; the release has a written record of what's in it.
 - **Version decided?** Per the project's scheme, and consistent everywhere it appears (manifest, lockfile, app-visible version string, container tag).
-- **Migrations reversible or forward-compatible?** See Phase 3.
+- **Migrations reversible or forward-compatible?** See Phase 3 and its reference.
 - **Rollback plan written?** Constraint 4. Hard gate.
 
 ---
@@ -98,42 +100,9 @@ Answer each with yes / no / n-a. Any "no" stops the deploy and is stated plainly
 
 ## Phase 3 — Pre-Flight Risk Pass
 
-The failure classes CI cannot see. Each is yes/no/n-a; any yes is a finding with severity.
+The failure classes CI structurally cannot see — per-environment config and secrets, pre-existing data and migrations, caches that outlive the deploy, external origins and policy, runtime compatibility, and blast radius. Each is yes/no/n-a; any yes is a finding with severity, and a clean category is stated clean rather than omitted.
 
-**Configuration & secrets**
-- Env vars the new code reads — **present in the target environment**? A var that exists locally and in CI but not in prod is the single most common deploy failure. Enumerate the ones this change added.
-- Any secret, token, or key inside the built artifact? Client bundles ship everything they contain — check what got inlined.
-- Config defaults that silently differ per environment (log level, debug flags, feature toggles, API base URL, sample rates)?
-- New third-party service — credentials provisioned in the target, quota/rate limits understood?
-
-**Data & migrations**
-- Does this release change persistent state? If yes: is the migration **reversible**, and is it **forward-compatible** with the currently-running code?
-- **Ordering:** does the new code require the migration, or does the migration require the new code? A migration that breaks the running version causes downtime during a rolling deploy. Prefer expand → deploy → contract: add the new shape, ship code using it, remove the old shape in a later release.
-- Long-running migration against a live table — lock duration understood, batched if needed?
-- Backfill needed for existing rows, and is the code correct for rows that predate it?
-- **Is there a backup or a restore point taken before this runs?**
-
-**Caching & assets**
-- Are static assets content-hashed, so clients don't get a stale bundle against a new API?
-- CDN cache invalidation needed, and is it part of the deploy or a separate step?
-- A service worker or app cache that will serve the previous version until it updates? **This makes a rollback appear not to work** and is a classic false alarm.
-- HTML/entry document cached longer than it should be?
-
-**External origins & policy**
-- New external origin — declared in **every** place the policy exists (markup meta, server header, dev and prod config)? A blocked origin renders consistently broken, so tests and visual baselines pass (`implementing-architect` Protocol C).
-- CORS allowances updated on the API side for a new frontend origin?
-- New outbound host allowed by any egress restriction?
-
-**Runtime & compatibility**
-- Runtime version in the target matches what was built against (node/python/JVM/etc.)?
-- Native or platform-specific dependencies built for the target architecture?
-- Cold-start or memory characteristics changed meaningfully?
-- Health check still passes with the new startup sequence — including the case where a dependency is briefly unavailable?
-
-**Blast radius**
-- Can this ship behind a flag or to a subset first? If a safe partial rollout is available and not being used, say why.
-- What breaks for a user mid-session when this lands — an in-flight form, an open websocket, a cached page?
-- Is the deploy window sensible (traffic, on-call, time of day, day of week)?
+**Read `${CLAUDE_SKILL_DIR}/references/preflight.md` and work through it.** Skipping this phase is how a green pipeline ships an outage.
 
 ---
 
@@ -152,124 +121,22 @@ If a one-way door exists and can't be avoided, say so explicitly and let the use
 
 ## Phase 5 — Handover
 
-You assemble; the user fires (Constraint 2).
+You assemble; the user fires (Constraint 2). The shape, the resolve-every-placeholder rule, the never-print-a-secret rule, and the *what it does / how you know it worked* lines are in the **`module-handover`** skill. Load it and emit the runbook in that shape.
 
-1. **Resolve every placeholder.** A runbook with `<your-project-id>` still in it is not finished work. Read the real value from the profile, a config file, or CI — or mark it as a blocking question (Constraint 6).
-2. **State the target environment and what is shipping**, in one line at the top, so the person pasting cannot be on autopilot about which environment they are in.
-3. **Emit the runbook** in the §Output Format shape: config and secrets first, then one numbered, copy-paste step per command, each with *what it does* and *how you know it worked*, then the rollback plan with its one-way doors named.
-4. **Say what to watch during the deploy**, not just its exit code — the platform reporting success is not the app being healthy. Name the signal.
-5. **Stop.** Do not run the sequence. If a step fails when the user runs it, they come back with the output and you diagnose (`debugging-architect`) — never improvise past a failed deploy step on their behalf.
+Two things this phase adds on top of the module:
 
----
+1. **State the target environment and what is shipping** in one line at the top, so the person pasting cannot be on autopilot about which environment they are in.
+2. **Say what to watch during the deploy**, not just its exit code — the platform reporting success is not the app being healthy. Name the signal.
+
+Then stop. If a step fails when the user runs it, they come back with the output and you diagnose (`debugging-architect`) — never improvise past a failed deploy step on their behalf.
 
 ## Phase 6 — Post-Deploy Verification
 
-Runs **after the user reports the deploy landed**, and uses only the reversible checks Constraint 3 already permits — health endpoints, reading logs, exercising a path in a browser or with `curl`. Against the **real environment**, never against local state or a green CI run.
+Runs **after the user reports the deploy landed**, against the **real environment** — never against local state or a green CI run. Uses only the reversible checks Constraint 3 already permits.
 
-1. **Health check** — the endpoint or signal from the profile.
-2. **The critical path** — actually exercise the thing that matters (log in, load the main screen, submit the core form). One real path beats ten green checks.
-3. **The change itself** — verify what this release shipped, in the environment it shipped to.
-4. **Errors and logs** — a brief watch window. New error classes, a rate change, failed requests to a newly added origin.
-5. **The blind-spot sweep** — the things that specifically break only in a deployed environment:
-
-| Symptom | Usual cause |
-|---|---|
-| Blank screen, works locally | Blocked external origin (policy not updated everywhere) or wrong base path |
-| Old version still served | CDN cache, service worker, or a client holding a cached entry document |
-| Works for new users, breaks for existing | Missing backfill, or code assuming the post-migration shape |
-| Fails only under load or after idle | Cold start, connection-pool exhaustion, memory ceiling |
-| Intermittent 4xx/5xx to one host | CORS, egress rule, or an unprovisioned credential |
+**Read `${CLAUDE_SKILL_DIR}/references/post-deploy.md`** for the procedure and the symptom→cause table for things that break only in a deployed environment.
 
 State the verdict plainly: **verified**, **rolled back**, or **watching** with what you're watching and for how long. If verification fails, the decision is rollback (Constraint 8) — production is not a debugging environment.
-
----
-
-## Output Format (Fixed)
-
-```markdown
-# Release Brief: <version> → <environment>
-
-**Readiness:** ✅ ready / ⚠️ ready with caveats / ❌ blocked
-**Next action:** <the single thing the user does now>
-
-## Shipping
-- Version: <old> → <new>
-- Change set: <N commits / PR range>, reviewed <yes/no>
-- Highlights: <2–4 bullets from the changelog — no invented items>
-- Breaking changes: <named, with migration path — or "none">
-
-## Readiness Gate
-| Check | Result |
-|---|---|
-| Gates green on this change set | ✅ / ❌ <which failed> |
-| Reviewed, Criticals/Highs resolved | ✅ / ❌ |
-| Propagation protocols (A/B/C) | ✅ / n-a / ❌ |
-| Production build verified | ✅ / ❌ |
-| Changelog + version current | ✅ / ❌ |
-| Rollback plan written | ✅ / ❌ |
-
-## Pre-Flight Findings
-- 🔴 / 🟠 / 🟡 **[Config|Data|Cache|Policy|Runtime|Blast radius] <title>** — <why it matters> → <fix>
-- *(state "no findings" per clean category rather than omitting it)*
-
-## Before you start — config and secrets
-
-*Set these in `<environment>` first; the runbook assumes they are present. Names only — values
-are yours to fill, and are never printed here (Constraint 7). This is also where a local `.env`
-gets built: paste the block, fill the right-hand side yourself.*
-
-| Variable | Where it is set | Why this release needs it |
-|---|---|---|
-| `<NAME>` | `<platform dashboard / CI secret / .env>` | `<one line>` |
-
-```bash
-# confirms they landed — expect <N> lines, no blanks
-<the one command that lists the resolved vars in the target>
-```
-
-Other prerequisites: `<migration to run, cache to purge, DNS record, quota raise — or "none">`
-
-## Runbook — you run these
-
-*One step per block, in order. Copy a block, run it, check the "verify" line, move on.
-Nothing here has been executed for you (Constraint 2).*
-
-**1. `<what this step does, in the user's words>`**
-```bash
-<exact command, no placeholders left>
-```
-*Verify:* `<the observable that says it worked>` · *If it fails:* `<stop / rerun / go to rollback>`
-
-**2. `<…>`**
-```bash
-<exact command>
-```
-*Verify:* `<…>` · *If it fails:* `<…>`
-
-## Rollback Plan
-
-*Read this before step 1, not after step 4.*
-
-- **Trigger:** <signal + threshold — decided now, before the pressure>
-- **Time to recover:** <realistic estimate from decision to restored service>
-
-```bash
-<the exact rollback command, copy-ready>
-```
-
-- **Does NOT undo:** <migrations, sent mail, charges, client-side caches — or "nothing, fully reversible">
-
-## Post-Deploy Verification
-1. <health check>
-2. <critical user path>
-3. <the change itself>
-4. <watch window: what and how long>
-
-## Guards
-- No git command that writes was run — staging, committing, pushing, and release tagging are user-only.
-- Nothing above was executed. Deploys, migrations, publishes, and rollbacks are yours to fire (Constraint 2).
-- <reversible checks actually run: production build / config diff / dry run / health check — or "none yet">
-```
 
 ---
 
@@ -278,7 +145,7 @@ Nothing here has been executed for you (Constraint 2).*
 Invoked with "roll back". Skip straight to it — the readiness gate is irrelevant when something is already broken.
 
 1. **State the current symptom** in one line. Don't diagnose first; restore first.
-2. **Hand over the rollback command** from the plan — resolved, copy-ready, one step (or resolve it now if no plan exists). A rollback is a production write, so it is the user's to run under Constraint 2; speed comes from the command already being correct, not from you typing it.
+2. **Hand over the rollback command** from the plan — resolved, copy-ready, one step (`module-handover` §4), or resolve it now if no plan exists. A rollback is a production write, so it is the user's to run under Constraint 2; speed comes from the command already being correct, not from you typing it.
 3. **Verify recovery** with the same health check and critical path.
 4. **Name what rollback did not undo** and what still needs manual repair.
 5. **Only then** investigate cause. Write the finding into the changelog and, if it's a recurring class, into the profile's blind spots so the next release checks for it.
@@ -296,7 +163,7 @@ Invoked with "roll back". Skip straight to it — the readiness gate is irreleva
 - [ ] Cache and service-worker behavior considered — including its effect on rollback.
 - [ ] Rollback plan written **before** deploying, with the one-way doors named honestly.
 - [ ] Nothing outward-facing was executed — the deploy, migration, publish, or rollback was handed over as a runbook (Constraint 2).
-- [ ] Every runbook step is copy-ready: no unresolved placeholder, each with what it does and how the user knows it worked.
+- [ ] Every runbook step is copy-ready per `module-handover`: no unresolved placeholder, each with what it does and how the user knows it worked.
 - [ ] Post-deploy verification run against the real environment *after the user reported it landed*, including one real user path.
 - [ ] Verdict stated plainly: verified / rolled back / watching.
 - [ ] **No `git add`, `commit`, `push`, or `tag`** — every git operation left to the user.
@@ -315,7 +182,7 @@ Invoked with "roll back". Skip straight to it — the readiness gate is irreleva
 ## Relationship to Other Skills
 
 - **Guidelines (Meta)** — §9 git guards (tags included), §15 honesty, §16 bounded passes.
-- **Implementing Architect** — its Protocol C (external origins and configuration declared in more than one place) is the single most common source of pre-flight findings here.
+- **`module-propagation`** — its Protocol C (external origins and configuration declared in more than one place) is the single most common source of pre-flight findings here. Load it when the readiness gate reaches that row.
 - **Code Review Architect** — its verdict is an input to the readiness gate; unresolved Criticals block.
 - **Rolling History** — supplies the changelog this skill turns into release notes; run it first.
 - **Testing Architect** — a production incident that could have been caught by a test becomes a failing-first regression test before the fix ships.

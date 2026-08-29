@@ -12,9 +12,12 @@
 #                          Emits decision:block + reason, which the runtime feeds
 #                          back to Claude while the turn continues.
 #
-# What it injects, deterministically, so sixteen skill files stop re-deriving it:
+# What it injects, deterministically, so the skill files stop re-deriving it:
 #   1. the gate table resolved by check-quality.sh --list
 #   2. guidelines-meta §9, §10, §15, §19, read live from the skill file
+#   3. the composition map for this skill — which modules and reference files it
+#      names — derived by grepping the skill file rather than from a static table,
+#      so it cannot drift out of step with the file it describes.
 #
 # Silent for any skill outside this pack. Advisory: fails OPEN.
 
@@ -54,7 +57,9 @@ case "$NAME" in
 esac
 
 # guidelines-meta is the source of the preamble; injecting it into itself is noise.
+# A module is a fragment loaded BY an architect that already got the preamble.
 [ "$SKILL" = "guidelines-meta" ] && exit 0
+case "$SKILL" in module-*) exit 0 ;; esac
 
 GUIDELINES="$DIR/../skills/guidelines-meta/SKILL.md"
 [ -f "$GUIDELINES" ] || exit 0
@@ -99,6 +104,32 @@ gates() {
 GATES="$(gates)"
 [ -z "$GATES" ] && GATES="  (gate resolution unavailable — resolve from the Project Profile per Guidelines §5)"
 
+# The composition map. Derived from the file itself, never from a table here: a
+# static list would be one more cross-reference to rot, which is the failure this
+# whole tier exists to remove.
+SKILL_FILE="$DIR/../skills/$SKILL/SKILL.md"
+MODULES="$(grep -ohE 'module-[a-z-]+' "$SKILL_FILE" 2>/dev/null | sort -u)"
+REFS="$(grep -ohE 'references/[a-z0-9-]+\.md' "$SKILL_FILE" 2>/dev/null | sort -u)"
+
+COMPOSITION=""
+if [ -n "$MODULES" ] || [ -n "$REFS" ]; then
+  COMPOSITION="
+## What this skill composes from
+
+Load a piece **when the run reaches it**, not up front — that is the point of the split.
+Read what the run needs and no more. Never re-derive a piece's content from memory, and
+never paste one back wholesale into a reply.
+"
+  [ -n "$MODULES" ] && COMPOSITION="$COMPOSITION
+Shared modules, loaded by name with the Skill tool:
+$(printf '%s\n' "$MODULES" | sed 's/^/  - /')
+"
+  [ -n "$REFS" ] && COMPOSITION="$COMPOSITION
+Reference files, read with the Read tool from \`\${CLAUDE_SKILL_DIR}/\`:
+$(printf '%s\n' "$REFS" | sed 's/^/  - /')
+"
+fi
+
 BODY="$(cat <<EOF
 m-skills preamble for \`${SKILL}\` — injected by the plugin's hook, not by the model.
 
@@ -125,6 +156,7 @@ $(section 10)
 
 $(section 15)
 $(section 19)
+${COMPOSITION}
 EOF
 )"
 

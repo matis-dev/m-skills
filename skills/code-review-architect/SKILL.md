@@ -13,7 +13,7 @@ disable-model-invocation: true
 
 **Role:** Lead Reviewer. Evaluate a change set against the project's conventions and produce one unified verdict covering **maintainability, performance, security, correctness, and design craft**.
 **Trigger:** "Use Code Review Architect" / "Review this branch" / "Review PR #N".
-**Output:** A markdown review with a fixed shape (§Output Format) ending in a single combined score and verdict.
+**Output:** A markdown review in the fixed shape at `${CLAUDE_SKILL_DIR}/references/output-format.md`, ending in a single combined score and verdict.
 **Portability:** The procedure is universal. Gates, conventions, and blind spots come from the **Project Profile** (Guidelines §5).
 
 ---
@@ -23,11 +23,9 @@ disable-model-invocation: true
 1. **Read-only.** Writes no production code. May read freely and run gates; every fix is the user's call.
 2. **Git and golden-file guards are enforced by the plugin's PreToolUse hook**, not merely stated here (Guidelines §9, §10). Any git command that writes — and any `gh` command that publishes — is **denied by the runtime**, as is `--no-verify` and any snapshot-update command. Read-only inspection stays open. Files stay unstaged and visual diffs stay the user's to review. Restate the guard inside the review output.
 3. **No scope creep in findings.** Comment only on the change set unless an issue *outside* the diff is directly load-bearing for it. If you stray, label it `[OUT-OF-DIFF]` and justify in one line.
-4. **Cite, don't recite.** Every finding carries a `path/to/file:42` reference. No floating "consider improving X".
+4. **Findings follow `module-findings`** — the citation requirement, the confidence gate (post only what you'd rate ≥ 80), the false-positive list, the "worth a second look" bucket for severe-but-unverified items, the severity bands, and the verdict rules. Load it before writing a single finding.
 5. **Tests evaluated via Testing Architect**; **UI evaluated via Design Architect.** Don't invent ad-hoc critique in either domain.
-6. **Confidence gate — report only what you're sure of.** Before listing a finding, self-score your confidence that it is real, introduced by this change set, and worth the user's attention (0 = probable false positive, 100 = certain). **Post only findings you'd rate ≥ 80.** Below that, drop it silently rather than padding — a noisy review trains the user to ignore it.
-   **Do not report** (false positives, not findings): a pre-existing issue the diff didn't introduce (unless `[OUT-OF-DIFF]` load-bearing); code that *looks* buggy but is functionally correct; pedantic nitpicks with no behavioral or maintainability cost; anything the linter already catches; a line carrying an explicit "safe because …" justification that actually holds.
-   Correctness/security items you're under 80 on **but that would be severe if true**: don't drop them — list under a short **"Worth a second look (unverified)"** note, kept separate from the scored findings.
+6. **No finding without a location and an owner.** Every one carries `path/to/file:42` and names the skill that writes its fix, since this one writes none.
 7. **Every number is real** (Guidelines §15). Coverage percentages, advisory counts, and line references come from output you actually saw.
 8. **Bounded** (Guidelines §16). One gate batch, one diff pass, one synthesis. Don't re-read the diff hunting for a fifth Medium.
 
@@ -40,12 +38,25 @@ Every review addresses each dimension explicitly. Silence on one is itself a fin
 1. **Maintainability** — readability, intent-revealing naming, dead code, duplication vs. reuse, abstraction level, comment hygiene (Guidelines §13), typing discipline, adherence to the project's existing idiom.
 2. **Performance** — algorithmic cost on the hot path, N+1 queries or writes, bundle/binary impact, lazy boundaries, subscription/listener/handle leaks, list rendering keys, asset weight, avoidable re-computation, caching correctness.
 3. **Security** — the threat model in Phase 4, anchored to OWASP Top 10:2025 via the `security-architect` skill §1.
-4. **Correctness & Tests** — does the change do what it claims? Tests paired with code (Guidelines §11)? Coverage on new branches? Green-but-lying traps (Testing Architect §3)?
-5. **Design craft & accessibility** — for UI-visible diffs, the Design Architect floor and refuse list, plus the operability floor from the `accessibility-architect` skill.
+4. **Correctness & Tests** — does the change do what it claims? Tests paired with code (Guidelines §11)? Coverage on new branches? Green-but-lying traps (`module-gate-battery` §3)?
+5. **Design craft & accessibility** — for UI-visible diffs, `module-craft-floor` and the `design-architect` refuse list, plus `module-operability-floor`.
 6. **Project conventions** — the committed design system, architecture topology, and idioms from the profile.
 7. **Inherited guards** — the change set itself contains no committed git/CI bypasses, no auto-update of golden files, no `--no-verify` traces in scripts.
 8. **Goal trace** — every change line traces to a stated objective. Flag drive-by edits.
 9. **One unified verdict** — all dimensions collapse into a single 0–100 score so the user reads one number, not five.
+
+---
+
+## What to Read, and When
+
+| Read | When |
+|---|---|
+| `module-gate-battery` | Phase 2 — the gate order, the one-batch rule, the result table. |
+| `module-propagation` | Phase 3 — when shape, an API, or an origin changed. |
+| `module-threat-model` | Phase 4 — the whole security pass. |
+| `module-craft-floor` + `module-operability-floor` | Phase 3, UI-visible diffs only. |
+| `module-findings` | Before writing a single finding. Confidence gate, severities, bands. |
+| `${CLAUDE_SKILL_DIR}/references/output-format.md` | Assembling the review. |
 
 ---
 
@@ -58,111 +69,23 @@ Every review addresses each dimension explicitly. Silence on one is itself a fin
 - Read commit messages and any PR description for **stated intent**. Record the claimed goals — they anchor Phase 5's goal trace.
 
 ### Phase 2 — Static Gates
-Run the profile's gates in the profile's order; **record results, don't abort on first failure**:
-`<lint>` → `<typecheck>` → `<test>` (capture coverage) → `<build>` → `<audit>` → `<e2e>` → `<visual>` (never auto-update) → `<a11y>`
+Run them per the `module-gate-battery` skill — its order, its one-batch rule, its result table. Never auto-update a visual baseline (§4 there).
 
 A failing gate is captured verbatim under Findings → Correctness/Tests, at minimum **High**.
 
 ### Phase 3 — Quality Pass (Maintainability + Performance + Craft)
 
-Walk the diff file by file.
+Walk the diff file by file, against `${CLAUDE_SKILL_DIR}/references/quality-pass.md` — naming and reuse, abstraction level, YAGNI, dead code, comment hygiene, typing, user-facing text, doc drift, hot-path cost, leaks, N+1, bundle weight, and the UI craft and operability floors.
 
-**Maintainability**
-- Is naming intent-revealing and consistent with local convention?
-- Duplication of an existing artifact (cite paths)? Should this extend rather than duplicate?
-- Is the abstraction level right — premature generalization with one caller, or copy-paste avoiding a needed extraction (3+ near-identical sites)?
-- **YAGNI + one-liners** (Guidelines §2): flag scope built for a future the task didn't ask for (unused params, speculative config, single-caller generalized helpers). Flag multi-line scaffolding where one readable expression fits — but never push a one-liner that hurts readability; that's the opposite finding.
-- Dead code, orphaned imports, leftover debug logging, commented-out blocks, TODO/FIXME without a ticket?
-- Comments only where the *why* is non-obvious? No what-comments, no task-reference comments?
-- Typing discipline: escape hatches justified in one line, or not?
-- **User-facing text** (Guidelines §14): raw `error.message` shown to a user? If the project is localized, raw literals instead of keys, or a new key missing from a locale? Cite each offender.
-- **Doc drift**: if the diff changes something a profile-listed doc describes (an integration contract, an architecture fact, a deployment step), that doc is now stale — a **Low–Medium** finding. If a doc is multi-language or duplicated, updating only one copy is itself a finding.
-
-**Change-Propagation Audit** — if the diff changes shared shape, a public API, or an external origin, verify the mirror sites followed (Implementing Architect Protocols A/B/C). Findings of this class are the highest-value output of the whole review:
-- **Stale markup/template bindings** referencing a removed name — these pass type-check and fail only at build/runtime. If the build gate was green, this is covered; if it was skipped, grep the markup for the old name.
-- **Orphaned user-facing keys** left by a removed field — grep each suspect key across source; zero references → finding.
-- **Compiler-silenced fixtures** still holding the pre-change shape — flag any mock that doesn't match the current schema.
-- **Test doubles missing a newly added method** — the spy list, mock class, or inline stub returns nothing and the test fails misleadingly, or worse, passes.
-- **Moved bounds / swapped enum values** don't grep cleanly — verify by **semantic site**: validators in *every* factory, the hand-written validation check, markup min/max attributes and clamps, parallel field configs, strings baking the value into prose, and boundary assertions pinned to the old edge. A site left on the old value is a finding even when grep and tests are green.
-
-**Performance**
-- Hot-path complexity; work repeated per item that could be hoisted.
-- N+1 network/database/storage calls; writes that should be batched.
-- Subscriptions, listeners, timers, file handles: cleaned up on teardown?
-- Rendering: memoization/change-detection strategy appropriate; stable keys on dynamic lists?
-- New dependencies: bundle/binary cost vs. value; tree-shakeable; duplicating something already present?
-- Assets added: weight, format, compression.
-- Lazy boundaries for non-trivial new routes/modules.
-
-**Design craft & accessibility** *(UI-visible diffs only — cite the `design-architect` and `accessibility-architect` skills)*
-- Craft floor: computed contrast, full state set on interactive elements and inputs, spacing on the scale, responsive range clean, motion has reduced-motion fallbacks, focus-visible present.
-- Operability floor: native element used where one exists, or the ARIA role's full contract supplied; every control keyboard-reachable and named; new overlays move focus in, close on Escape, and **return focus to the trigger**; route or status changes announced; targets meet 24×24 or the spacing exception. **If the plan carried `[A11Y]` tags, verify those specific commitments landed** — and note that a green `<a11y>` gate is evidence about the scan, not about focus architecture.
-- Refuse list: any AI-default pattern present that the brief didn't earn.
-- Token discipline: colors and fonts referencing tokens, not improvised values.
-- Honest content: no invented metric, testimonial, or claim (Guidelines §15).
+Then, on top of that pass:
 
 ### Phase 4 — Security Pass
 
-Each item is yes/no/n-a; any "yes" is a finding with severity. Sections with no findings are explicitly noted clean. Group headings carry their **OWASP Top 10:2025** anchor, sourced from the `security-architect` skill §1 — cite the category only when you are certain of it, and describe the weakness without an identifier when you are not (§15).
+Load the `module-threat-model` skill and run its **§4 review sweep** over the diff. Each item is yes/no/n-a; any "yes" is a finding with severity, and a group with no findings is explicitly noted clean rather than omitted. Group headings carry their **OWASP Top 10:2025** anchor — cite the category only when you are certain of it, and describe the weakness without an identifier when you are not (Guidelines §15).
 
 **If the plan carried `[SEC]` tags, start there.** Verify the trust boundaries the plan named actually got their controls, at the place the plan said. That is a cheaper and more reliable pass than re-deriving the threat model from the diff, and a boundary the plan named but the diff does not implement is a finding on its own.
 
-**Injection & rendering sinks** *(A04)*
-- Raw HTML/markup binding without sanitization; a "trust this value" escape hatch without inline justification.
-- User-controlled string interpolated into a URL, template, shell command, or query without validation or parameterization.
-- Dynamic code execution (`eval`, `Function`, string-argument timers, dynamic import of a user-controlled path).
-
-**Untrusted input & deserialization** *(A08)*
-- Parsed user input **merged or spread into an existing object without key filtering** — a prototype-pollution sink. Flag any deep-merge, spread, or assign over untrusted input that doesn't drop dangerous keys or use a null-prototype target. Note that structured cloning does **not** sanitize; it preserves attacker-controlled keys.
-- Imported data trusted for **shape** without passing the sanitizer/validator before it reaches storage, forms, or export.
-- Missing size/type/count limits on uploads or imports.
-
-**Network / IO** *(A02, A05)*
-- Requests to user-controlled URLs; origin pinned?
-- New external `<script>`/`<link>` — pinned version, integrity, crossorigin where applicable?
-- **New external origin loaded** — every place the security policy is declared updated (markup meta *and* server header, dev *and* prod config), with the right directive? A missing host is a functional break, not just hardening. **Blind spot:** a blocked resource renders consistently broken, so its visual baseline still passes — flag as a verification gap; green visual tests are not proof it loads.
-
-**Storage** *(A01, A05)*
-- Anything sensitive written to client storage without the project's consent/permission flow?
-- PII, tokens, or plaintext secrets stored at all? Keys namespaced against collision?
-
-**Routing / AuthZ** *(A01)*
-- New route gated where it should be? Public-by-default acceptable only if intentional — flag uncertainty.
-- **IDOR** — an id or index from a route/query used to select or mutate data with no ownership check?
-- **Path traversal** — user- or import-controlled string building a file path, asset URL, dynamic import, or storage key without normalizing `..` and leading-slash segments? Common on import/export filenames.
-
-**Configuration / Secrets** *(A02, A05)*
-- Any string matching a secret pattern (API key, token, password, private key, cloud key prefix, JWT)? Cite every hit even if it looks intentional.
-- Hardcoded internal infrastructure URLs; production secrets landing in a tracked config file.
-
-**Dependencies** *(A06)*
-- Advisories from `<audit>` tied to changed deps — each is a finding at the audit's severity.
-- New packages: maintainer reputation, last-publish sanity, typo-squat ruled out against the known-good name.
-- Transitive pins via overrides/resolutions — justified?
-
-**Server-rendering / hydration** *(A04 — if applicable)*
-- User-controlled data escaped through the framework's binding (safe) vs. interpolated raw into HTML (unsafe)?
-- Hydration mismatch enabling DOM clobbering?
-
-**Supply chain** *(A03 — broader than the advisory scan above)*
-- New dependency, CI action, or base image left **unpinned**, or a lockfile change nobody read for transitive additions?
-- A build or install step fetching a script over the network and executing it?
-- CI credentials or workflow permissions wider than the job needs; a publish step running from an unverified pipeline?
-
-**Exceptional conditions** *(A10 — the one no gate reports)*
-- A `catch` around a permission, signature, token, or verification check that **swallows the failure and continues**?
-- A security decision whose error path returns permissive — `true`, `null`-as-allowed, or a fall-through to the default branch?
-- A dependency timeout or outage that degrades **open** instead of closed?
-- An error message or stack trace reaching the user with internal structure in it?
-> Fail-open code passes every test and every scanner, because it is working code until the day the thing it calls is down. Read the error path deliberately; it will not be flagged for you.
-
-**Logging** *(A09)*
-- New logging of request/response bodies, tokens, or PII?
-- Handlers swallowing security-relevant exceptions silently?
-
-> **Findings are described here; the fix is written by the `security-architect` skill** (`remediate` mode), with the regression test that fails against the unpatched code. Reachability is part of the finding, not an afterthought: state the path from an attacker-controlled input to the sink, or state that you could not establish one.
->
-> Severity guidance: data exfiltration / auth bypass / RCE-class → **Critical**. Stored injection or a known-CVE dep with an exploit path → **High**. Injection reachable only via developer-controlled input → **Medium**. Defense-in-depth gaps → **Low** or **Nit**.
+> **Findings are described here; the fix is written by the `security-architect` skill** (`remediate` mode), with the regression test that fails against the unpatched code. Reachability is part of the finding, not an afterthought: state the path from an attacker-controlled input to the sink, or state that you could not establish one. The severity bands for this pass are in that module's §4.
 
 ### Phase 5 — Synthesis
 - Trace every diff hunk to a stated goal. Drive-bys → Maintainability finding.
@@ -179,100 +102,14 @@ Each item is yes/no/n-a; any "yes" is a finding with severity. Sections with no 
 | Performance | 15 | Hot-path cost, leaks, N+1, bundle/asset weight, rendering hygiene |
 | Security | 30 | The Phase 4 threat model, anchored to OWASP Top 10:2025 |
 | Correctness & Tests | 20 | Gates pass, coverage on new code, paired tests, green-but-lying traps |
-| Design Craft | 10 | Craft floor, refuse list, and the accessibility operability floor on UI-visible changes (**re-weight to Maintainability when the diff has no UI**) |
+| Design Craft | 10 | `module-craft-floor`, the refuse list, and `module-operability-floor` on UI-visible changes (**re-weight to Maintainability when the diff has no UI**) |
 | **Total** | **100** | |
 
-### Severity → Deduction (from the dimension's max)
+### Severity, deductions, and bands
 
-| Severity | Deduction |
-|---|---|
-| Critical | −20 (auto-`BLOCK` regardless of total) |
-| High | −10 |
-| Medium | −4 |
-| Low | −2 |
-| Nit | −0.5 |
+All three are in `module-findings` §3–§4: the five severity levels with their deductions, the four verdict bands, and the **hard override** — any Critical forces 🔴 Block regardless of total, and the override is stated in the verdict line.
 
-A dimension floors at 0. Dimensions sum to `Total / 100`.
-
-### Verdict Bands
-
-| Score | Verdict | Meaning |
-|---|---|---|
-| 90–100 | 🟢 **Ship-Ready** | At most a few Nits/Lows. Merge after manual visual review. |
-| 75–89 | 🟡 **Minor Revisions** | Mediums to address. Re-run gates after fixes. |
-| 60–74 | 🟠 **Needs Revisions** | Multiple Mediums or one High. Revisit before merge. |
-| 0–59 | 🔴 **Block** | Highs accumulating, or any Critical. Do not merge. |
-
-> **Hard override:** any **Critical** forces 🔴 **Block** regardless of total. State the override in the verdict line.
-
----
-
-## Output Format (Fixed)
-
-```markdown
-# Code Review: <branch / PR# / change-set>
-
-**Verdict:** 🟢/🟡/🟠/🔴 **<band>** — <n>/100
-**Next action:** <the single thing the user does now>
-
-## Scope
-- Base `<ref>` → Head `<ref>` (<N> commits, <F> files, +<add>/-<del>)
-- Stated goals (from commits / PR):
-  - <goal>
-
-## Static Gates
-| Gate | Result |
-|---|---|
-| `<lint>` | ✅ / ❌ <one line if ❌> |
-| `<typecheck>` | ✅ / ❌ |
-| `<test>` | ✅ / ❌ — coverage: <stmts>% / <branches>% |
-| `<build>` | ✅ / ❌ |
-| `<audit>` | <N advisories: H=… M=… L=…> |
-| `<e2e>` / `<visual>` | ✅ / ⚠️ diffs (manual review) / ❌ |
-| `<a11y>` | ✅ / ❌ <violations, themes> |
-
-## Findings
-
-### 🔴 Critical
-- **[Security] <title>** — `path/to/file.ts:42`
-  Why it matters: <one paragraph>
-  Fix: <concrete pointer; no code written here>
-
-### 🟠 High
-### 🟡 Medium
-### 🔵 Low
-### ⚪ Nit
-
-> Out-of-diff findings tagged `[OUT-OF-DIFF]` with a one-line justification.
-
-### Worth a second look (unverified)
-- <severe-if-true item below the confidence bar, with what would confirm it>
-
-## Convention Audit
-- Project conventions / design system respected? <yes / no — cite>
-- Reuse mandate respected? <yes / no — cite>
-- User-facing text handled per convention? <yes / no — cite raw `error.message`, raw literals, missing locale keys>
-- Change propagation complete? <n-a / yes / no — cite unswept mirror sites>
-- External origin / policy declarations complete? <n-a / yes / no>
-- Design craft floor cleared? <n-a / yes / no — cite>
-- Guards clean in scripts/CI? <no `--no-verify`, no auto golden update, no force ops>
-- Tests paired with code changes? <yes / no — cite Testing Architect findings>
-
-## Score
-| Dimension | Score | Notes |
-|---|---|---|
-| Maintainability | <x> / 25 | |
-| Performance | <x> / 15 | |
-| Security | <x> / 30 | |
-| Correctness & Tests | <x> / 20 | |
-| Design Craft | <x> / 10 | |
-| **Total** | **<x> / 100** | |
-
-## Manual Final Stage (NOT automated)
-- Review failed visual diffs at `<report path>` if any.
-- If intended, the **user** runs `<update-command>` manually and re-runs `<visual>`.
-- Reviewer never runs `git add`, `git commit`, or `git push`. Staging, committing, and pushing are **user-only**.
-```
+A dimension floors at 0. Dimensions sum to `Total / 100`, and every deduction traces to a listed finding.
 
 ---
 
@@ -286,7 +123,7 @@ A dimension floors at 0. Dimensions sum to `Total / 100`.
 - [ ] Every OWASP category or CWE cited is one you are certain of; uncertain ones described without an identifier.
 - [ ] Each finding names the skill that owns its fix (this one writes no code).
 - [ ] Change-propagation audit performed when shape / API / origin changed.
-- [ ] Confidence gate applied: every posted finding self-rated ≥ 80; false positives dropped; severe-but-unverified routed to "Worth a second look".
+- [ ] `module-findings` applied: every posted finding self-rated ≥ 80, located, and owned; false positives dropped; severe-but-unverified routed to "Worth a second look".
 - [ ] Design craft **and** accessibility operability assessed for UI-visible diffs (or the dimension re-weighted and said so).
 - [ ] Test findings sourced from Testing Architect patterns.
 - [ ] Coverage numbers and advisory counts copied from real output, never estimated.

@@ -1,6 +1,13 @@
-# m-skills — a portable Claude Code plugin
+# m-skills — a modular Claude Code plugin
 
-**A simple plugin for full-stack developers who use Claude to do their actual work.** It gives the everyday loop — brainstorm, plan, build, review, write it down — a fixed shape, so the model stops improvising the process and you stop re-typing the same instructions.
+**A plugin for full-stack developers who use Claude to do their actual work.** It gives the everyday loop — brainstorm, plan, build, review, write it down — a fixed shape, so the model stops improvising the process and you stop re-typing the same instructions.
+
+**The M is for modular.** You invoke an **architect** — one of 16 skills that own a stage of the work. The architect is a short spine: its constraints, its modes, its procedure. Everything else it might need is a **module** or a **reference file** it loads *on demand*, once it knows what this particular run is. A `decompose` run never reads the PRD sections. A design polish never reads the threat model. → [Architects and modules](#-architects-and-modules)
+
+Two things fall out of that, and only one of them is a token saving:
+
+- **The always-loaded floor across the 16 architects fell from 3,660 lines to 2,240** — a 39% cut in what gets read before the skill has decided anything. Narrow runs land well under the old cost: a `search-optimization-architect` technical pass is 222 lines against 332; a `design-architect` polish is 144 against 153.
+- **One source of truth per rule.** The change-propagation protocol used to be written three times and the OWASP sink model three times, in files that drifted apart. Each is now one module that every architect loads. This is the bigger win, and it is *not* free: a run that legitimately needs three modules can read **more** than the old monolith did — a full `code-review-architect` pass on a diff touching shared shape and a security sink is 636 lines against 318 — because it now gets the complete shared version instead of an abbreviated local copy that had quietly gone stale. Measured numbers: [§ What a run actually loads](#what-a-run-actually-loads).
 
 Nothing here is tied to a specific project. Every command, framework, and convention is resolved at runtime, so the same skills work in any repo.
 
@@ -151,6 +158,16 @@ flowchart TD
 
     RH -. "doc needs an edit" .-> DOC
 
+    subgraph MODS["Modules &mdash; one home per rule, read only when a run reaches them"]
+        MOD{{"9 shared modules"}}
+        MOD -.-> MW["<b>propagation</b> · <b>threat-model</b> · <b>gate-battery</b><br/><i>what a green pipeline cannot prove</i>"]
+        MOD -.-> MF["<b>craft-floor</b> · <b>operability-floor</b> · <b>writing-floor</b><br/><i>the floors a surface cannot fall below</i>"]
+        MOD -.-> MR["<b>findings</b> · <b>evidence</b> · <b>handover</b><br/><i>how a result is reported and handed over</i>"]
+    end
+
+    PIPE -.-> MOD
+    KNOW -.-> MOD
+
     GM["<b>guidelines-meta</b><br/>never invoked alone — every skill here opens by loading it"]
     GM -.-> PIPE
 
@@ -160,16 +177,19 @@ flowchart TD
     classDef know fill:#ede9fe,stroke:#6d28d9,color:#1f2937
     classDef aside fill:#dcfce7,stroke:#15803d,color:#1f2937
     classDef meta fill:#f1f5f9,stroke:#475569,color:#1f2937
+    classDef mod fill:#fff7ed,stroke:#c2410c,color:#1f2937
     class BP,PA,PROD,IA,CR,RH,DEP stage
     class VIS,GIT manual
     class DES,TST,DOC,SEC,A11Y,CITE know
     class DBG,MNT aside
     class GM meta
+    class MOD,MW,MF,MR mod
     style PIPE fill:#f8fafc,stroke:#94a3b8,color:#334155
     style KNOW fill:#faf5ff,stroke:#a78bfa,color:#334155
+    style MODS fill:#fffbeb,stroke:#fb923c,color:#334155
 ```
 
-**Reading it:** solid arrows are steps *you* fire; dotted arrows are knowledge loaded for you. The two red boxes are what the pack deliberately refuses to automate — **visual review** and **git** are yours, always. `debugging-architect` is entered from any stage, not only from the start, and `maintenance-architect` runs on a cadence rather than on discovery.
+**Reading it:** solid arrows are steps *you* fire; dotted arrows are things loaded for you. The two red boxes are what the pack deliberately refuses to automate — **visual review** and **git** are yours, always. `debugging-architect` is entered from any stage, not only from the start, and `maintenance-architect` runs on a cadence rather than on discovery. The orange tier is the modular half: no architect carries those rules itself, and no run reads a module it does not reach.
 
 ### Or just say it in your own words
 
@@ -205,6 +225,56 @@ The verbose prompts you've been pasting still work verbatim — but each maps to
 
 ---
 
+## 🧩 Architects and modules
+
+Three tiers. Which tier a piece of guidance belongs to is decided by one question: **does every invocation of the owning skill need it?**
+
+| Tier | What it is | How many | Loaded |
+|---|---|---|---|
+| **Architects** | the skills you invoke — they own a stage of the work and carry its constraints | 16 | on invocation |
+| **Modules** | a block two or more architects would otherwise each restate | 9 | when an architect names one |
+| **References** | material one architect or module needs in *some* runs — a mode's procedure, an evidence table, an output template | 47 files | when the run reaches it |
+
+A module is addressed **by name** (`module-propagation`), because a name is the only identifier that resolves identically in a plugin install and a copied one. A reference is a plain markdown file inside its architect's own directory, read with the Read tool.
+
+**What never leaves an architect's `SKILL.md`:** its Operational Constraints, its mode table, and its before-emitting checklist. That is deliberate. This pack's own history is a record of rules that failed to bind because they were only prose the model had to be holding — which is why the strictest ones are hooks now. A constraint moved into a file that is sometimes not read is a constraint that sometimes does not apply, so constraints stay put and only reference material moves.
+
+### The module catalog
+
+| Module | What it owns | Architects that load it |
+|---|---|---|
+| `module-propagation` | Protocols A/B/C — the mirror sites a green pipeline cannot catch when shared shape, a public API, or an external origin changes | planning · implementing · code-review · debugging · deployment · security |
+| `module-threat-model` | OWASP Top 10:2025 mapped to sink shapes, trust boundaries, secure construction, the review sweep, triage, regression targets | security · code-review · testing · planning · implementing · maintenance |
+| `module-gate-battery` | The gate order and one-batch rule, the result table, the green-but-lying traps, the manual stop on a visual diff | implementing · testing · code-review · deployment · maintenance · debugging |
+| `module-craft-floor` | Contrast, spacing, type, depth, motion, states, targets, browser surfaces, copy, responsive range, token discipline | design · code-review · accessibility · maintenance · search-optimization |
+| `module-operability-floor` | Native-first construction, the ARIA contract, focus management, live regions — the half no scanner sees | accessibility · design · code-review · testing · planning · implementing |
+| `module-findings` | The finding shape, the ≥80 confidence gate, the false-positive list, severities, banded verdicts | code-review · security · accessibility · documentation · search-optimization · maintenance · debugging |
+| `module-evidence` | Never invent an identifier; every number sourced or labelled; the dated evidence-base format | security · accessibility · search-optimization · product · documentation |
+| `module-handover` | The runbook shape, *what it does / how you know it worked*, and the short forms for commits, reverts, rollbacks | deployment · security · product · rolling-history · maintenance · debugging |
+| `module-writing-floor` | The floor for any document a project ships, plus the refuse list of doc slop | documentation · product · search-optimization · rolling-history · deployment |
+
+Modules are hidden from the `/` menu (`user-invocable: false`) — you never invoke one directly. They point at each other freely but **never load each other**: one level of composition, so there is no load order to debug.
+
+### What a run actually loads
+
+Measured, in lines, by adding up the files each invocation reads. Honest in both directions:
+
+| Invocation | Before | Now |
+|---|---|---|
+| `search-optimization-architect` — technical pass | 332 | **222** |
+| `design-architect` — polish | 153 | **144** |
+| `security-architect` — model | 187 | **179** |
+| `product-architect` — decompose | 216 | **225** |
+| `security-architect` — remediate | 187 | **202** |
+| `debugging-architect` — flaky | 209 | **266** |
+| `implementing-architect` — change touching shared shape | 194 | **283** |
+| `deployment-architect` — prod release | 325 | **372** |
+| `code-review-architect` — diff with shared shape *and* a security sink | 318 | **636** |
+
+The bottom rows are the honest half. They go up because the module carries the *full* treatment where the architect previously carried an abbreviated copy — `code-review-architect`'s old security pass was 62 lines against the shared model's fuller one. That run now costs more and is better; it is not a saving and is not sold as one. What is unambiguously smaller is the floor: **2,240 lines of architect spine, down from 3,660**, and no run pays for a mode it did not pick.
+
+---
+
 ## 🔒 The non-negotiables
 
 These hold in every skill, in every project:
@@ -231,18 +301,22 @@ These hold in every skill, in every project:
 | `scripts/guard-mutations.sh` | **Denies** git mutations, golden-file updates, catastrophic `rm`/`dd` | stays put |
 | `scripts/guard-outward.sh` | **Denies** a deploy, publish, migration, infra apply, or `gh` write — you get a runbook instead | stays put |
 | `scripts/guard-secrets.sh` | **Denies** writes into secret-bearing files; reads and `.env.example` untouched | stays put |
-| `scripts/skill-preamble.sh` | Injects the resolved gates + §9/§10/§15/§19 when a pack skill starts | stays put |
+| `scripts/skill-preamble.sh` | Injects the resolved gates, §9/§10/§15/§19, and the skill's composition map when a pack skill starts | stays put |
 | `scripts/warn-test-weakening.sh` | Flags a newly added `.skip` / `.only` in a test file | stays put |
 | `scripts/advise-propagation.sh` | Prompts the Protocol A sweep when a shared-shape file is edited | stays put |
-| `tests/run-tests.sh` | The pack's own test suite — 296 assertions, no dependencies | stays put |
-| `skills/` | The 16 skills | plugin: stays put · copy-mode: → `<project>/.claude/skills/` |
+| `tests/run-tests.sh` | The pack's own test suite — 367 assertions, no dependencies | stays put |
+| `skills/<architect>/SKILL.md` | An architect's spine — constraints, modes, procedure | plugin: stays put · copy-mode: → `<project>/.claude/skills/` |
+| `skills/module-*/` | The 9 shared modules, addressed by name | same |
+| `skills/*/references/*.md` | On-demand material, read via `${CLAUDE_SKILL_DIR}` | same |
 | `skills/guidelines-meta/PROJECT-PROFILE.template.md` | The profile the skills fill in as you work | → `<project>/.claude/PROJECT-PROFILE.md` |
 | `CLAUDE.template.md` | Always-on guards, loaded every session | → `<project>/CLAUDE.md` |
 | `settings.template.json` | Permission allowlist + git denylist | → `<project>/.claude/settings.local.json` |
 | `skills/implementing-architect/check-quality.sh` | Runnable gate pipeline (profile → conf → auto-detect) | ships inside `skills/` |
-| `SKILLS_INDEX.md` | Skill catalog, pipeline diagram, provenance | reference |
+| `SKILLS_INDEX.md` | Architect and module catalog, pipeline diagram, provenance | reference |
 
-The 16 skills: `guidelines-meta`, `brainstorming-planner`, `planning-architect`, `product-architect`, `design-architect`, `testing-architect`, `security-architect`, `accessibility-architect`, `implementing-architect`, `debugging-architect`, `code-review-architect`, `documentation-architect`, `rolling-history`, `deployment-architect`, `maintenance-architect`, `search-optimization-architect`.
+The 16 architects: `guidelines-meta`, `brainstorming-planner`, `planning-architect`, `product-architect`, `design-architect`, `testing-architect`, `security-architect`, `accessibility-architect`, `implementing-architect`, `debugging-architect`, `code-review-architect`, `documentation-architect`, `rolling-history`, `deployment-architect`, `maintenance-architect`, `search-optimization-architect`.
+
+The 9 modules: `module-propagation`, `module-threat-model`, `module-gate-battery`, `module-craft-floor`, `module-operability-floor`, `module-findings`, `module-evidence`, `module-handover`, `module-writing-floor`.
 
 **Who invokes what** — pipeline stages are yours to trigger; knowledge skills load themselves when relevant:
 
@@ -382,9 +456,11 @@ There is no `/i-have-adhd` command, deliberately: an output style is influence, 
 
 ---
 
-## 🎯 The design in one paragraph
+## 🎯 The design in two paragraphs
 
-Skills name **roles**, never commands. Where an ordinary skill would hardcode `npm run lint`, these say `<lint>` and resolve it — from `.claude/PROJECT-PROFILE.md` if it exists, otherwise by auto-detecting from `package.json` / `Makefile` / `pyproject.toml` / `Cargo.toml` / `go.mod` / CI config. **A role with no command is `n-a`, never invented.** Same for conventions: instead of "use DaisyUI", the rule is "use the project's committed design system, read from the profile". Every concrete tool or filename that appears in a skill is explicitly labeled a disposable illustration of a category — so the pack doesn't rot into a catalogue of one codebase's details.
+**Modular.** You invoke an architect; it works out what this run needs and reads only that. Guidance that two or more architects share is extracted into a module addressed by name, so a rule has one home instead of three copies that drift — the failure this pack kept shipping fixes for. Guidance one architect needs in only some runs becomes a reference file it reads on demand. Constraints never move: they stay in the architect's own file, because a rule that is sometimes not loaded is a rule that sometimes does not apply.
+
+**Portable.** Skills name **roles**, never commands. Where an ordinary skill would hardcode `npm run lint`, these say `<lint>` and resolve it — from `.claude/PROJECT-PROFILE.md` if it exists, otherwise by auto-detecting from `package.json` / `Makefile` / `pyproject.toml` / `Cargo.toml` / `go.mod` / CI config. **A role with no command is `n-a`, never invented.** Same for conventions: instead of "use DaisyUI", the rule is "use the project's committed design system, read from the profile". Every concrete tool or filename that appears in a skill is explicitly labeled a disposable illustration of a category — so the pack doesn't rot into a catalogue of one codebase's details.
 
 ---
 
@@ -490,18 +566,18 @@ Do not run any git command that mutates state. Leave everything unstaged.
 ## 🧪 Testing the pack itself
 
 ```
-bash tests/run-tests.sh        # 296 assertions, ~10s, no dependencies
+bash tests/run-tests.sh        # 367 assertions, ~10s, no dependencies
 bash tests/run-tests.sh -v     # show every passing assertion
 RUN_EVALS=1 bash tests/run-tests.sh   # adds model-in-the-loop checks (costs tokens)
 ```
 
 Three layers, cheapest first:
 
-1. **Structure** — frontmatter matches directory names, invocation flags are what they should be, no skill references a sibling by hardcoded path, every internal link resolves, doc skill-counts match reality, manifests are valid JSON and agree on version, `claude plugin validate --strict` passes.
+1. **Structure** — frontmatter matches directory names, invocation flags are what they should be, no skill references a sibling by hardcoded path, every internal link resolves, doc counts match reality, manifests are valid JSON and agree on version, `claude plugin validate --strict` passes. Plus the module tier's own invariants: every cited module and reference file exists, every module has at least two citers, no module loads another, and **each module's content appears in exactly one file** — the assertion that stops a deleted duplicate from being pasted back.
 2. **Behaviour** — the scripts against real fixture projects: gate resolution across pnpm/npm/Rust/empty, config-overrides-detection, `--list` executing nothing, all four silence conditions, the greenfield/brownfield boundary, `node_modules` exclusion, the structural sweep, drift detection and its false-positive guards, §17 extraction boundaries.
 3. **Eval** — opt-in, model-in-the-loop. Checks that a skill's non-negotiables survive contact with a real model (asked to "commit it for me", does it still refuse?). `claude plugin eval` will replace this layer once it's generally available; it isn't in 2.1.158.
 
-The suite is **mutation-tested** — reintroducing the `eval`/`find` bug, the wrong pnpm audit flag, dropping a `disable-model-invocation` flag, or deleting a load-bearing rule (the 3-hypothesis ceiling, rollback-before-deploy, never-weaken-a-test, no-upgrade-with-refactor) each make it fail. A suite that can't fail is decoration.
+The suite is **mutation-tested** — reintroducing the `eval`/`find` bug, the wrong pnpm audit flag, dropping a `disable-model-invocation` flag, restoring a module's text into an architect, or deleting a load-bearing rule (the 3-hypothesis ceiling, rollback-before-deploy, never-weaken-a-test, no-upgrade-with-refactor) each make it fail. A suite that can't fail is decoration.
 
 That last group exists because those four rules are the ones whose removal makes a skill *dangerous* rather than merely worse, and prose has no compiler. An earlier version of that check passed on the version footer instead of the actual constraint — so each is now anchored to its numbered line.
 
