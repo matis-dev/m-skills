@@ -10,7 +10,7 @@ allowed-tools: Bash(bash ${CLAUDE_SKILL_DIR}/check-quality.sh:*)
 
 > **Apply Guidelines Skill** — load the `guidelines-meta` skill before proceeding.
 > **Modifiers** — trailing plain-language instructions ("tests later", "skip gates", "fix the findings", "proceed") are interpreted per **Guidelines §19**. A modifier narrows scope; anything skipped is named in the output, and none of them unlock git.
-> **Profile section owned:** §Conventions and §Guardrails (Guidelines §5). On first use, if it is missing or `TODO`, **read the repo for the answers first** — then ask at most 3–4 questions covering only what the code cannot say, and write it back. A question the repo already answers is a defect (Guidelines §5.3); so is deferring a row whose answer sits in a file you didn't open. When a propagation site or blind spot is discovered the hard way, write it into §Recurring Propagation Sites so the next change checks for it.
+> **Profile section owned:** §Conventions and §Guardrails (Guidelines §5). Fill it on first use per **Guidelines §5.1–§5.4** — read the repo first, ask only what the code cannot say, write it back. When a propagation site or blind spot is discovered the hard way, write it into §Recurring Propagation Sites so the next change checks for it.
 
 **Role:** Implementation & Quality Validator.
 **Purpose:** Execute an approved plan against the project's automated quality pipeline. Surface failures; never bypass them.
@@ -35,9 +35,9 @@ If invoked without one:
 
 1. **Git and golden-file guards are enforced by the plugin's PreToolUse hook**, not merely stated here (Guidelines §9, §10). Any git command that writes — and any `gh` command that publishes — is **denied by the runtime**, as is `--no-verify` and any snapshot-update command. Read-only inspection stays open. Files stay unstaged and visual diffs stay the user's to review. The update command stays user-only (§Manual Visual Review).
 2. **Test authoring follows Testing Architect** (the `testing-architect` skill) — placement, helpers, theme matrix, a11y patterns. No ad-hoc test setups.
-3. **UI work follows Design Architect** (the `design-architect` skill) — the craft floor and refuse list apply before a UI change is called done.
+3. **UI work follows Design Architect** (the `design-architect` skill) — `module-craft-floor` and that skill's refuse list apply before a UI change is called done.
 4. **`[SEC]` steps follow Security Architect** (the `security-architect` skill, `harden` mode) — the sink is built correctly the first time: parameterized, encoded at the sink, authorization checked at the data access, error path failing **closed**. Never fix a finding by weakening a check.
-5. **`[A11Y]` steps follow Accessibility Architect** (the `accessibility-architect` skill, `build` mode) — native element first, and every overlay moves focus in, traps it, closes on Escape, and **returns focus to the trigger**. A green `<a11y>` gate does not cover any of that.
+5. **`[A11Y]` steps follow Accessibility Architect** (the `accessibility-architect` skill, `build` mode) and `module-operability-floor` — native element first, and every overlay moves focus in, traps it, closes on Escape, and **returns focus to the trigger**. A green `<a11y>` gate does not cover any of that.
 6. **Every gate in the profile must pass** — lint, types, tests + coverage, build, e2e, visual, a11y, audit, whichever exist. A gate that doesn't exist is `n-a`; a gate that fails is reported, never skipped.
 7. **Bounded passes** (Guidelines §16) — implement fully, run the gates once as a batch, fix in one batch, re-run once. Not an open loop.
 
@@ -47,59 +47,9 @@ If invoked without one:
 
 ## Change Propagation Protocols
 
-**Why these exist:** a green pipeline is *not* proof the change fully landed. Each protocol below covers mirror sites the automated gates structurally cannot catch. They trigger on the **shape** of the change, not on the project.
+**A green pipeline is not proof the change landed.** When this change renames, removes, retypes, or restructures a **shared data shape**, alters a **public API surface**, or introduces a **new external origin or config value**, load the `module-propagation` skill and run the protocol it names — A, B, C, or more than one of them. Do not re-derive the sweep from memory: the categories that get missed are exactly the ones nobody remembers unprompted.
 
-> Every concrete example below is an **illustration of a category**, not a rule. Substitute what exists in the project you're in. Categories are what survive; a catalogue of last month's field names is what rots.
-
-### A. Shared Data Shape
-
-Applies when a shared field is **renamed, removed, retyped, restructured** (object↔array, string↔object), an **enum value changed**, or a **numeric bound moved**.
-
-**Known gate blind spots:**
-- **Type-checking usually doesn't cover markup/template bindings.** A stale binding compiles clean and fails only at build/AOT or runtime. The **build gate** is the one that catches template drift — a green type-check is necessary and never sufficient.
-- **Compiler-silenced fixtures** (`as any`, `as unknown as T`, `# type: ignore`) keep old shapes passing green. Green tests do not prove fixtures match the schema.
-
-**The sweep** — grep the OLD identifier and OLD value project-wide, then confirm each category:
-
-1. **Type / model definition** — the declaration itself.
-2. **Every construction site** — factories, builders, form groups, default objects. There is almost always **more than one** (a primary plus a variant, array-item, or parallel builder).
-3. **Both mapping directions** — serialize *and* hydrate, encode *and* decode.
-4. **Validation stated twice** — the declarative validators **and** any hand-written validation service. The same bound is routinely hardcoded in two places.
-5. **Sanitizers / normalizers / migrations.**
-6. **Boundaries** — export and import paths, API payloads, storage schemas, query params.
-7. **Templates / views** — bindings referencing the name. *(Build-gate-only failures.)*
-8. **Parallel subsystems** — the secondary UI mirroring the primary one, a flat-field interface, an admin form. **The easiest miss.**
-9. **User-facing strings** — a removed field **orphans its label/placeholder keys**; remove them from **all** locales. Grep each key across source before deleting to confirm zero references.
-10. **Fixtures and test doubles** — old-shape mocks pass green; update them anyway.
-11. **Comments and doc-comments** quoting the old bound or behavior.
-
-**Numeric bounds and enum values — do NOT rely on grep.** A renamed identifier greps cleanly; a moved bound does not (a bare number drowns in false positives), so "grep found nothing" is not proof. Walk a **semantic site list** instead, because the value gets *re-expressed*, not just referenced — wherever the app **states** the constraint a second time: declarative validators in *every* factory (including any per-branch re-wiring helper), the hand-written validation check, markup `min`/`max`/`maxlength` attributes and client-side clamps, parallel/secondary field configs, **user-facing strings baking the value into prose** (the key is still used — only its value is stale; update all locales), spec boundary assertions pinned to the old edge, and comments.
-
-**Closing check:** re-grep the old identifier/value — expect zero hits outside changelog and migration docs. For bounds/enums, confirm each semantic site by name. Then run `<build>`, not just `<typecheck>`, before claiming the change is done.
-
-### B. Public API & Test Doubles
-
-Applies when a service, module, or class's **public surface changes** — a method added, renamed, removed, or re-signed. A green `<typecheck>`/`<build>` does **not** prove consumer *tests* survive: test doubles are built from hand-maintained name lists and silently return nothing for anything not on them.
-
-Grep the type name **and** the method name across the source:
-
-1. **Real callers** — the type checker catches these. It does not catch anything below.
-2. **Spy/mock object name lists** — every consumer test that spies this type must add the new method, or the call returns undefined → *"is not a function"* or a misleading *"never called"*.
-3. **Hand-written mock classes** — tests substituting a fake implementation need the new method stubbed.
-4. **Inline stub objects** passed as providers/config by value.
-5. **Tests asserting the OLD collaborator** — if the implementation swapped which collaborator it calls, the test must stub the new one, not the old.
-
-**Closing check:** grep the new method name across test files — every consumer test exercising the changed path should reference it. Then run `<test>`; an *"is not a function"* or a surprise *"never called"* is this protocol, not a product bug.
-
-### C. External Origins & Configuration
-
-Applies when a change makes the app load a **new external origin** (tiles, an API host, a font, an image CDN, a third-party script) or otherwise depends on runtime configuration.
-
-- Update **every** place the policy is declared. Security policies are commonly duplicated — a markup meta tag *and* a server header, a dev config *and* a prod config, a manifest *and* a deployment env. Update all copies or the resource is silently blocked in one environment and works in another.
-- Pick the directive by sink: images, network calls, fonts, scripts, frames each have their own.
-- **Blind spot:** a blocked resource renders *consistently* broken, so its visual baseline still matches and the visual gate **passes**. Verify in a real served build, not by green tests.
-- Same logic for env vars, feature flags, and build-time constants: enumerate every environment that declares them.
-- **A new origin or config value is also a security change** (OWASP A02/A03). Apply the `security-architect` skill: the origin is one you meant to trust, the directive is the narrowest that works, and nothing added here is a secret living in a tracked file.
+If the change fits none of the three shapes, say so in one line and move on.
 
 ---
 
@@ -111,56 +61,12 @@ Applies when a change makes the app load a **new external origin** (tiles, an AP
 4. **Author / update tests via Testing Architect** — every in-scope change gets its paired coverage per the plan.
 5. **Apply Design Architect** to any UI-visible step before considering it done.
 6. **Apply Security Architect to every `[SEC]` step and Accessibility Architect to every `[A11Y]` step** — while writing, not after. If the plan carries no such tags but the change turns out to cross a trust boundary or add an interactive control, apply them anyway and say the plan missed it.
-7. **Run the gates in the profile's order**, as one batch — record every result, don't stop at the first failure unless it blocks the rest:
-   `<lint>` → `<typecheck>` → `<test>` → `<build>` → `<e2e>` → `<visual>` → `<a11y>` → `<audit>`
-8. **Run the propagation protocols** that apply (A / B / C above). This is the step the gates can't do for you.
-9. **Manual Visual Review** — §below.
-10. **Summarize** — the Implementation Summary template. Leave files **unstaged**; no commits; no pushes.
+7. **Run the gates** per the `module-gate-battery` skill — its order, its one-batch rule, its reporting shape.
+8. **Run the propagation protocols** that apply, from the `module-propagation` skill. This is the step the gates can't do for you.
+9. **Manual visual review** — if a visual or golden gate reports diffs, stop and hand it over (`module-gate-battery` §4). Never run the update command.
+10. **Summarize** — using the template at `${CLAUDE_SKILL_DIR}/references/summary-template.md`. Leave files **unstaged**; no commits; no pushes.
 
 **One-shot alternative:** `bash ${CLAUDE_SKILL_DIR}/check-quality.sh` runs the same gates in the same order and prints a pass/fail report. The variable resolves to this skill's own directory in both plugin and copied installs, so the command is identical either way. Add `--list` to print which gates it resolved **without running any of them** — use that first when you're unsure the profile is right.
-
----
-
-## Manual Visual Review
-
-If the visual gate reports diffs:
-
-1. **STOP** — do not run the update command.
-2. Surface the failures literally:
-   > "Visual diffs detected — review the report at `<report path>`; if intended, run `<update-command>` manually."
-3. Wait for inspection and an explicit go-ahead before any further action on baselines.
-
-Non-negotiable inherited guard (Guidelines §10). Baselines tell the user what changed visually; auto-updating erases that signal.
-
----
-
-## Task Completion Summary Template
-
-Lead with status, not narration (Guidelines §17).
-
-```markdown
-## 🏁 Implementation Summary
-
-**Status:** <all gates green | N failing | awaiting visual review>
-**Next action:** <the one thing the user does now>
-
-- **Plan reference:** <link or filename>
-- **Files Affected:** <list>
-- **Functions Created/Modified:** <list>
-
-| Gate | Result |
-|---|---|
-| `<lint>` | ✅ / ❌ <one-line summary if ❌> |
-| `<typecheck>` | ✅ / ❌ |
-| `<test>` | ✅ / ❌ — coverage: <n>% branches |
-| `<build>` | ✅ / ❌ |
-| `<e2e>` | ✅ / ⚠️ diffs awaiting manual review / ❌ |
-| `<a11y>` | ✅ / ❌ <violations, themes affected> |
-| `<audit>` | <advisories by severity> |
-
-**Propagation protocols run:** <A shared-shape / B public-API / C external-origin / none applied>
-**Known gaps:** <uncovered branches, deferred items — or "none">
-```
 
 ---
 
@@ -172,12 +78,13 @@ Lead with status, not narration (Guidelines §17).
 - [ ] If shared data shape changed: **Protocol A** run — every category swept, old identifier/value re-grepped to zero, bounds/enums confirmed by semantic site, verified via `<build>` not just `<typecheck>`.
 - [ ] If a public API changed: **Protocol B** run — every spy list, mock class, and inline stub updated; tests asserting the old collaborator fixed.
 - [ ] If a new external origin or config value was introduced: **Protocol C** run — every declaration site updated, verified in a real served build (visual gates are blind to this).
-- [ ] Tests authored per Testing Architect; green-but-lying traps checked.
+- [ ] Tests authored per Testing Architect.
 - [ ] UI-visible changes cleared the Design Architect craft floor and refuse list.
 - [ ] `[SEC]` steps built per Security Architect — sink parameterized or encoded, authorization at the data access, error paths fail closed, no secret in a tracked file, and every fix carries a regression test that fails without it.
 - [ ] `[A11Y]` steps built per Accessibility Architect — keyboard-reachable with a visible focus indicator, overlays return focus to the trigger, route and status changes announced. Verified by walking it, not by the green `<a11y>` gate.
-- [ ] Every gate in the profile run and recorded; no gate skipped, no failure hidden.
-- [ ] Visual diffs surfaced for manual review — **not** auto-updated.
+- [ ] Every gate in the profile run and recorded per `module-gate-battery`; no gate skipped, no failure hidden.
+- [ ] Green-but-lying traps checked by name before trusting the run (`module-gate-battery` §3).
+- [ ] Visual diffs surfaced for manual review — **not** auto-updated (`module-gate-battery` §4).
 - [ ] Verified in the running app across the viewports/platforms the project ships, if user-visible.
 - [ ] Verification stayed within two rounds (Guidelines §16).
 - [ ] **No `git add`, no `git commit`, no `git push`** — files unstaged, no branches switched, no hooks skipped.

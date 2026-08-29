@@ -28,38 +28,13 @@ If neither exists, **this is probably a new project — switch to Kickoff Mode b
 
 ---
 
-## Kickoff Mode (a project that doesn't exist yet)
+## What to Read, and When
 
-Triggered by "kickoff", or whenever there is no meaningful code to brainstorm against. This is the **entry point for a greenfield project** — the pack's other skills need decisions that nobody has made yet, and this conversation is where they get made.
-
-**Run it as a conversation, not an intake form.** Five questions maximum before you start proposing; propose with a rationale and let the user correct you. Deciding badly and being corrected is faster than interrogating someone into boredom, and a wrong default is cheap to change on day one.
-
-### 1. Establish what it is (this is the only part nobody else can do)
-- **What is being built, for whom, and what does success look like for that person?**
-- **What already exists?** A design, an API, a prior version, a competitor they like, nothing.
-- **What is the smallest thing that would be genuinely useful?** Everything else is v2 — name it as such and move on.
-- **What are the hard constraints?** Deadline, platform, team size, budget, a service that must be integrated, a compliance requirement.
-
-### 2. Route the foundational decisions to the skill that owns them
-**Do not decide these yourself.** Each is another skill's §Profile section (Guidelines §5); your job is to notice which are needed *now* and hand them over. Most greenfield projects need only the first two on day one.
-
-| Decision | Owner | Needed when |
-|---|---|---|
-| Stack, repo shape, gate commands | recorded by the session bootstrap once files exist | as soon as there's a manifest |
-| Test layers, placement, coverage bar | `testing-architect` | before the first test — which is before the first feature |
-| Visual world, tokens, component vocabulary | `design-architect` (**Establish** mode) | before the first screen |
-| Hosting, environments, rollback | `deployment-architect` | before the first deploy, **not now** |
-| Changelog format, commit convention | `rolling-history` | at the first commit |
-
-Say plainly which of these you are deferring and to when. **Deferring is the default** — a project that hasn't been built has no business deciding its rollback mechanism.
-
-### 3. Seed the profile with what was actually decided
-Write only the rows this conversation genuinely settled, and mark the rest `pending: <when>` (Guidelines §5). No `assumed:` values in a greenfield profile — an unchallenged guess recorded on day one becomes a fact nobody remembers choosing.
-
-### 4. Then run Active Discovery on the first slice
-Kickoff ends where the normal skill begins: take the smallest useful thing from step 1 and pressure-test it below. The emitted Deep-Dive Execution Prompt is for **that slice**, not for the whole product.
-
-> **The failure mode to avoid:** turning kickoff into an architecture-astronomy session that designs a system for a product nobody has used yet. Decide what's needed to build the first slice. Everything else is `pending`, and that is the correct answer.
+| Read | When |
+|---|---|
+| `${CLAUDE_SKILL_DIR}/references/kickoff.md` | **Kickoff mode** — a project that does not exist yet. The greenfield entry point: what is being built, the first slice, and routing each foundational decision to the skill that owns it. |
+| `${CLAUDE_SKILL_DIR}/references/deep-dive-prompt.md` | Emitting the handoff. The Deep-Dive Execution Prompt template, filled from the profile and the conversation. |
+| `module-threat-model` §2 | The trust-boundary question, once the idea is real enough to have one. |
 
 ---
 
@@ -100,50 +75,6 @@ The same is true of the two questions above. If the surface is interactive, name
 4. **Tests planned via Testing Architect** — when the prompt mentions tests, defer the *how* to the `testing-architect` skill (cited by the downstream Planning Architect). Same deferral for security and accessibility: surface the boundary and the assistive path here, and let `security-architect` and `accessibility-architect` own the answers downstream.
 5. **No invented facts** (Guidelines §15) — no fabricated benchmarks, user counts, or "industry standard" claims to win an argument.
 6. **One output, once** — emit the Deep-Dive Execution Prompt only when discovery has actually converged. Emitting it early is the main way this skill fails.
-
----
-
-## The Output: Deep-Dive Execution Prompt
-
-Generate this **only once** "Active Discovery" reaches solid consensus.
-**Handoff:** paste it verbatim into a session running the `planning-architect` skill.
-
-Fill every `{{…}}` from the actual Project Profile and the actual conversation — a placeholder left unfilled is a defect, not a template.
-
-```
-Act as a Lead Architect. Perform a deep-dive file scan and implementation plan for: {{feature_name}}.
-
-PROJECT CONTEXT:
-- Stack: {{stack_from_profile}}
-- Design system / UI vocabulary: {{design_system_or_n-a}}
-- Test layers: {{test_layers_from_profile}}
-- Verification gates, in order: {{resolved_gate_commands}}
-
-STRICT GUARDRAILS (NON-NEGOTIABLE):
-- Git & Branching: DO NOT stage. DO NOT commit. DO NOT push. DO NOT branch. Stay on the active branch. Leave changes unstaged for the user.
-- Architecture: match the project's existing topology; no new architectural patterns introduced sideways.
-- Simplicity: apply YAGNI — implement only what the feature demands, no speculative abstractions. Prefer a single readable expression wherever it does the job.
-- Reuse DNA: extend these existing artifacts rather than duplicating them — {{cited_paths}}.
-- Golden/visual snapshots: never auto-updated; surfaced for the user's manual review.
-- Production standards: must pass every gate listed above.
-
-REFINED FEATURE LOGIC:
-{{summarized_discussion_and_improvements}}
-
-GREY PATHS TO DESIGN FOR (not optional):
-{{offline / timeout / empty / loading / partial-failure / permission cases surfaced in discovery}}
-
-TRUST BOUNDARIES CROSSED:
-{{untrusted input accepted / privilege granted / data leaving — or "none, and here is why"}}
-
-ASSISTIVE PATH:
-{{keyboard-only completion / what gets announced on change — or "no interactive surface"}}
-
-EXPLICIT NON-GOALS:
-{{what_we_decided_not_to_build_and_why}}
-
-Your Goal: scan all relevant files and produce an actionable, step-by-step implementation plan.
-```
 
 ---
 

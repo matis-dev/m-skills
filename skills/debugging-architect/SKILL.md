@@ -32,6 +32,21 @@ disable-model-invocation: true
 
 ---
 
+## What to Read, and When
+
+The six phases below are the spine and apply to every run. These are read on demand:
+
+| Read | When |
+|---|---|
+| `${CLAUDE_SKILL_DIR}/references/flaky.md` | The failure is intermittent. Different discipline: you are proving a *rate*, not a state. |
+| `${CLAUDE_SKILL_DIR}/references/unreproducible.md` | It cannot be reproduced. Ship instrumentation, not a guess. |
+| `${CLAUDE_SKILL_DIR}/references/diagnosis-format.md` | Writing up the result. |
+| `module-gate-battery` | Running the gates after the fix — and §3 when a test "passes but the feature is broken". |
+| `module-propagation` | The fix touches shared shape, a public API, or an origin. |
+| `module-findings` | Stating confidence in a root cause. |
+
+---
+
 ## Phase 1 — Establish the Symptom
 
 Answer these before touching code. Guessing here costs whole sessions.
@@ -78,7 +93,7 @@ Test:        <the single change or probe that discriminates>
 Rules:
 - **The prediction must be falsifiable.** "It'll probably work better" tests nothing. "The value will be `undefined` at line 42" is a real test.
 - **A disproved hypothesis is progress** — record it. The list of ruled-out causes is the most valuable artifact of a hard debug session, and it's what makes handing over possible.
-- **Confidence gate (from `code-review-architect` constraint 6).** Before declaring a root cause, self-score: is this *proven* or merely *consistent with the evidence*? Below ~80, say so plainly and keep it labelled as a theory. A confidently-stated wrong diagnosis is worse than an honest "not certain yet" — the user acts on it.
+- **Confidence gate** (`module-findings` §2). Before declaring a root cause, self-score: is this *proven* or merely *consistent with the evidence*? Below ~80, say so plainly and keep it labelled as a theory. A confidently-stated wrong diagnosis is worse than an honest "not certain yet" — the user acts on it.
 - **Count the passes.** At three disproved hypotheses, stop (§3). Not a suggestion.
 
 **Check the known blind spots first** — the profile's §Guardrails list, plus `implementing-architect`'s protocols. A startling number of "impossible" bugs are: a stale template binding that type-check can't see, a test double missing a method, a config declared in one environment but not another, or a cache serving a previous build.
@@ -100,8 +115,8 @@ Before fixing, close the loop both ways:
 1. **Write the failing test first**, per the `testing-architect` skill. It must fail for the *right reason* — run it before the fix and read the failure. A regression test that would pass without the fix is decoration.
 2. **Fix the cause, not the symptom.** If the honest fix is large, say so and let the user choose between a scoped mitigation (labelled as such, with the real fix as a follow-up) and doing it properly now. Never disguise a mitigation as a fix.
 3. **Smallest change that removes the cause** (Guidelines §2, §3). Do not refactor the surrounding area because you were in there.
-4. **Check propagation.** If the fix touches shared shape, a public API, or an external origin, run the matching protocol from the `implementing-architect` skill — bug fixes hit the same mirror sites features do, with less scrutiny.
-5. **Run the gates**, in the profile's order, once as a batch.
+4. **Check propagation.** If the fix touches shared shape, a public API, or an external origin, load the `module-propagation` skill and run the matching protocol — bug fixes hit the same mirror sites features do, with less scrutiny.
+5. **Run the gates** per the `module-gate-battery` skill, once as a batch.
 6. **Remove your probes** (§6).
 
 ---
@@ -115,65 +130,6 @@ The step that separates debugging from firefighting. A fix nobody can accidental
 - **If the class can recur elsewhere**, add it to §Recurring Propagation Sites so future changes get swept.
 - **If it was a production incident**, hand the guard to `deployment-architect` — a pre-flight check is cheaper than a second outage.
 - **If the root cause was a wrong assumption in a plan**, say so; that's feedback for `planning-architect`, not shame.
-
----
-
-## Flaky / Intermittent Failures
-
-Different discipline: you're proving a *rate*, not a state.
-
-1. **Quantify first.** Run it 20–50 times and record the failure rate. "Sometimes" is not a measurement, and without a baseline you cannot tell a fix from luck.
-2. **The usual causes, in the order they actually occur:** shared state between tests (order dependence), real time or timezone, unawaited async work, ordering assumptions over unordered collections, a shared external resource, resource exhaustion under parallelism, and randomness without a fixed seed.
-3. **Try order dependence early** — run the test alone, then in reverse order. It's cheap and it's the most common cause.
-4. **Never "fix" a flake by retrying it.** A retry hides a real race that will surface in production, where nothing retries for you. Retry is acceptable only for a genuinely external dependency, and only with a comment saying which one.
-5. **Verify with the same measurement.** Same run count, failure rate at zero. One green run proves nothing about a 5% flake.
-
----
-
-## Unreproducible
-
-If it can't be reproduced, stop guessing and improve observability instead:
-
-- Say plainly that it is not reproduced, and that anything below is a theory.
-- Collect what exists: logs, traces, error reports, the exact environment, the user's steps.
-- **Add the instrumentation that would identify it next time**, and say what signal to look for. Shipping a diagnostic is a legitimate outcome.
-- Note the conditions under which it was seen; a pattern across reports is often the diagnosis.
-- Do **not** ship a speculative fix for an unreproduced bug (§5). It creates the illusion of resolution and destroys the evidence trail.
-
----
-
-## Output Format (Fixed)
-
-```markdown
-# Diagnosis: <symptom in one line>
-
-**Status:** root cause proven / probable cause (unproven) / not reproduced
-**Next action:** <the single thing the user does now>
-
-## Symptom
-- Expected: <…> · Actual: <…>
-- Smallest reproduction: <steps or command>
-- Deterministic: yes / no (<rate>) · Environments affected: <…>
-
-## Ruled Out
-- <hypothesis> — disproved by <observation>
-
-## Root Cause
-`path/to/file.ext:LN` — <the mechanism, in plain language>
-**Why now:** <what changed to expose it>
-**Confidence:** <proven — toggled on and off / probable — consistent but not isolated>
-
-## Fix
-- Failing test added: `<path>` — fails before, passes after
-- Change: `<path:LN>` — <what and why>
-- Propagation checked: <n-a / protocol A|B|C run>
-- Gates: <results>
-
-## Guard Against Recurrence
-- Regression test: `<path>`
-- Blind spot recorded: <one line for the profile — or n-a>
-- Probes removed: yes
-```
 
 ---
 
@@ -198,9 +154,9 @@ If it can't be reproduced, stop guessing and improve observability instead:
 ## Relationship to Other Skills
 
 - **Guidelines (Meta)** — §16 bounded passes is the load-bearing one here; §15 honesty forbids a confidently-wrong diagnosis; §17's debug-spiral clause is enforced as constraint 3.
-- **Testing Architect** — writes the failing-first regression test; its §3 green-but-lying traps are frequently the cause when a test "passes but the feature is broken".
-- **Implementing Architect** — its propagation protocols apply to fixes exactly as to features, and its blind-spot list is the first place to look.
-- **Code Review Architect** — the confidence gate; and a review finding too subtle to diagnose from the diff comes here.
+- **Testing Architect** — writes the failing-first regression test. The green-but-lying traps in `module-gate-battery` §3 are frequently the cause when a test "passes but the feature is broken".
+- **Implementing Architect** — its blind-spot list is the first place to look; `module-propagation` applies to fixes exactly as it does to features.
+- **Code Review Architect** — a review finding too subtle to diagnose from the diff comes here; both skills shape findings per `module-findings`.
 - **Deployment Architect** — production incidents roll back *first*; the resulting guard becomes a pre-flight check.
 - **Planning Architect** — if the cause was a wrong assumption in a plan, that's plan feedback, not a code problem.
 

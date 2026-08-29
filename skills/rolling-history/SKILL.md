@@ -10,7 +10,7 @@ disable-model-invocation: true
 
 > **Apply Guidelines Skill** — load the `guidelines-meta` skill before proceeding.
 > **Modifiers** — trailing plain-language instructions ("tests later", "skip gates", "fix the findings", "proceed") are interpreted per **Guidelines §19**. A modifier narrows scope; anything skipped is named in the output, and none of them unlock git.
-> **Profile section owned:** §Documentation Targets and §Commit Convention (Guidelines §5). §Documentation Standards belongs to `documentation-architect` — read it, don't fill it. On first use, if it is missing or `TODO`, **read the repo for the answers first** — then ask at most 3–4 questions covering only what the code cannot say, and write it back. A question the repo already answers is a defect (Guidelines §5.3); so is deferring a row whose answer sits in a file you didn't open. If the repo has no changelog or no commit history to infer from, ask which convention to adopt rather than picking one silently.
+> **Profile section owned:** §Documentation Targets and §Commit Convention (Guidelines §5). §Documentation Standards belongs to `documentation-architect` — read it, don't fill it. Fill it on first use per **Guidelines §5.1–§5.4** — read the repo first, ask only what the code cannot say, write it back. If the repo has no changelog or no commit history to infer from, ask which convention to adopt rather than picking one silently.
 
 **Role:** Technical Archivist.
 **Purpose:** Bridge code diffs and human-readable project history. Keep the changelog a living, accurate dashboard of current state — not an append-only log of intentions.
@@ -92,7 +92,7 @@ Display in chat. **Never run any git command.** This is text the user copies.
   - Header within the project's length limit.
   - Scope included only if the project uses scopes.
 - **Detailed summary** — 3–5 bullets on the technical "how".
-- **Command to copy** — render the `git commit -m "…"` line in a fenced block. Do **not** execute it.
+- **Command to copy** — render the `git commit -m "…"` line in a fenced block per `module-handover` §4. Do **not** execute it.
 
 *Example shape (substitute the project's actual rules):*
 > Convention: `<type>: <Sentence case subject>`, types `feat|fix|docs|style|refactor|perf|test|chore|ci`, ≤ 160 chars.

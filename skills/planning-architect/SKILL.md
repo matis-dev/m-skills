@@ -12,7 +12,7 @@ disable-model-invocation: true
 
 **Role:** Lead Architect. Translate a Deep-Dive Execution Prompt (or a direct request) into an exhaustive, project-aware implementation plan.
 **Trigger:** User pastes a Deep-Dive Execution Prompt and says "Plan this" / "Execute Planning Architect."
-**Output:** A markdown plan document with a fixed shape (§Phase 3).
+**Output:** A markdown plan document in the fixed shape at `${CLAUDE_SKILL_DIR}/references/plan-template.md`.
 **Portability:** Pure procedural methodology. No harness-specific tools. Every command in the emitted plan is resolved from the **Project Profile** (Guidelines §5) — the plan states real commands, never placeholders and never invented ones.
 
 ---
@@ -47,56 +47,27 @@ Every plan addresses each of these explicitly:
 9. **Token economy via model tiering** — assign the cheapest tier that does the step well (§Model Tier Routing).
 10. **Change-propagation surface** — see the protocol below. This is the single highest-value section of any plan that touches shared shape.
 11. **Trust boundaries mapped, not reviewed later** — where untrusted data enters, where privilege changes, where data leaves. Each crossing names its control and where that control is enforced (`security-architect` §2). The cheapest moment to place an ownership check is before the data access is designed without one.
-12. **The accessible contract decided with the interaction** — keyboard map, focus destination on open and on close, and what gets announced (`accessibility-architect` §3). Focus architecture and route announcements produce **zero** automated violations, so a plan is the only place they get caught.
+12. **The accessible contract decided with the interaction** — keyboard map, focus destination on open and on close, and what gets announced (`module-operability-floor` §2). Focus architecture and route announcements produce **zero** automated violations, so a plan is the only place they get caught.
+
+---
+
+## What to Read, and When
+
+| Read | When |
+|---|---|
+| `${CLAUDE_SKILL_DIR}/references/plan-template.md` | Phase 3 — the fixed plan shape every downstream implementer parses. |
+| `${CLAUDE_SKILL_DIR}/references/model-routing.md` | Assigning a `Model:` line per step. The tier table and the switching rules. |
+| `module-propagation` | Whenever the plan touches shared shape, a public API, or an external origin. |
+| `module-threat-model` | `[SEC]` steps — §2 produces the plan's Trust Boundaries table. |
+| `module-operability-floor` | `[A11Y]` steps — §2 produces the plan's Accessibility Contract. |
 
 ---
 
 ## The Change-Propagation Surface (mandatory when it applies)
 
-**Triggers on the *shape* of the change, not on which project you're in.** Whenever the plan renames, removes, retypes, or restructures something **shared** — a data-model field, an enum value, a numeric bound, a public method signature, an external origin — the **Files to Modify** list must enumerate **every mirror site**, one per line, not just the obvious one.
+**Triggers on the *shape* of the change, not on which project you're in.** Whenever the plan renames, removes, retypes, or restructures something **shared** — a data-model field, an enum value, a numeric bound, a public method signature, an external origin — load the `module-propagation` skill, walk its categories, and enumerate **every mirror site** in the plan's **Files to Modify** list, one per line, followed by the verification line that module names for this change's shape.
 
-Walk these categories. They are categories, not a checklist of one project's files — substitute what exists here:
-
-| Category | What to look for |
-|---|---|
-| **Type / model definition** | The declaration itself. |
-| **Construction sites** | Factories, builders, form groups, constructors, fixtures — there is usually **more than one** (a primary and a variant/array-item/parallel one). |
-| **Both directions of mapping** | Serialize *and* hydrate, encode *and* decode, to-DTO *and* from-DTO. |
-| **Validation, stated twice** | The framework's declarative validators **and** any hand-written validation service. The same bound is frequently hardcoded in two places. |
-| **Sanitizers / normalizers** | Schema sanitizer, import coercion, migration code. |
-| **Boundaries** | Export and import paths, API payloads, storage schemas, query params. |
-| **Templates / views** | Bindings referencing the field by name. **These often fail only at build/AOT/runtime, never at type-check.** |
-| **Parallel subsystems** | The secondary UI that mirrors the primary one, a template service's flat interface, an admin form. **The easiest miss.** |
-| **Test doubles** | Spy/mock method lists, hand-written mock classes, inline stub objects. A double built from a hand-maintained name list silently returns nothing for a new method. |
-| **Fixtures** | Old-shape mocks cast to satisfy the compiler still pass green. |
-| **User-facing strings** | Removing a field orphans its label/placeholder keys — in **all** locales. Strings that bake a bound into prose ("must be between X and Y") go stale while their key stays used. |
-| **Comments / docs** | Stale bounds and behavior descriptions quoting the old value. |
-
-**Verification line the plan must include:**
-- **Identifier renames/removals** — re-grep the old identifier across the source tree; expect zero hits outside changelog/migration docs.
-- **Numeric bounds and enum values** — grep is unreliable (a bare `90` drowns in noise). The plan lists the **semantic sites by name** instead, because the value is *re-expressed*, not just referenced.
-- **Templates** — confirm via the `<build>` gate, not `<typecheck>`. A green type-check does not prove templates are clean.
-
----
-
-## Model Tier Routing (Mandatory per Step)
-
-The plan exists so the user can **switch models between steps**. Each step carries a `Model:` line.
-
-| Tier | When to assign | Typical work |
-|---|---|---|
-| **Light** (e.g. Haiku) | Mechanical, low-ambiguity, single-file edits; rote scaffolding; renames; importing an existing pattern; obvious test boilerplate; running verification commands. | "Move this method into that service", "rename symbol", "create the spec mirroring existing pattern X". |
-| **Standard** (e.g. Sonnet) | Multi-file but well-scoped changes with a clear blueprint; a new component composed of known primitives; standard wiring; typical test authoring. | "Build this component from the existing `Foo` service and design-system card", "wire route + guard + resolver per existing pattern". |
-| **Standard + thinking** | Non-trivial design decisions inside a step; tricky async/state interactions; subtle a11y or focus management; refactors that must preserve behavior exactly. | "Restructure the event orchestration without breaking subscribers", "focus-trap interacting with the existing modal stack". |
-| **Heavy** (e.g. Opus) | Cross-cutting reasoning across many files; architectural tradeoffs; novel algorithms; deep ambiguous debugging. | "Design a sync layer spanning 6+ services", "resolve a flake whose root cause is unclear". |
-| **Heavy + thinking** | The hardest reasoning the plan admits — usually 0–1 per plan, often none. Justify in writing. | "Reconcile competing constraints across module boundaries with no obvious answer". |
-
-Rules:
-- **Default downward.** Borderline Standard → drop to Light and trust the implementer to escalate.
-- **Group adjacent same-tier steps** so the user switches once, not six times.
-- **Flag every tier change** with `[SWITCH MODEL → <tier>]` at the top of the step.
-- **Insert an explicit stop** at the end of any step preceding a tier change: *"Implement step N, then STOP. Do not proceed — the user will switch models first."*
-- **No silent escalation.** If a Light-tagged step turns out to need Heavy reasoning, the implementer stops and surfaces it.
+A plan that touches shared shape and lists one file is the most common way a plan is wrong, and it is the section that most reliably pays for the planning stage.
 
 ---
 
@@ -121,100 +92,9 @@ Rules:
 
 ### Phase 3 — Plan Document
 
-Produce markdown with this **fixed shape** so any downstream implementer can parse it. Replace `<lint>`/`<test>`/etc. with the project's real commands.
+Produce markdown in the **fixed shape** at `${CLAUDE_SKILL_DIR}/references/plan-template.md`, so any downstream implementer can parse it. Replace `<lint>`/`<test>`/etc. with the project's real commands; a placeholder left unresolved is a defect, not a template.
 
-```markdown
-# Plan: <feature name>
-
-## Context
-<why this is being built — from the brainstorming prompt>
-
-## Goals (traced from the prompt)
-- <goal 1>
-- <goal 2>
-
-## Files to Modify
-- `<path>` — <what changes here, one line>
-
-## Files to Create
-- `<path>` — <purpose, one line>
-
-## Reused Utilities (do not duplicate)
-- `<path>` — <existing artifact being extended>
-
-## Design Notes  *(omit if no user-facing surface)*
-- Visitor mode: <Persuade | Operate | Read | Experience>
-- Design-system components used: <names>
-- Custom styling justification (if any): <reason>
-- Grey paths designed: <loading / empty / error / offline / permission>
-
-## Trust Boundaries  *(omit only if the change crosses none — and say so in one line rather than deleting the heading)*
-| Boundary | Untrusted input | Control | Enforced at |
-|---|---|---|---|
-| `<endpoint / form / import>` | `<what arrives>` | `<validation, limit, ownership check>` | `<file:symbol>` |
-- Privilege changes: `<none | what widens, and where>`
-- Data leaving: `<responses / logs / exports / emails>` — `<what is redacted>`
-
-## Accessibility Contract  *(omit if no interactive surface)*
-- Pattern: `<native element | ARIA pattern + the full contract it owes>`
-- Accessible name/role for each new control: `<name — role>`
-- Keyboard map: `<Tab / arrows / Enter / Escape behaviour>`
-- Focus on open → `<destination>`; on close → `<returned to trigger>`
-- Announced: `<what, via role=status | role=alert | focus move>` — one mechanism, not both
-- Target size: `<meets 24×24 or the spacing exception>`
-
-## Change-Propagation Surface  *(omit if nothing shared changes)*
-- <category> → `<path>` — <what must change>
-- Verification: <re-grep the old identifier | semantic sites listed by name | confirm via `<build>`>
-
-## Model Routing Summary
-| Step | Tier | Thinking? | One-line reason |
-|---|---|---|---|
-| 1 | Light | no | <mechanical rename> |
-| 2 | Light | no | <continuation, no switch> |
-| 3 | Standard | no | <multi-file scaffold from known pattern> |
-| 4 | Standard | yes | <subtle async coordination> |
-| 5 | Heavy | yes | <cross-cutting design call> |
-| 6 | Light | no | <verification commands> |
-
-Group adjacent same-tier rows so the user switches only when the tier changes.
-
-## Step-by-Step Changes
-Each step: model tier, action, files, **tests required**, any of the `[VISUAL]` / `[SEC]` / `[A11Y]` tags that apply, and an explicit stop before any tier change. A step can carry more than one tag — an upload field is both.
-
-1. `[SWITCH MODEL → Light]` **<action>** — files: `<paths>`
-   - Model: **Light** — <one-clause reason>
-   - Tests: <unit test names / specs to add or update>
-2. **<action>** — files: `<paths>` `[VISUAL]` `[A11Y]`
-   - Model: **Light** *(same tier — no switch needed)*
-   - Tests: <unit + visual spec + a11y scan and keyboard walk>
-   - **Stop after this step.** The next step uses a different model.
-3. `[SWITCH MODEL → Standard]` **<action>** — files: `<paths>` `[SEC]`
-   - Model: **Standard** — <one-clause reason>
-   - Tests: <… + the security-regression case that fails without the fix>
-
-> Implementer rule: never upgrade your own tier silently. If a Light-tagged step needs Heavy reasoning, stop and tell the user.
-
-## Verification Steps (commands, in order)
-1. `<lint>`
-2. `<typecheck>`
-3. `<test>`
-4. `<build>`
-5. `<e2e>`
-6. `<a11y>`
-*(list only gates this project actually has)*
-
-## Manual Final Stage (NOT automated)
-- Review failed visual diffs at `<report path>`.
-- If diffs are intended, the **user** runs `<update-command>` manually and re-runs `<visual>`.
-- Implementer never runs `git add`, `git commit`, or `git push`. Staging, committing, and pushing are **user-only**.
-
-## Out of Scope
-- <explicit non-goals>
-
-## Risks & Open Questions
-- <risk or question for the user>
-```
+Omit a section only where the template says it may be omitted — and say in one line that it does not apply, rather than deleting the heading silently.
 
 ### Phase 4 — Confirmation Gate
 End the plan with the literal line:
