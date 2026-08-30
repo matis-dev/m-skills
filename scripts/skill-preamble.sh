@@ -57,6 +57,26 @@ case "$NAME" in
   *) exit 0 ;;
 esac
 
+# A route command (commands/<name>.md) is a thin pre-routed entry into one architect —
+# /m-skills:decompose is product-architect in decompose mode. Left unresolved, SKILL would
+# be "decompose": no skills/decompose/SKILL.md exists, so the composition map below comes
+# out empty, and the once-per-session marker gets written under the wrong key — so the
+# architect the command then reads injects the whole preamble a second time.
+#
+# The owner is derived from the command file itself, never from a table here. Every command
+# body names its architect as `skills/<owner>/SKILL.md` in step 1, so that path IS the
+# declaration; a static map would be one more cross-reference to rot, which is the same
+# reason the composition map below is grepped rather than tabulated.
+CMD_FILE="$DIR/../commands/$SKILL.md"
+if [ -f "$CMD_FILE" ]; then
+  for cand in $(grep -ohE 'skills/[a-z0-9-]+/SKILL\.md' "$CMD_FILE" 2>/dev/null); do
+    cand="${cand#skills/}"; cand="${cand%/SKILL.md}"
+    [ -f "$DIR/../skills/$cand/SKILL.md" ] || continue
+    SKILL="$cand"
+    break
+  done
+fi
+
 # guidelines-meta is the source of the preamble; injecting it into itself is noise.
 # A module is a fragment loaded BY an architect that already got the preamble.
 [ "$SKILL" = "guidelines-meta" ] && exit 0

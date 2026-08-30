@@ -4,10 +4,10 @@
 
 **The M is for modular.** You invoke an **architect** — one of 17 skills that own a stage of the work. The architect is a short spine: its constraints, its modes, its procedure. Everything else it might need is a **module** or a **reference file** it loads *on demand*, once it knows what this particular run is. A `decompose` run never reads the PRD sections. A design polish never reads the threat model. → [Architects and modules](#-architects-and-modules)
 
-Two things fall out of that, and only one of them is a token saving:
+Two things fall out of that:
 
-- **The always-loaded floor, measured across the 16 architects of V4.0, fell from 3,660 lines to 2,240** — a 39% cut in what gets read before the skill has decided anything. Narrow runs land well under the old cost: a `search-optimization-architect` technical pass is 222 lines against 332; a `design-architect` polish is 144 against 153.
-- **One source of truth per rule.** The change-propagation protocol used to be written three times and the OWASP sink model three times, in files that drifted apart. Each is now one module that every architect loads. This is the bigger win, and it is *not* free: a run that legitimately needs three modules can read **more** than the old monolith did — a full `code-review-architect` pass on a diff touching shared shape and a security sink is 636 lines against 318 — because it now gets the complete shared version instead of an abbreviated local copy that had quietly gone stale. Measured numbers: [§ What a run actually loads](#what-a-run-actually-loads).
+- **The always-loaded floor fell from 3,660 lines to 2,240** — a 39% cut in what gets read before the skill has decided anything, measured across V4.0's 16 architects. Narrow runs land well under the old cost: a `search-optimization-architect` technical pass is 222 lines against 332; a `design-architect` polish is 144 against 153.
+- **One source of truth per rule.** The change-propagation protocol used to be written three times and the OWASP sink model three times, in files that had drifted apart. Each is now one module every architect loads, so a rule has one home instead of three copies that disagree — the bigger of the two wins. It also changes what a run reads, in both directions: a run that genuinely needs three modules reads more than the old monolith did, and gets the complete shared treatment where it used to get an abbreviated local copy. The numbers, up and down: [§ What a run actually loads](#what-a-run-actually-loads).
 
 Nothing here is tied to a specific project. Every command, framework, and convention is resolved at runtime, so the same skills work in any repo.
 
@@ -62,13 +62,37 @@ There when you need them:
 /m-skills:marketing-architect
 ```
 
+Plus 14 **route commands** — `/m-skills:decompose`, `/m-skills:rollback`, `/m-skills:ui-audit` and so on — for when you already know which direction you want and don't need the architect to ask. → [§ Skipping the mode question](#skipping-the-mode-question)
+
 They install at user scope, so they're in every project you open — no per-project copying.
+
+**Check that it actually landed there.** The CLI prints the scope it *intended*; the record on disk is what the runtime uses, and the two can disagree if a previous install left stale state behind:
+
+```bash
+claude plugin list          # expect: Scope: user · Status: ✔ enabled
+```
+
+The symptom of a bad install is specific and confusing: **the command appears in the `/` menu and is selectable, but running it returns `Unknown command`.** That means the plugin is bound to one directory. Read the record, which is the authority:
+
+```bash
+python3 -c "import json;print(json.load(open('$HOME/.claude/plugins/installed_plugins.json'))['plugins']['m-skills@m-skills'])"
+```
+
+`"scope": "user"` with **no `projectPath`** is correct. A `projectPath` means it is local to that one project — `cd` there, remove it, and reinstall from anywhere:
+
+```bash
+cd <the projectPath it names>
+claude plugin uninstall m-skills --scope local
+claude plugin install m-skills@m-skills --scope user
+```
+
+Two things that are easy to lose an hour to: `uninstall` accepts `--scope` even though `--help` does not list it, and *local* scope resolves relative to your **current** directory — so the uninstall only works from inside the project it is bound to.
 
 **There is no configuration step.** Open a project and the skills work — they read the stack from your lockfile, manifest, and CI config. The first session offers to save what it found to `.claude/PROJECT-PROFILE.md` so nothing has to be re-detected later; decline and everything still works. That file fills in gradually, a section at a time, as you actually use each skill — it is never a form to sit down and complete. → [§ Setting itself up](#-setting-itself-up)
 
 > **Namespacing needs Claude Code ≥ 2.1.216** to autocomplete as `/m-skills:<name>`. On older versions the plugin installs and works, but the menu shows the bare `/<name>` form. `claude --version` to check.
 
-**Only want it in one project?** Clone the repo and copy `skills/` → `<project>/.claude/skills/`, then drop the `m-skills:` prefix from every command. Worth it only when a project needs a modified copy — project skills silently override bundled ones of the same name, which the plugin route can't do.
+**Only want it in one project?** Clone the repo and copy `skills/` → `<project>/.claude/skills/`, then drop the `m-skills:` prefix from every command. Worth it only when a project needs a modified copy — project skills silently override bundled ones of the same name, which the plugin route can't do. One caveat: the [route commands](#skipping-the-mode-question) resolve their architect through `${CLAUDE_PLUGIN_ROOT}`, which doesn't exist in copy mode — copying `commands/` → `<project>/.claude/commands/` gives you the right slash names, but you'll need to rewrite those paths to `.claude/skills/…` inside each file. The plugin route is the supported one.
 
 ---
 
@@ -110,6 +134,33 @@ Commands below use the plugin form — in copy mode, drop the `m-skills:` prefix
 | Fast feedback mid-work | `bash <skills>/implementing-architect/check-quality.sh` |
 
 `guidelines-meta` is never invoked alone — every other skill opens by loading it.
+
+### Skipping the mode question
+
+Eight architects branch. `/m-skills:product-architect` opens by reading its mode table and working out whether this run is a decompose, a PRD, a brief, or a research plan — which is exactly what you want when the direction is undecided, and pure friction when it isn't.
+
+**Route commands are the second door.** Each one pre-selects a route and starts there. No mode question, no modifier to type.
+
+| Instead of | Type | Runs |
+|---|---|---|
+| `/m-skills:brainstorming-planner kickoff` | `/m-skills:kickoff` | greenfield — what to build, first slice, decisions routed to their owners |
+| `/m-skills:product-architect — decompose` | `/m-skills:decompose` | vertical slices with acceptance criteria |
+| `/m-skills:product-architect — prd` | `/m-skills:prd` | a durable spec |
+| `/m-skills:product-architect — brief` | `/m-skills:brief` | one page: north star and anti-goals |
+| `/m-skills:security-architect <x> — model` | `/m-skills:threat-model` | trust boundaries, read-only, before it's built |
+| `/m-skills:accessibility-architect <x> — audit` | `/m-skills:a11y-audit` | WCAG 2.2 AA read with what wasn't tested stated |
+| `/m-skills:design-architect <x> — audit` | `/m-skills:ui-audit` | craft floor + refuse list, `path:line`, writes nothing |
+| `/m-skills:design-architect <x> — redesign` | `/m-skills:redesign` | replace the visual world, keep the product truth |
+| `/m-skills:documentation-architect — audit` | `/m-skills:docs-audit` | friction log against the code, read-only |
+| `/m-skills:documentation-architect — release-notes` | `/m-skills:release-notes` | user-facing notes, migration guide per break |
+| `/m-skills:search-optimization-architect — audit` | `/m-skills:seo-audit` | tier-ordered, verified against fetched bytes |
+| `/m-skills:marketing-architect — spread` | `/m-skills:spread` | funnel floor, then where it goes; drafts, never sends |
+| `/m-skills:maintenance-architect — advisories only` | `/m-skills:advisories` | advisories triaged by reachability, batched |
+| `/m-skills:deployment-architect — roll back` | `/m-skills:rollback` | restore first, resolved command, cause last |
+
+**A route command narrows the route, never the discipline.** Constraints, guardrails, the git guards, and the pre-emit sweep all still apply — none of these is a `skip gates` modifier. The architects are unchanged and still take modifiers longhand; this is an extra door into the same room.
+
+Routes deliberately left out: `security → harden`, `a11y → spec | build`, `docs → generate`, `design → polish`. Those are reached by *citation* from `planning-architect` and `implementing-architect` mid-run, not typed at a prompt — a command for them would sit in the menu and never be picked.
 
 ### The whole flow, in one picture
 
@@ -252,9 +303,9 @@ A module is addressed **by name** (`module-propagation`), because a name is the 
 | `module-craft-floor` | Contrast, spacing, type, depth, motion, states, targets, browser surfaces, copy, responsive range, token discipline | design · code-review · accessibility · maintenance · search-optimization |
 | `module-operability-floor` | Native-first construction, the ARIA contract, focus management, live regions — the half no scanner sees | accessibility · design · code-review · testing · planning · implementing |
 | `module-findings` | The finding shape, the ≥80 confidence gate, the false-positive list, severities, banded verdicts | code-review · security · accessibility · documentation · search-optimization · maintenance · debugging |
-| `module-evidence` | Never invent an identifier; every number sourced or labelled; the dated evidence-base format | security · accessibility · search-optimization · product · documentation |
-| `module-handover` | The runbook shape, *what it does / how you know it worked*, and the short forms for commits, reverts, rollbacks | deployment · security · product · rolling-history · maintenance · debugging |
-| `module-writing-floor` | The floor for any document a project ships, plus the refuse list of doc slop | documentation · product · search-optimization · rolling-history · deployment |
+| `module-evidence` | Never invent an identifier; every number sourced or labelled; the dated evidence-base format | security · accessibility · search-optimization · product · documentation · marketing |
+| `module-handover` | The runbook shape, *what it does / how you know it worked*, and the short forms for commits, reverts, rollbacks | deployment · security · product · rolling-history · maintenance · debugging · marketing |
+| `module-writing-floor` | The floor for any document a project ships, plus the refuse list of doc slop | documentation · product · search-optimization · rolling-history · deployment · marketing |
 
 Modules are hidden from the `/` menu (`user-invocable: false`) — you never invoke one directly. They point at each other freely but **never load each other**: one level of composition, so there is no load order to debug.
 
@@ -304,10 +355,11 @@ These hold in every skill, in every project:
 | `scripts/guard-mutations.sh` | **Denies** git mutations, golden-file updates, catastrophic `rm`/`dd` | stays put |
 | `scripts/guard-outward.sh` | **Denies** a deploy, publish, migration, infra apply, or `gh` write — you get a runbook instead | stays put |
 | `scripts/guard-secrets.sh` | **Denies** writes into secret-bearing files; reads and `.env.example` untouched | stays put |
-| `scripts/skill-preamble.sh` | Injects the resolved gates, §9/§10/§15/§19, and the skill's composition map when a pack skill starts | stays put |
+| `scripts/skill-preamble.sh` | Injects the resolved gates, §9/§10/§15/§19, and the skill's composition map when a pack skill starts; resolves a route command to the architect it routes into, so the map is right and the preamble lands once | stays put |
 | `scripts/warn-test-weakening.sh` | Flags a newly added `.skip` / `.only` in a test file | stays put |
 | `scripts/advise-propagation.sh` | Prompts the Protocol A sweep when a shared-shape file is edited | stays put |
-| `tests/run-tests.sh` | The pack's own test suite — 367 assertions, no dependencies | stays put |
+| `tests/run-tests.sh` | The pack's own test suite — 558 assertions, no dependencies | stays put |
+| `commands/*.md` | The 14 route commands — thin pre-routed entries into one architect's mode | plugin: stays put · copy-mode: → `<project>/.claude/commands/`, paths rewritten |
 | `skills/<architect>/SKILL.md` | An architect's spine — constraints, modes, procedure | plugin: stays put · copy-mode: → `<project>/.claude/skills/` |
 | `skills/module-*/` | The 9 shared modules, addressed by name | same |
 | `skills/*/references/*.md` | On-demand material, read via `${CLAUDE_SKILL_DIR}` | same |
@@ -320,6 +372,8 @@ These hold in every skill, in every project:
 The 17 architects: `guidelines-meta`, `brainstorming-planner`, `planning-architect`, `product-architect`, `design-architect`, `testing-architect`, `security-architect`, `accessibility-architect`, `implementing-architect`, `debugging-architect`, `code-review-architect`, `documentation-architect`, `rolling-history`, `deployment-architect`, `maintenance-architect`, `search-optimization-architect`, `marketing-architect`.
 
 The 9 modules: `module-propagation`, `module-threat-model`, `module-gate-battery`, `module-craft-floor`, `module-operability-floor`, `module-findings`, `module-evidence`, `module-handover`, `module-writing-floor`.
+
+The 14 route commands: `kickoff`, `decompose`, `prd`, `brief`, `threat-model`, `a11y-audit`, `ui-audit`, `redesign`, `docs-audit`, `release-notes`, `seo-audit`, `spread`, `advisories`, `rollback`. → [§ Skipping the mode question](#skipping-the-mode-question)
 
 **Who invokes what** — pipeline stages are yours to trigger; knowledge skills load themselves when relevant:
 
@@ -521,7 +575,8 @@ Fill `<project>/.claude/PROJECT-PROFILE.md` from the template. Rules:
    - plugin mode: `bash ${CLAUDE_PLUGIN_ROOT}/skills/implementing-architect/check-quality.sh --list`
    - copy mode: `bash .claude/skills/implementing-architect/check-quality.sh --list`
 2. Run one cheap gate (usually `<lint>`) to confirm the command is real.
-3. Confirm the skills are discoverable — copy mode: each `SKILL.md` has `name` + `description` frontmatter at `.claude/skills/<name>/SKILL.md`. Plugin mode: `claude plugin list` shows `m-skills` enabled.
+3. Confirm the skills are discoverable — copy mode: each `SKILL.md` has `name` + `description` frontmatter at `.claude/skills/<name>/SKILL.md`. Plugin mode: `claude plugin list` shows `m-skills` enabled **at user scope**, and `installed_plugins.json` carries no `projectPath` for it (see [§ Install](#-install)). A plugin bound to one directory looks installed everywhere and dispatches nowhere else.
+4. Invoke one skill and confirm the preamble hook fired — the injected block names the modules and reference files that skill composes from. No block means the hooks are not loading, whatever `plugin list` says.
 
 ### Step 5 — Report
 
@@ -559,7 +614,10 @@ Install the m-skills pack into this project.
    `skills/guidelines-meta/PROJECT-PROFILE.template.md` using only values you verified.
    A gate that doesn't exist is `n-a` — do not invent script names.
 5. Verify with `check-quality.sh --list`, then run the lint gate once to prove it's real.
-6. Report what you wrote, what resolved, what's `n-a`, and what you need me to confirm.
+6. If you installed the plugin, confirm `claude plugin list` shows it at **user** scope and that
+   `~/.claude/plugins/installed_plugins.json` has no `projectPath` for it — a local-scope install
+   shows in the `/` menu and then fails with `Unknown command` in every other project.
+7. Report what you wrote, what resolved, what's `n-a`, and what you need me to confirm.
 
 Do not run any git command that mutates state. Leave everything unstaged.
 ```
@@ -569,7 +627,7 @@ Do not run any git command that mutates state. Leave everything unstaged.
 ## 🧪 Testing the pack itself
 
 ```
-bash tests/run-tests.sh        # 367 assertions, ~10s, no dependencies
+bash tests/run-tests.sh        # 558 assertions, ~10s, no dependencies
 bash tests/run-tests.sh -v     # show every passing assertion
 RUN_EVALS=1 bash tests/run-tests.sh   # adds model-in-the-loop checks (costs tokens)
 ```
