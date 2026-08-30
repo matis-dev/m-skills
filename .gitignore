@@ -1,0 +1,15 @@
+# Claude Code per-user local state — never ship one person's allowlist.
+# The shareable version is settings.template.json.
+settings.local.json
+.claude/settings.local.json
+.claude/PROJECT-PROFILE.md
+.claude/.m-skills-*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+*.swp
+*~
+.idea/
