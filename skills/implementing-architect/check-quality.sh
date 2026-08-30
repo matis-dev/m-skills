@@ -36,25 +36,45 @@ UPDATE_CMD="${UPDATE_CMD:-}"
 # not marked here is fair game for the profile to override.
 ENV_PINNED=""
 for k in "${GATE_KEYS[@]}" VISUAL_REPORT UPDATE_CMD; do
-  if [ -n "${!k}" ]; then
-    ENV_PINNED="$ENV_PINNED $k"
-    printf -v "ENVVAL_$k" '%s' "${!k}"
-  fi
+  [ -n "${!k}" ] && ENV_PINNED="$ENV_PINNED $k"
 done
 env_pinned() { case " $ENV_PINNED " in *" $1 "*) return 0 ;; *) return 1 ;; esac; }
-# Sourcing the conf below blindly assigns, which used to silently clobber a value
-# passed on the invocation. Re-apply the pinned ones afterwards so precedence reads
-# the way anyone would expect: env > profile > conf > detection.
-restore_env_pinned() {
-  local k v
-  for k in $ENV_PINNED; do v="ENVVAL_$k"; printf -v "$k" '%s' "${!v}"; done
-}
 
 # ── 1. Explicit config ────────────────────────────────────────────────────────
+# The conf is DATA and is parsed, never sourced. Two reasons, both real:
+#   · `--list` is called by the SessionStart bootstrap and by the PreToolUse guard,
+#     so sourcing meant cloning a repo ran whatever its author put in this file.
+#   · sourcing blindly assigns, which silently clobbered a value passed on the
+#     invocation. Skipping pinned keys here keeps precedence as anyone would read it:
+#     env > profile > conf > detection.
+# Accepts KEY="v" / KEY='v' / KEY=v, leading indentation, # comments, and a trailing
+# comment after a quoted value — every shape the template at the end of this file uses.
+read_conf() {
+  local line key val
+  while IFS= read -r line || [ -n "$line" ]; do
+    line="${line#"${line%%[![:space:]]*}"}"
+    case "$line" in ''|'#'*) continue ;; esac
+    case "$line" in *=*) ;; *) continue ;; esac
+    key="${line%%=*}"; val="${line#*=}"
+    key="${key%"${key##*[![:space:]]}"}"
+    case "$key" in
+      LINT|TYPECHECK|TEST|BUILD|E2E|VISUAL|A11Y|AUDIT|UPDATE_CMD|VISUAL_REPORT) ;;
+      *) continue ;;
+    esac
+    env_pinned "$key" && continue
+    val="${val#"${val%%[![:space:]]*}"}"
+    case "$val" in
+      \"*)  val="${val#\"}";  val="${val%%\"*}" ;;
+      \'*)  val="${val#\'}";  val="${val%%\'*}" ;;
+      *)    val="${val%%[[:space:]]#*}" ;;
+    esac
+    val="${val%"${val##*[![:space:]]}"}"
+    printf -v "$key" '%s' "$val"
+  done < "$1"
+}
+
 if [ -f "$CONF" ]; then
-  # shellcheck disable=SC1090
-  . "$CONF"
-  restore_env_pinned
+  read_conf "$CONF"
   SOURCE="$CONF"
 else
   SOURCE="auto-detected"
@@ -179,24 +199,39 @@ if [ -f package.json ] && command -v node >/dev/null 2>&1; then
     esac
   fi
   [ -z "$UPDATE_CMD" ] && { u="$(pick_script e2e:update test:update update-snapshots)" && UPDATE_CMD="$RUN $u"; }
-elif [ -f Makefile ]; then
+fi
+
+# Each ecosystem below runs as its own pass, not as an `elif`. A repo is allowed to
+# be more than one thing — a Python service with a package.json for frontend tooling,
+# a Go binary with a Makefile — and first-manifest-wins left every other ecosystem's
+# gates resolving to `n-a`. That is worse than a missing gate: §5 rule 3 then has the
+# model STATE that the gate does not exist while `make test` sits in the repo.
+# Every assignment is already conditional on the role still being empty, so the
+# manifest order below is the precedence order.
+if [ -f Makefile ]; then
   for i in "${!GATE_KEYS[@]}"; do
     k="${GATE_KEYS[$i]}"; t="$(echo "$k" | tr '[:upper:]' '[:lower:]')"
     [ -z "${!k}" ] && has_make_target "$t" && eval "$k=\"make $t\""
   done
-elif [ -f pyproject.toml ]; then
+fi
+
+if [ -f pyproject.toml ]; then
   RUNNER=""
   command -v uv >/dev/null 2>&1 && RUNNER="uv run"
   [ -z "$RUNNER" ] && [ -f poetry.lock ] && RUNNER="poetry run"
   [ -z "$LINT" ]      && LINT="$RUNNER ruff check ."
   [ -z "$TYPECHECK" ] && TYPECHECK="$RUNNER mypy ."
   [ -z "$TEST" ]      && TEST="$RUNNER pytest"
-elif [ -f Cargo.toml ]; then
+fi
+
+if [ -f Cargo.toml ]; then
   [ -z "$LINT" ]  && LINT="cargo clippy -- -D warnings"
   [ -z "$TEST" ]  && TEST="cargo test"
   [ -z "$BUILD" ] && BUILD="cargo build --release"
   [ -z "$AUDIT" ] && AUDIT="cargo audit"
-elif [ -f go.mod ]; then
+fi
+
+if [ -f go.mod ]; then
   [ -z "$LINT" ]      && LINT="go vet ./..."
   [ -z "$TYPECHECK" ] && TYPECHECK="go build ./..."
   [ -z "$TEST" ]      && TEST="go test ./..."

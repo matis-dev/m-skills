@@ -109,13 +109,35 @@ done
 
 # Greenfield? A repo with a manifest but almost no source is a project about to start,
 # not a project to analyse. It gets a different message: nothing to detect, only to decide.
+# "Source" is not a JavaScript word. The old list stopped at a dozen web languages,
+# so a shell, C, C#, Kotlin, Swift, Elixir, or Lua project reported zero files and got
+# greeted as not-yet-started — this pack's own repo included.
 SRC_COUNT=$(find . -type f \
-  \( -name '*.ts' -o -name '*.tsx' -o -name '*.js' -o -name '*.jsx' -o -name '*.vue' -o -name '*.svelte' \
-     -o -name '*.py' -o -name '*.rs' -o -name '*.go' -o -name '*.java' -o -name '*.rb' -o -name '*.php' \) \
+  \( -name '*.ts' -o -name '*.tsx' -o -name '*.js' -o -name '*.jsx' -o -name '*.mjs' -o -name '*.cjs' \
+     -o -name '*.vue' -o -name '*.svelte' -o -name '*.astro' \
+     -o -name '*.py' -o -name '*.rs' -o -name '*.go' -o -name '*.java' -o -name '*.rb' -o -name '*.php' \
+     -o -name '*.c' -o -name '*.h' -o -name '*.cc' -o -name '*.cpp' -o -name '*.hpp' -o -name '*.cs' \
+     -o -name '*.kt' -o -name '*.kts' -o -name '*.swift' -o -name '*.m' -o -name '*.mm' \
+     -o -name '*.ex' -o -name '*.exs' -o -name '*.erl' -o -name '*.scala' -o -name '*.clj' \
+     -o -name '*.hs' -o -name '*.dart' -o -name '*.lua' -o -name '*.pl' -o -name '*.sh' -o -name '*.bash' \
+     -o -name '*.sql' -o -name '*.vb' -o -name '*.fs' -o -name '*.zig' -o -name '*.nim' \) \
   -not -path './node_modules/*' -not -path './.git/*' -not -path './vendor/*' -not -path './dist/*' \
-  -not -path './build/*' -not -path './target/*' 2>/dev/null | head -20 | wc -l)
+  -not -path './build/*' -not -path './target/*' -not -path './.venv/*' -not -path './venv/*' \
+  2>/dev/null | head -20 | wc -l)
 GREENFIELD=0
 [ "$SRC_COUNT" -lt 3 ] && GREENFIELD=1
+
+# A populated source tree settles it whatever the extension is — the list above will
+# always be missing somebody's language, and a wrong greenfield greeting on a real
+# codebase routes every downstream decision to "decide" instead of "read the repo".
+if [ "$GREENFIELD" -eq 1 ]; then
+  for d in src lib app scripts pkg internal cmd source; do
+    [ -d "$d" ] || continue
+    if [ "$(find "$d" -type f 2>/dev/null | head -5 | wc -l)" -ge 3 ]; then
+      GREENFIELD=0; break
+    fi
+  done
+fi
 
 # ── Mechanical detection ──────────────────────────────────────────────────────
 GATES="$(bash "$PLUGIN/skills/implementing-architect/check-quality.sh" --list 2>/dev/null \
@@ -313,6 +335,7 @@ What is knowable now:
 $GATES
 - Dependency hints: ${FRAMEWORKS:-none}${UI:+, }${UI:-}${TESTS:+, }${TESTS:-}
 
+$WROTE
 WHAT TO DO WITH THIS — do not interrupt whatever the user actually asked for.
 
 A greenfield profile is filled by DECIDING, not detecting, and the decisions belong to whichever

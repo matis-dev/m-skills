@@ -114,27 +114,52 @@ advisory_require_json_engine() {
   [ -n "$M_SKILLS_JSON_ENGINE" ] || exit 0
 }
 
+# File mtime as an epoch second. `date -r FILE` is GNU-only — on BSD/macOS -r takes
+# epoch SECONDS, so a path argument errors, the fallback returns 0 for every file,
+# and the cache key below silently degenerates to a constant that never invalidates.
+m_skills_mtime() {
+  stat -c %Y "$1" 2>/dev/null || stat -f %m "$1" 2>/dev/null || date -r "$1" +%s 2>/dev/null || echo 0
+}
+
 # Cache key for the resolved gate table. The resolution reads PROJECT-PROFILE.md,
 # quality-gates.conf, and the manifest, so the key folds in their mtimes: editing
-# any of them invalidates the cache. Without this a stale table outlives the edit —
-# and where the runtime exports no CLAUDE_SESSION_ID the state dir is shared, so it
-# outlives the whole session too.
+# any of them invalidates the cache. Without this a stale table outlives the edit.
 m_skills_gate_cache_key() {
   local root="$1" stamps=""
   local f
   for f in "$root/.claude/PROJECT-PROFILE.md" "$root/.claude/quality-gates.conf" \
            "$root/package.json" "$root/Makefile" "$root/pyproject.toml" \
            "$root/Cargo.toml" "$root/go.mod"; do
-    [ -f "$f" ] && stamps="$stamps|$(date -r "$f" +%s 2>/dev/null || echo 0)"
+    [ -f "$f" ] && stamps="$stamps|$(m_skills_mtime "$f")"
   done
   printf '%s' "$root$stamps" | cksum | cut -d' ' -f1
 }
 
+# The session this hook invocation belongs to. Every hook payload carries session_id,
+# which is the only identifier that is both stable across one session and distinct
+# between two — $CLAUDE_SESSION_ID is not always exported into the hook environment.
+#
+# This matters more than it looks: the markers below are never cleaned up, so keying
+# them on a constant made "once per session" mean "once per machine, forever". Two
+# advisories stopped firing after their first use and nothing reported it.
+#
+# Last resort, when neither is available: the parent process's start time. Constant
+# within one Claude Code process, different in the next — still wrong for concurrent
+# sessions sharing a parent, but never a global constant.
+m_skills_session_id() {
+  local from_payload="${1:-}"
+  [ -n "$from_payload" ] && { printf '%s' "$from_payload" | tr -c 'A-Za-z0-9._-' '_'; return; }
+  [ -n "${CLAUDE_SESSION_ID:-}" ] && { printf '%s' "$CLAUDE_SESSION_ID" | tr -c 'A-Za-z0-9._-' '_'; return; }
+  local boot
+  boot="$(awk '{print $22}' "/proc/$PPID/stat" 2>/dev/null)" \
+    || boot="$(ps -o lstart= -p "$PPID" 2>/dev/null)"
+  printf 'pp%s' "$(printf '%s' "${boot:-0}$PPID" | cksum | cut -d' ' -f1)"
+}
+
 # A per-session marker directory, so an advisory can fire once rather than every
-# time the same file is touched. Keyed on the session id when the runtime supplies
-# one, so two concurrent sessions don't silence each other.
+# time the same file is touched. Pass the payload's session_id; two concurrent
+# sessions then never silence each other.
 m_skills_state_dir() {
   local base="${TMPDIR:-/tmp}/m-skills-$(id -u 2>/dev/null || echo 0)"
-  local session="${CLAUDE_SESSION_ID:-default}"
-  printf '%s/%s' "$base" "$session"
+  printf '%s/%s' "$base" "$(m_skills_session_id "${1:-}")"
 }

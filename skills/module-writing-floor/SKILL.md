@@ -6,7 +6,7 @@ user-invocable: false
 
 # Module: The Writing Floor
 
-**Loaded by:** `documentation-architect` · `product-architect` · `search-optimization-architect` · `rolling-history` · `deployment-architect`. Read it whenever a run emits a document a reader will follow; do not restate its content in a skill file.
+**Loaded by:** `documentation-architect` · `product-architect` · `search-optimization-architect` · `rolling-history` · `deployment-architect` · `marketing-architect`. Read it whenever a run emits a document a reader will follow; do not restate its content in a skill file.
 
 Checks on the **rendered document**, not on intentions. Run them together in one batched verification round.
 
