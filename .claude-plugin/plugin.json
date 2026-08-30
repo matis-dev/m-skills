@@ -1,7 +1,7 @@
 {
   "name": "m-skills",
   "displayName": "m-skills \u2014 portable dev pipeline",
-  "version": "4.1.0",
+  "version": "4.2.0",
   "description": "A simple plugin for full-stack developers who use Claude for real work. Five commands are the everyday loop \u2014 brainstorm, plan, implement, review, document; the rest wait until you need them. Project-agnostic: every command, framework, and convention resolves at runtime from a per-project PROJECT-PROFILE.md instead of being hardcoded. The strictest rules \u2014 no staging or committing, no auto-accepted golden updates, no secrets written into tracked files \u2014 are enforced by hooks that deny the call, not by prose the model has to remember.",
   "author": {
     "name": "Mateusz Kruszona"

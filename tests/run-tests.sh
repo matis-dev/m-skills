@@ -218,6 +218,85 @@ grep -q "The $acount architects:" "$ROOT/README.md" \
 grep -q "The $mcount modules:" "$ROOT/README.md" \
   && ok "README module count is $mcount" || bad "README module count is $mcount" "README says something else"
 
+# ─── Route commands ──────────────────────────────────────────────────────────
+# A route command is a thin pre-routed entry into ONE architect's mode. Everything
+# below guards the same failure: a command that survives a rename of the thing it
+# routes into, and silently sends the run somewhere that no longer exists.
+#
+# The declaration line is the contract, and it is load-bearing twice over — these
+# tests parse it, and so does skill-preamble.sh, which resolves the owner from the
+# command file to map the composition and mark the preamble once instead of twice.
+ccount=0
+for f in "$ROOT"/commands/*.md; do
+  [ -e "$f" ] || continue
+  ccount=$((ccount+1))
+  c="$(basename "$f" .md)"
+
+  grep -q "^description: " "$f" && ok "command has description: $c" || bad "command has description: $c"
+  grep -q "^argument-hint: " "$f" && ok "command has argument-hint: $c" || bad "command has argument-hint: $c"
+
+  # a command filename must not collide with a skill directory — both surface as
+  # /m-skills:<name>, and the loser of that collision is undefined
+  [ -d "$ROOT/skills/$c" ] \
+    && bad "command name does not collide with a skill: $c" "skills/$c/ exists" \
+    || ok "command name does not collide with a skill: $c"
+
+  # exactly one owner, named as skills/<owner>/SKILL.md, and it must resolve
+  owners="$(grep -ohE 'skills/[a-z0-9-]+/SKILL\.md' "$f" | sed 's|skills/||;s|/SKILL.md||' | sort -u)"
+  n="$(printf '%s\n' "$owners" | grep -c .)"
+  if [ "$n" != "1" ]; then
+    bad "command names exactly one owner: $c" "found ${n}: $(printf '%s' "$owners" | tr '\n' ' ')"
+    continue
+  fi
+  owner="$owners"
+  if [ ! -f "$ROOT/skills/$owner/SKILL.md" ]; then
+    bad "command owner resolves: $c" "no skills/$owner/SKILL.md"
+    continue
+  fi
+  ok "command owner resolves: $c → $owner"
+
+  # the declaration line: `Run \`<owner>\` in **<route>** mode.` The owner it names
+  # in prose must be the same one its Read path points at, or the two drift apart
+  # and the hook resolves an architect the body never actually reads.
+  decl="$(grep -m1 -oE '^Run `[a-z0-9-]+` in \*\*[^*]+\*\* mode' "$f" || true)"
+  if [ -z "$decl" ]; then
+    bad "command declares its route: $c" "no 'Run \`<owner>\` in **<route>** mode' line"
+    continue
+  fi
+  downer="$(printf '%s' "$decl" | sed -E 's/^Run `([a-z0-9-]+)`.*/\1/')"
+  assert_eq "command's declared owner matches its Read path: $c" "$downer" "$owner"
+
+  # the route must still exist in the architect. Renaming a mode now fails the
+  # build instead of orphaning a command that points at a section nobody kept.
+  route="$(printf '%s' "$decl" | sed -E 's/.*\*\*(.+)\*\* mode$/\1/')"
+  grep -qiF "$route" "$ROOT/skills/$owner/SKILL.md" \
+    && ok "command's route exists in $owner: $route" \
+    || bad "command's route exists in $owner: $route" "'$route' appears nowhere in skills/$owner/SKILL.md"
+
+  # every reference file a command cites must live under ITS owner. Same class of
+  # bug as the composition-map check further down: a path that resolves in some
+  # other skill's directory is still a path this run cannot read.
+  for r in $(grep -ohE 'references/[a-z0-9-]+\.md' "$f" | sort -u); do
+    if [ -f "$ROOT/skills/$owner/$r" ]; then
+      ok "command cites a reference that exists: $c → $r"
+      continue
+    fi
+    # a module's reference is legitimate too — the command says which module to
+    # load first — but it still has to exist somewhere in the pack.
+    found=""
+    for d in "$ROOT"/skills/*/; do
+      [ -f "$d$r" ] || continue
+      found="$(basename "${d%/}")"; break
+    done
+    [ -n "$found" ] \
+      && ok "command cites a reference that exists: $c → $r (owned by $found)" \
+      || bad "command cites a reference that exists: $c → $r" "resolves in no skill directory"
+  done
+done
+
+grep -q "The $ccount route commands:" "$ROOT/README.md" \
+  && ok "README route-command count is $ccount" || bad "README route-command count is $ccount" "README says something else"
+
 # A skill that declares a Profile section it owns must have that section in the
 # template, or §5 resolution sends the run to a heading that is not there. The
 # declarations are free-form (`§X and §Y`, `§X -> subrow`, `§X (parenthetical)`),
@@ -847,6 +926,27 @@ out="$(printf '{"hook_event_name":"PostToolUse","tool_input":{"skill":"m-skills:
 assert_empty "preamble does not inject the same skill twice" "$out"
 out="$(printf '{"hook_event_name":"PostToolUse","tool_input":{"skill":"m-skills:design-architect"}}' | bash "$ROOT/scripts/skill-preamble.sh" 2>/dev/null)"
 assert_contains "a different skill still injects" "$out" "design-architect"
+
+# ── Route commands resolve to the architect they route into. Unresolved, SKILL would
+#    be "decompose": skills/decompose/SKILL.md does not exist, so the composition map
+#    comes out EMPTY and the marker is written under the wrong key — which means the
+#    architect the command then reads injects the whole preamble a second time.
+RC='{"hook_event_name":"UserPromptExpansion","command_name":"m-skills:decompose","session_id":"%s"}'
+out="$(printf "$RC" "route-$$-a" | env -u CLAUDE_SESSION_ID bash "$ROOT/scripts/skill-preamble.sh" 2>/dev/null)"
+assert_contains "route command resolves to its owner"      "$out" "preamble for \`product-architect\`"
+assert_contains "route command gets the owner's ref map"   "$out" "references/decompose.md"
+assert_contains "route command gets the owner's modules"   "$out" "module-writing-floor"
+assert_missing  "route command is not mapped as itself"    "$out" "preamble for \`decompose\`"
+# the dedupe that the resolution buys: the owner, loaded next by the command body,
+# must NOT inject a second copy in the same session
+out="$(printf '{"hook_event_name":"PostToolUse","tool_input":{"skill":"m-skills:product-architect"},"session_id":"route-'"$$"'-a"}' \
+       | env -u CLAUDE_SESSION_ID bash "$ROOT/scripts/skill-preamble.sh" 2>/dev/null)"
+assert_empty "route command's owner does not inject twice" "$out"
+# a name that is neither a skill nor a command must not acquire an owner
+out="$(printf '{"hook_event_name":"UserPromptExpansion","command_name":"m-skills:not-a-thing","session_id":"route-'"$$"'-b"}' \
+       | env -u CLAUDE_SESSION_ID bash "$ROOT/scripts/skill-preamble.sh" 2>/dev/null)"
+assert_missing "unknown name resolves to no owner" "$out" "What this skill composes from"
+rm -rf "${TMPDIR:-/tmp}/m-skills-$(id -u 2>/dev/null || echo 0)"/route-$$-*
 
 # ── §10's dynamic arm: the PROJECT'S OWN resolved update command. This is the half
 #    prose can never enforce, because the command is project-specific — and it was
