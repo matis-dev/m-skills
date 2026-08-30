@@ -346,6 +346,8 @@ These hold in every skill, in every project:
 
 | Path | What it is | Goes where |
 |---|---|---|
+| [`LICENSE`](LICENSE) | MIT — the license this pack ships under | stays put |
+| [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md) | License notices for the absorbed sources | stays put |
 | `.claude-plugin/plugin.json` | Plugin manifest | stays put — read on install |
 | `.claude-plugin/marketplace.json` | Single-plugin marketplace catalog | stays put — read by `/plugin marketplace add` |
 | `hooks/hooks.json` | Wires all eight hooks | stays put |
@@ -664,7 +666,7 @@ The point of absorbing rather than stacking: these sources cover blind spots in 
 
 The two design sources overlap deliberately — impeccable is stronger on *what to verify on the built result*, hallmark on *what to refuse before you build it*. Both are distilled to rules about the rendered output, so they apply on any stack rather than only the one they shipped for.
 
-**On the licenses:** `caveman` and the Anthropic plugins carry no declared SPDX license, so what's absorbed from them is the *idea* — restated in this pack's own words — not copied text. The MIT and Apache sources permit reuse and are credited accordingly; `i-have-adhd` is the one whose structure is followed closely, and it's MIT.
+**On the licenses:** `caveman` and the Anthropic plugins carry no declared SPDX license, so what's absorbed from them is the *idea* — restated in this pack's own words — not copied text. The MIT and Apache sources permit reuse and are credited accordingly; `i-have-adhd` is the one whose structure is followed closely, and it's MIT. The notices those licenses require are in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md); this pack itself is [MIT](LICENSE).
 
 ### If you ever want a source's full surface
 
