@@ -72,19 +72,34 @@ if printf '%s' "$CMD" | grep -Eq -- '(--update-snapshots?|--updateSnapshot|--upd
   emit_deny "Blocked by m-skills (Guidelines §10): golden and visual-snapshot updates are user-only. Surface the diff and its report path, then stop — \"Diffs detected — review the report at <path>; if intended, run <update-command> manually.\" Auto-updating erases the exact signal the test exists to produce. ${OPTOUT_LINE}"
 fi
 
-# A bare -u only means "update snapshots" next to a test runner that defines it.
-if printf '%s' "$CMD" | grep -Eq '(^|[^[:alnum:]_./-])(jest|vitest|ava|mocha|jasmine|playwright)([^[:alnum:]_-]|$)' \
-  && printf '%s' "$CMD" | grep -Eq '(^|[[:space:]])-[a-zA-Z]*u([a-zA-Z]*)?([[:space:]]|$)'; then
+# A bare -u only means "update snapshots" next to a test runner that defines it, and
+# only when the flag belongs to THAT runner. Two corrections are load-bearing here:
+#
+#   · mocha and jasmine are not on the list. Mocha's -u is --ui (bdd/tdd/qunit), so
+#     `mocha -u tdd` is an ordinary run; jasmine has no snapshot concept at all.
+#   · the runner and the flag must share a command segment. Matching across the whole
+#     string denied `jest --listTests | sort -u`, where the -u is sort's.
+#
+# Over-blocking is the worst failure a guard has: the reason text points at
+# .m-skills-no-guards, and reaching for it disarms all three guards permanently.
+SNAP_RUNNER='(^|[^[:alnum:]_./-])(jest|vitest|ava|playwright)([^[:alnum:]_-]|$)'
+SNAP_U='(^|[[:space:]])-[a-zA-Z]*u[a-zA-Z]*([[:space:]]|$)'
+printf '%s\n' "$CMD" | tr '|;&' '\n\n\n' | while IFS= read -r seg; do
+  printf '%s' "$seg" | grep -Eq "$SNAP_RUNNER" || continue
+  printf '%s' "$seg" | grep -Eq "$SNAP_U"      || continue
+  printf 'deny\n'
+  break
+done | grep -q deny && \
   emit_deny "Blocked by m-skills (Guidelines §10): \`-u\` updates snapshots on this test runner, and that is user-only. Report the diffs and let the user run the update themselves. ${OPTOUT_LINE}"
-fi
 
 # Then the project's OWN resolved update command. Prose can never do this — §10's
 # whole point is that the command is project-specific. Cached per session: the
 # resolution spawns node, and this hook runs on every Bash call.
 resolve_update_cmd() {
   local state cache root
+  local session; session="$(json_field "$INPUT" "session_id")"
   root="$(git -C "${CLAUDE_PROJECT_DIR:-$PWD}" rev-parse --show-toplevel 2>/dev/null || printf '%s' "${CLAUDE_PROJECT_DIR:-$PWD}")"
-  state="$(m_skills_state_dir)"
+  state="$(m_skills_state_dir "$session")"
   cache="$state/updatecmd-$(m_skills_gate_cache_key "$root")"
   if [ -f "$cache" ]; then
     cat "$cache"

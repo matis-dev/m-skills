@@ -41,7 +41,10 @@ deny_path() {
 
 case "$TOOL" in
   Write|Edit|NotebookEdit)
+    # NotebookEdit sends notebook_path, not file_path. Reading only file_path made
+    # this arm dead code — a guard the header claims and the case never ran.
     FILE="$(json_field "$INPUT" "tool_input.file_path")"
+    [ -z "$FILE" ] && FILE="$(json_field "$INPUT" "tool_input.notebook_path")"
     [ -z "$FILE" ] && exit 0
     printf '%s' "$FILE" | grep -Eq "$EXAMPLE" && exit 0
     printf '%s' "$FILE" | grep -Eq "$SECRET" && deny_path "$FILE"

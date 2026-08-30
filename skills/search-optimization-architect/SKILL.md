@@ -156,6 +156,7 @@ Run the six-axis pre-emit self-critique (Guidelines §18) first; anything under 
 - **Guidelines (Meta)** — §15 honesty is the load-bearing one here; this domain's failure mode is confident fabrication. Also §16 bounded passes, §18 self-critique.
 - **Documentation Architect** — owns which document to write and for whom; `module-writing-floor` owns whether it reads. The structure rules in `references/retrieval-content.md` sit on top of that floor, never instead of it.
 - **Design Architect** — any page restructured here is still a designed surface; its craft floor applies before shipping.
+- **Marketing Architect** — this skill owns being found by **machines** (retrieval, crawlers, engines); that one owns being found by **people** (channels, communities, launches). They share `module-evidence` and meet at the landing surface, which has to both retrieve well and convert.
 - **Product Architect** — a content program is scoped and sliced there; this skill supplies the fan-out map and the prioritization input.
 - **Planning Architect / Implementing Architect** — rendering and crawl-policy fixes (`references/technical-readiness.md`) are code changes and go through the normal plan → implement → gates path.
 - **Deployment Architect** — `robots.txt`, redirects, and canonical changes are one-way doors in practice: a wrong directive can drop a site out of retrieval for a crawl cycle. Treat them as deploy-gated changes with a stated rollback.

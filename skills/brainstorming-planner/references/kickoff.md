@@ -13,6 +13,7 @@ Triggered by "kickoff", or whenever there is no meaningful code to brainstorm ag
 - **What already exists?** A design, an API, a prior version, a competitor they like, nothing.
 - **What is the smallest thing that would be genuinely useful?** Everything else is v2 — name it as such and move on.
 - **What are the hard constraints?** Deadline, platform, team size, budget, a service that must be integrated, a compliance requirement.
+- **Optional, asked once:** *does how this gets found shape what we build?* For most projects it does not, and "no" ends it — but a project whose whole premise is an audience it has to reach is one where `marketing-architect` belongs in the conversation now rather than at the end. Do not follow up if the answer is no.
 
 ### 2. Route the foundational decisions to the skill that owns them
 **Do not decide these yourself.** Each is another skill's §Profile section (Guidelines §5); your job is to notice which are needed *now* and hand them over. Most greenfield projects need only the first two on day one.
@@ -24,6 +25,7 @@ Triggered by "kickoff", or whenever there is no meaningful code to brainstorm ag
 | Visual world, tokens, component vocabulary | `design-architect` (**Establish** mode) | before the first screen |
 | Hosting, environments, rollback | `deployment-architect` | before the first deploy, **not now** |
 | Changelog format, commit convention | `rolling-history` | at the first commit |
+| Audience, positioning, where it gets found | `marketing-architect` | only if distribution shapes what gets built — otherwise defer, and deferring is normal |
 
 Say plainly which of these you are deferring and to when. **Deferring is the default** — a project that hasn't been built has no business deciding its rollback mechanism.
 

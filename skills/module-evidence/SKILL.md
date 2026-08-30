@@ -6,7 +6,7 @@ user-invocable: false
 
 # Module: Evidence and Identifiers
 
-**Loaded by:** `security-architect` · `accessibility-architect` · `search-optimization-architect` · `product-architect` · `documentation-architect`. Read it whenever a run cites a standard, a study, or a number; do not restate its content in a skill file.
+**Loaded by:** `security-architect` · `accessibility-architect` · `search-optimization-architect` · `product-architect` · `documentation-architect` · `marketing-architect`. Read it whenever a run cites a standard, a study, or a number; do not restate its content in a skill file.
 
 **Why this is a module and not just Guidelines §15:** §15 forbids inventing facts. These are the domains where an invented fact does not stay in the conversation — a CWE number ends up in a ticket, a WCAG criterion ends up in a VPAT or a procurement answer, a market size ends up in a board deck, a benchmark ends up in a README a stranger acts on. The rule is the same; the blast radius is what earns the extra discipline.
 

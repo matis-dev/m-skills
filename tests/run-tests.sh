@@ -94,7 +94,7 @@ done
 # guidelines is Claude-only; pipeline stages are user-only
 grep -q "^user-invocable: false" "$ROOT/skills/guidelines-meta/SKILL.md" \
   && ok "guidelines-meta hidden from / menu" || bad "guidelines-meta hidden from / menu"
-for s in brainstorming-planner planning-architect product-architect implementing-architect code-review-architect rolling-history deployment-architect debugging-architect maintenance-architect search-optimization-architect; do
+for s in brainstorming-planner planning-architect product-architect implementing-architect code-review-architect rolling-history deployment-architect debugging-architect maintenance-architect search-optimization-architect marketing-architect; do
   grep -q "^disable-model-invocation: true" "$ROOT/skills/$s/SKILL.md" \
     && ok "user-triggered only: $s" || bad "user-triggered only: $s"
 done
@@ -218,19 +218,67 @@ grep -q "The $acount architects:" "$ROOT/README.md" \
 grep -q "The $mcount modules:" "$ROOT/README.md" \
   && ok "README module count is $mcount" || bad "README module count is $mcount" "README says something else"
 
+# A skill that declares a Profile section it owns must have that section in the
+# template, or §5 resolution sends the run to a heading that is not there. The
+# declarations are free-form (`§X and §Y`, `§X -> subrow`, `§X (parenthetical)`),
+# so every §-prefixed capitalised token is extracted and matched as a heading prefix.
+while IFS= read -r decl; do
+  f="${decl%%:*}"; n="$(basename "$(dirname "$f")")"
+  for sec in $(printf '%s' "$decl" | grep -oE '§[A-Z][A-Za-z]*( [A-Z][A-Za-z]*)*' | sed 's/^§//;s/ /_/g'); do
+    sec="${sec//_/ }"
+    grep -q "^## $sec" "$ROOT/skills/guidelines-meta/PROJECT-PROFILE.template.md" \
+      && ok "profile has the section $n owns: §$sec" \
+      || bad "profile has the section $n owns: §$sec" "no '## $sec' heading in PROJECT-PROFILE.template.md"
+  done
+  grep -q "\`$n\`" "$ROOT/skills/guidelines-meta/PROJECT-PROFILE.template.md" \
+    && ok "profile names its owner $n" \
+    || bad "profile names its owner $n" "the section-ownership table does not mention $n"
+done < <(grep -H "Profile section owned:" "$ROOT"/skills/*/SKILL.md 2>/dev/null || true)
+
+# The template is a backstop for copy-installs, and it must not be STRICTER than the
+# hook in a way §9 and the README both contradict. §9 promises the listing forms of
+# these five stay open; prefix matching cannot express "writing forms only", so the
+# entries are dropped and guard-mutations.sh GIT_SOFT covers the writing forms.
+overreach=""
+for verb in branch tag stash remote worktree submodule; do
+  grep -q "\"Bash(git $verb:\*)\"" "$ROOT/settings.template.json" && overreach="$overreach git-$verb"
+done
+assert_empty "template does not deny read-only listing forms" "$overreach"
+# ...while the unambiguous writes stay denied
+for verb in add commit push checkout reset rebase; do
+  grep -q "\"Bash(git $verb:\*)\"" "$ROOT/settings.template.json" \
+    && ok "template still denies git $verb" || bad "template still denies git $verb"
+done
+grep -q 'mirrors what the plugin' "$ROOT/settings.template.json" \
+  && bad "template does not claim to mirror the hooks" "it is a subset, not a mirror" \
+  || ok "template does not claim to mirror the hooks"
+
 # manifests are valid JSON and agree on version
 for j in "$ROOT"/.claude-plugin/*.json "$ROOT"/hooks/hooks.json "$ROOT"/settings.template.json; do
   python3 -c "import json,sys;json.load(open(sys.argv[1]))" "$j" 2>/dev/null \
     && ok "valid JSON: $(basename "$j")" || bad "valid JSON: $(basename "$j")"
 done
+# hooks/hooks.json is loaded automatically; manifest.hooks is for ADDITIONAL files.
+# Naming the standard path there registers every guard and advisory twice — each
+# PreToolUse deny fires two hooks, and each advisory injects its block two times.
+grep -q '"hooks"[[:space:]]*:[[:space:]]*"\./hooks/hooks\.json"' "$ROOT/.claude-plugin/plugin.json" \
+  && bad "manifest does not re-declare the standard hooks file" "double-registers every hook" \
+  || ok "manifest does not re-declare the standard hooks file"
+
 pv="$(grep -o '"version": *"[^"]*"' "$ROOT/.claude-plugin/plugin.json" | head -1 | sed 's/.*"\([0-9.]*\)"/\1/')"
 mv="$(grep -o '"version": *"[^"]*"' "$ROOT/.claude-plugin/marketplace.json" | head -1 | sed 's/.*"\([0-9.]*\)"/\1/')"
 assert_eq "plugin and marketplace versions agree" "$pv" "$mv"
 
-# the CLI's own validator
+# the CLI's own validator. Two manifests, two calls: `validate <dir>` resolves the
+# MARKETPLACE file and never opens plugin.json, so a single call on $ROOT asserted
+# far less than it appeared to — the plugin manifest went unvalidated entirely.
 if command -v claude >/dev/null 2>&1; then
-  out="$(claude plugin validate "$ROOT" --strict 2>&1)"
-  assert_contains "claude plugin validate --strict" "$out" "Validation passed"
+  out="$(claude plugin validate "$ROOT/.claude-plugin/marketplace.json" --strict 2>&1)"
+  assert_contains "marketplace manifest validates" "$out" "Validation passed"
+  assert_contains "  ...and it was the marketplace" "$out" "marketplace manifest"
+  out="$(claude plugin validate "$ROOT/.claude-plugin/plugin.json" --strict 2>&1)"
+  assert_contains "plugin manifest validates" "$out" "Validation passed"
+  assert_contains "  ...and it was the plugin" "$out" "plugin manifest"
 else
   skip "claude plugin validate --strict" "claude CLI not on PATH"
 fi
@@ -266,6 +314,30 @@ assert_contains "composition map lists a reference" "$out" "references/output-fo
 # a module is a fragment loaded by an architect that already got the preamble
 out="$(printf '{"hook_event_name":"UserPromptExpansion","command_name":"m-skills:module-propagation"}' | CLAUDE_SESSION_ID="test-$$-b" bash "$ROOT/scripts/skill-preamble.sh" 2>/dev/null)"
 assert_empty "preamble silent for a module" "$out"
+
+# The map tells Claude to read each reference from ${CLAUDE_SKILL_DIR}/, so every
+# path it lists under that heading MUST exist in THAT skill's directory. Several
+# architects name a sibling's references in prose ("its references/triage.md"), and
+# a grep-derived map happily advertised five files that resolve nowhere.
+# The structural check further up cannot catch this: it searches every skill dir.
+badmap=""
+for f in "$ROOT"/skills/*/SKILL.md; do
+  sk="$(basename "$(dirname "$f")")"
+  case "$sk" in guidelines-meta|module-*) continue ;; esac
+  o="$(printf '{"hook_event_name":"UserPromptExpansion","command_name":"m-skills:%s","session_id":"map-%s-%s"}' "$sk" "$$" "$sk" \
+       | bash "$ROOT/scripts/skill-preamble.sh" 2>/dev/null)"
+  # the hook emits one JSON line, so unescape before slicing it: only the lines under
+  # the ${CLAUDE_SKILL_DIR} heading are own-directory claims. The foreign-owned list
+  # below it names its owner and is expected NOT to resolve here.
+  own="$(printf '%s' "$o" | sed 's/\\n/\n/g' \
+         | sed -n '/Reference files, read with the Read tool/,/^$/p' \
+         | grep -oE 'references/[a-z0-9-]+\.md' | sort -u)"
+  for r in $own; do
+    [ -f "$ROOT/skills/$sk/$r" ] || badmap="$badmap [$sk→$r]"
+  done
+done
+assert_empty "composition map advertises only paths that resolve" "$badmap"
+rm -rf "${TMPDIR:-/tmp}/m-skills-$(id -u 2>/dev/null || echo 0)"/map-$$-*
 
 # guards must fail closed, advisories must fail open — asserted on the source,
 # because a hook that silently allows is indistinguishable from one that passed
@@ -313,6 +385,29 @@ assert_contains "rust toolchain detected" "$out" "cargo test"
 mkdir -p "$TMP/empty"
 out="$(cd "$TMP/empty" && bash "$CQ" --list)"
 assert_contains "no manifest → all n-a" "$out" "n-a"
+
+# ── A repo is allowed to be more than one ecosystem. Resolution used to be an
+#    elif chain, so the first manifest present won and every other one was invisible
+#    — and §5 rule 3 then had the model STATE that the missing gates do not exist,
+#    which is the fabrication §15 exists to prevent, produced by the resolver itself.
+PG="$TMP/polyglot"; mkdir -p "$PG"
+printf '{"scripts":{"lint":"eslint ."}}' > "$PG/package.json"
+printf '[project]\nname="x"\n' > "$PG/pyproject.toml"
+printf 'test:\n\tpytest\nbuild:\n\tmake dist\n' > "$PG/Makefile"
+out="$(cd "$PG" && bash "$CQ" --list)"
+assert_contains "polyglot: js lint still wins"      "$out" "npm run lint"
+assert_contains "polyglot: make test is found"      "$out" "make test"
+assert_contains "polyglot: make build is found"     "$out" "make build"
+assert_contains "polyglot: python typecheck found"  "$out" "mypy"
+assert_missing  "polyglot: nothing left falsely n-a" "$out" "Tests + Coverage   n-a"
+
+# the earlier ecosystem still outranks the later one for a role BOTH define
+PG2="$TMP/polyglot2"; mkdir -p "$PG2"
+printf '{"scripts":{"test":"vitest run"}}' > "$PG2/package.json"
+printf 'test:\n\tpytest\n' > "$PG2/Makefile"
+out="$(cd "$PG2" && bash "$CQ" --list)"
+assert_contains "polyglot: manifest order is precedence" "$out" "npm run test"
+assert_missing  "polyglot: later ecosystem does not clobber" "$out" "make test"
 
 # explicit config wins over detection
 mkdir -p "$TMP/conf/.claude"; printf '{"scripts":{"lint":"x"}}' > "$TMP/conf/package.json"
@@ -363,6 +458,28 @@ assert_contains "env var outranks profile and conf"   "$out" "env-linter"
 mkdir -p "$TMP/side"; printf '{"scripts":{"lint":"touch SIDE_EFFECT"}}' > "$TMP/side/package.json"
 ( cd "$TMP/side" && bash "$CQ" --list >/dev/null 2>&1 )
 [ -f "$TMP/side/SIDE_EFFECT" ] && bad "--list runs nothing" "a gate was executed" || ok "--list runs nothing"
+
+# ...and the conf is DATA, not a script. It used to be `.`-sourced before the --list
+# early exit, so cloning a repo ran its author's shell: profile-bootstrap.sh calls
+# --list on every SessionStart and guard-mutations.sh on the first guarded Bash call.
+mkdir -p "$TMP/confside/.claude"; printf '{"scripts":{}}' > "$TMP/confside/package.json"
+printf 'LINT="conf-lint"\ntouch CONF_EXECUTED\n' > "$TMP/confside/.claude/quality-gates.conf"
+( cd "$TMP/confside" && bash "$CQ" --list >/dev/null 2>&1 )
+[ -f "$TMP/confside/CONF_EXECUTED" ] \
+  && bad "quality-gates.conf is parsed, not executed" "shell in the conf ran" \
+  || ok "quality-gates.conf is parsed, not executed"
+out="$(cd "$TMP/confside" && bash "$CQ" --list)"
+assert_contains "conf assignments still read" "$out" "conf-lint"
+
+# quoting styles a hand-written conf actually uses must all survive the parser
+mkdir -p "$TMP/confquote/.claude"; printf '{"scripts":{}}' > "$TMP/confquote/package.json"
+printf '# a comment\nLINT="pnpm run lint"\nTEST=\x27pnpm run test:ci\x27\n  BUILD=make\nVISUAL=""\n' \
+  > "$TMP/confquote/.claude/quality-gates.conf"
+out="$(cd "$TMP/confquote" && bash "$CQ" --list)"
+assert_contains "conf: double quotes"  "$out" "pnpm run lint"
+assert_contains "conf: single quotes"  "$out" "pnpm run test:ci"
+assert_contains "conf: bare + indent"  "$out" "make"
+assert_contains "conf: empty means n-a" "$out" "Visual regression  n-a"
 
 # ─────────────────────────────────────────────────────────────────────────────
 section "3. Behaviour — profile-bootstrap.sh"
@@ -424,6 +541,22 @@ assert_contains "2 source files still greenfield" "$(run_bs "$TMP/green")" "has 
 touch "$TMP/green/src/c.ts"
 assert_contains "3 source files flips to brownfield" "$(run_bs "$TMP/green")" "investigate before you ask"
 
+# ...but "source" is not a JS/Python word. A pack whose own repo is 9 shell scripts
+# and 25 skill files greeted ITSELF as "not really started yet" — and so does every
+# C, C#, Kotlin, Swift, Elixir, or shell project.
+SH="$TMP/shellproj"; mkdir -p "$SH/scripts"
+printf '{}' > "$SH/package.json"
+for i in 1 2 3 4 5 6; do printf '#!/bin/sh\n' > "$SH/scripts/s$i.sh"; done
+assert_contains "a shell project is brownfield" "$(run_bs "$SH")" "investigate before you ask"
+
+CP="$TMP/cproj"; mkdir -p "$CP/src"; printf 'all:\n\tcc\n' > "$CP/Makefile"
+for i in 1 2 3 4; do printf 'int main(){}\n' > "$CP/src/f$i.c"; done
+assert_contains "a C project is brownfield" "$(run_bs "$CP")" "investigate before you ask"
+
+# a genuinely empty repo must STILL read as greenfield — the fix must not swallow it
+EG="$TMP/emptygreen"; mkdir -p "$EG"; printf '{"scripts":{}}' > "$EG/package.json"
+assert_contains "an empty repo is still greenfield" "$(run_bs "$EG")" "has not really started"
+
 # node_modules must not count toward the source count
 mkdir -p "$TMP/nm/node_modules/pkg"; printf '{}' > "$TMP/nm/package.json"
 for i in 1 2 3 4 5 6; do touch "$TMP/nm/node_modules/pkg/f$i.js"; done
@@ -463,8 +596,17 @@ assert_missing  "no contradictory pending advice" "$out" "Leave §Design, §Depl
 
 # never writes without the opt-in env var
 [ -f "$BR/.claude/PROJECT-PROFILE.md" ] && bad "writes nothing by default" "a profile was created" || ok "writes nothing by default"
-CLAUDE_PROJECT_DIR="$BR" CLAUDE_PLUGIN_ROOT="$ROOT" M_SKILLS_AUTOPROFILE=1 bash "$BS" >/dev/null 2>&1
+out="$(CLAUDE_PROJECT_DIR="$BR" CLAUDE_PLUGIN_ROOT="$ROOT" M_SKILLS_AUTOPROFILE=1 bash "$BS" 2>/dev/null)"
 [ -f "$BR/.claude/PROJECT-PROFILE.md" ] && ok "M_SKILLS_AUTOPROFILE=1 writes a draft" || bad "M_SKILLS_AUTOPROFILE=1 writes a draft"
+assert_contains "the draft write is announced" "$out" "DRAFT has been written"
+
+# ...on the greenfield path too. $WROTE was interpolated only into the brownfield
+# heredoc, so a file appeared in the user's repo and the session never said so.
+GW="$TMP/greenwrite"; mkdir -p "$GW"; printf '{"scripts":{}}' > "$GW/package.json"
+out="$(CLAUDE_PROJECT_DIR="$GW" CLAUDE_PLUGIN_ROOT="$ROOT" M_SKILLS_AUTOPROFILE=1 bash "$BS" 2>/dev/null)"
+[ -f "$GW/.claude/PROJECT-PROFILE.md" ] \
+  && ok "greenfield + autoprofile writes a draft" || bad "greenfield + autoprofile writes a draft"
+assert_contains "greenfield draft write is announced too" "$out" "DRAFT has been written"
 
 # ─────────────────────────────────────────────────────────────────────────────
 section "4. Behaviour — adhd-always-on.sh"
@@ -507,20 +649,30 @@ export CLAUDE_PROJECT_DIR="$TMP/hookproj"
 export CLAUDE_CONFIG_DIR="$TMP/hookconfig"
 mkdir -p "$CLAUDE_PROJECT_DIR/.claude" "$CLAUDE_CONFIG_DIR"
 
-esc() { printf '%s' "$1" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))'; }
-
-# decision <script> <json-payload> → "deny" | "ask" | "block" | "allow"
-decision() {
-  local out
-  out="$(printf '%s' "$2" | bash "$ROOT/scripts/$1" 2>/dev/null)"
-  [ -z "$out" ] && { echo allow; return; }
-  printf '%s' "$out" | python3 -c '
+# The block above admits either engine, so these two must too. Hardcoding python3
+# made every assertion below evaluate to "allow" on a jq-only box — ~70 silent passes
+# reported as failures with no hint that the harness, not the hook, was broken.
+if command -v jq >/dev/null 2>&1; then
+  esc() { printf '%s' "$1" | jq -Rs .; }
+  verdict() { jq -r '.hookSpecificOutput.permissionDecision // .decision // "allow"' 2>/dev/null; }
+else
+  esc() { printf '%s' "$1" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))'; }
+  verdict() { python3 -c '
 import json,sys
 try: d = json.load(sys.stdin)
 except Exception: print("allow"); sys.exit()
 h = d.get("hookSpecificOutput") or {}
 print(h.get("permissionDecision") or d.get("decision") or "allow")
-' 2>/dev/null || echo allow
+' 2>/dev/null; }
+fi
+
+# decision <script> <json-payload> → "deny" | "ask" | "block" | "allow"
+decision() {
+  local out res
+  out="$(printf '%s' "$2" | bash "$ROOT/scripts/$1" 2>/dev/null)"
+  [ -z "$out" ] && { echo allow; return; }
+  res="$(printf '%s' "$out" | verdict)"
+  printf '%s\n' "${res:-allow}"
 }
 bash_payload()  { printf '{"tool_name":"Bash","tool_input":{"command":%s}}' "$(esc "$1")"; }
 write_payload() { printf '{"tool_name":"%s","tool_input":{"file_path":%s}}' "$1" "$(esc "$2")"; }
@@ -695,6 +847,66 @@ out="$(printf '{"hook_event_name":"PostToolUse","tool_input":{"skill":"m-skills:
 assert_empty "preamble does not inject the same skill twice" "$out"
 out="$(printf '{"hook_event_name":"PostToolUse","tool_input":{"skill":"m-skills:design-architect"}}' | bash "$ROOT/scripts/skill-preamble.sh" 2>/dev/null)"
 assert_contains "a different skill still injects" "$out" "design-architect"
+
+# ── §10's dynamic arm: the PROJECT'S OWN resolved update command. This is the half
+#    prose can never enforce, because the command is project-specific — and it was
+#    the only guard family with no coverage at all.
+UP="$TMP/updproj"; mkdir -p "$UP/.claude"
+printf '{"scripts":{"test":"vitest run","e2e:update":"playwright test -u"}}' > "$UP/package.json"
+touch "$UP/package-lock.json"
+(
+  export CLAUDE_PROJECT_DIR="$UP" CLAUDE_SESSION_ID="upd-$$"
+  expect "deny: the project's own update command" deny \
+    "$(decision guard-mutations.sh "$(bash_payload 'npm run e2e:update')")"
+  expect "allow: a different script in the same project" allow \
+    "$(decision guard-mutations.sh "$(bash_payload 'npm run test')")"
+)
+rm -rf "${TMPDIR:-/tmp}/m-skills-$(id -u 2>/dev/null || echo 0)/upd-$$"
+
+# ── C2: `-u` is only a snapshot flag on runners that define it, and only when it
+#    belongs to that runner. Denying legitimate work is the worst guard failure
+#    there is: the reason text points at .m-skills-no-guards, which disarms all three.
+expect "allow: mocha -u tdd (mocha's -u is --ui)" allow \
+  "$(decision guard-mutations.sh "$(bash_payload 'mocha -u tdd test/')")"
+expect "allow: jest piped into sort -u"           allow \
+  "$(decision guard-mutations.sh "$(bash_payload 'jest --listTests | sort -u')")"
+expect "allow: vitest then a separate uniq -u"    allow \
+  "$(decision guard-mutations.sh "$(bash_payload 'vitest run --reporter=json; cat out | uniq -u')")"
+# ...but the real thing still has to be caught, in every segment
+expect "deny: vitest -u"                          deny \
+  "$(decision guard-mutations.sh "$(bash_payload 'vitest -u')")"
+expect "deny: playwright -u behind &&"            deny \
+  "$(decision guard-mutations.sh "$(bash_payload 'pnpm build && npx playwright test -u')")"
+
+# ── T5: the once-per-session marker must key on the SESSION, not on the machine.
+#    Every hook payload carries session_id; keying only on $CLAUDE_SESSION_ID meant
+#    that when the runtime exported none, the state dir was one shared name and the
+#    marker outlived the session — the preamble then injected once per MACHINE.
+SP='{"hook_event_name":"UserPromptExpansion","command_name":"m-skills:planning-architect","session_id":"%s"}'
+a="$(printf "$SP" "sess-$$-one" | env -u CLAUDE_SESSION_ID bash "$ROOT/scripts/skill-preamble.sh" 2>/dev/null)"
+b="$(printf "$SP" "sess-$$-one" | env -u CLAUDE_SESSION_ID bash "$ROOT/scripts/skill-preamble.sh" 2>/dev/null)"
+c="$(printf "$SP" "sess-$$-two" | env -u CLAUDE_SESSION_ID bash "$ROOT/scripts/skill-preamble.sh" 2>/dev/null)"
+assert_contains "payload session_id: first invocation injects"  "$a" "planning-architect"
+assert_empty    "payload session_id: same session stays silent" "$b"
+assert_contains "payload session_id: a NEW session injects"     "$c" "planning-architect"
+
+# the same guarantee for the propagation advisory, which is once-per-file-per-session
+PP='{"tool_name":"Edit","tool_input":{"file_path":"src/models/order.ts","old_string":"a","new_string":"b"},"session_id":"%s"}'
+a="$(printf "$PP" "prop-$$-one" | env -u CLAUDE_SESSION_ID bash "$ROOT/scripts/advise-propagation.sh" 2>/dev/null)"
+b="$(printf "$PP" "prop-$$-one" | env -u CLAUDE_SESSION_ID bash "$ROOT/scripts/advise-propagation.sh" 2>/dev/null)"
+c="$(printf "$PP" "prop-$$-two" | env -u CLAUDE_SESSION_ID bash "$ROOT/scripts/advise-propagation.sh" 2>/dev/null)"
+assert_contains "propagation: advises on first edit"  "$a" "shared-shape"
+assert_empty    "propagation: silent on second edit"  "$b"
+assert_contains "propagation: a NEW session advises"  "$c" "shared-shape"
+rm -rf "${TMPDIR:-/tmp}/m-skills-$(id -u 2>/dev/null || echo 0)"/sess-$$-* \
+       "${TMPDIR:-/tmp}/m-skills-$(id -u 2>/dev/null || echo 0)"/prop-$$-*
+
+# ── C9: NotebookEdit sends notebook_path, not file_path. The branch read the wrong
+#    field, so a guard the code claims to have never ran.
+expect "deny: NotebookEdit into a secret path" deny \
+  "$(decision guard-secrets.sh "$(printf '{"tool_name":"NotebookEdit","tool_input":{"notebook_path":%s}}' "$(esc '/p/.env')")")"
+expect "allow: NotebookEdit into a notebook"   allow \
+  "$(decision guard-secrets.sh "$(printf '{"tool_name":"NotebookEdit","tool_input":{"notebook_path":%s}}' "$(esc '/p/analysis.ipynb')")")"
 
 # ── the opt-out must release every guard, or the pack is unusable for anyone who
 #    wants Claude to touch git at all

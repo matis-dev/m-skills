@@ -38,7 +38,7 @@ printf '%s' "$FILE" | grep -Eq '\.(spec|test)\.[A-Za-z0-9]+$|(^|/)(tests?|spec|_
 printf '%s' "$FILE" | grep -Eq '(^|/)(models?|entities|schemas?|types?|dto|interfaces|migrations?|domain)/|\.(proto|graphql|gql|prisma|sql)$|(^|/)(schema|types|models)\.[A-Za-z0-9]+$' || exit 0
 
 # Once per file per session.
-STATE="$(m_skills_state_dir)/propagation"
+STATE="$(m_skills_state_dir "$(json_field "$INPUT" "session_id")")/propagation"
 mkdir -p "$STATE" 2>/dev/null || exit 0
 MARK="$STATE/$(printf '%s' "$FILE" | cksum | cut -d' ' -f1)"
 [ -f "$MARK" ] && exit 0

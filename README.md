@@ -2,11 +2,11 @@
 
 **A plugin for full-stack developers who use Claude to do their actual work.** It gives the everyday loop — brainstorm, plan, build, review, write it down — a fixed shape, so the model stops improvising the process and you stop re-typing the same instructions.
 
-**The M is for modular.** You invoke an **architect** — one of 16 skills that own a stage of the work. The architect is a short spine: its constraints, its modes, its procedure. Everything else it might need is a **module** or a **reference file** it loads *on demand*, once it knows what this particular run is. A `decompose` run never reads the PRD sections. A design polish never reads the threat model. → [Architects and modules](#-architects-and-modules)
+**The M is for modular.** You invoke an **architect** — one of 17 skills that own a stage of the work. The architect is a short spine: its constraints, its modes, its procedure. Everything else it might need is a **module** or a **reference file** it loads *on demand*, once it knows what this particular run is. A `decompose` run never reads the PRD sections. A design polish never reads the threat model. → [Architects and modules](#-architects-and-modules)
 
 Two things fall out of that, and only one of them is a token saving:
 
-- **The always-loaded floor across the 16 architects fell from 3,660 lines to 2,240** — a 39% cut in what gets read before the skill has decided anything. Narrow runs land well under the old cost: a `search-optimization-architect` technical pass is 222 lines against 332; a `design-architect` polish is 144 against 153.
+- **The always-loaded floor, measured across the 16 architects of V4.0, fell from 3,660 lines to 2,240** — a 39% cut in what gets read before the skill has decided anything. Narrow runs land well under the old cost: a `search-optimization-architect` technical pass is 222 lines against 332; a `design-architect` polish is 144 against 153.
 - **One source of truth per rule.** The change-propagation protocol used to be written three times and the OWASP sink model three times, in files that drifted apart. Each is now one module that every architect loads. This is the bigger win, and it is *not* free: a run that legitimately needs three modules can read **more** than the old monolith did — a full `code-review-architect` pass on a diff touching shared shape and a security sink is 636 lines against 318 — because it now gets the complete shared version instead of an abbreviated local copy that had quietly gone stale. Measured numbers: [§ What a run actually loads](#what-a-run-actually-loads).
 
 Nothing here is tied to a specific project. Every command, framework, and convention is resolved at runtime, so the same skills work in any repo.
@@ -59,6 +59,7 @@ There when you need them:
 /m-skills:debugging-architect     /m-skills:deployment-architect
 /m-skills:maintenance-architect   /m-skills:security-architect
 /m-skills:accessibility-architect /m-skills:search-optimization-architect
+/m-skills:marketing-architect
 ```
 
 They install at user scope, so they're in every project you open — no per-project copying.
@@ -105,6 +106,7 @@ Commands below use the plugin form — in copy mode, drop the `m-skills:` prefix
 | Ready to ship | `/m-skills:deployment-architect <env>` → runbook you paste, rollback plan first, post-deploy checks |
 | Upkeep, advisories, upgrades | `/m-skills:maintenance-architect` → triaged by reachability, batched so a break is attributable |
 | Site should be cited by AI search, not just ranked | `/m-skills:search-optimization-architect` → evidence-tiered audit, retrieval-shaped content, honest measurement |
+| Built it, nobody knows about it | `/m-skills:marketing-architect` → positioning first, then where it goes and what that place demands |
 | Fast feedback mid-work | `bash <skills>/implementing-architect/check-quality.sh` |
 
 `guidelines-meta` is never invoked alone — every other skill opens by loading it.
@@ -219,6 +221,7 @@ The verbose prompts you've been pasting still work verbatim — but each maps to
 | "Please check if the release is safe for production" | `/m-skills:deployment-architect prod` — it never deploys; you get the runbook either way |
 | "Production is throwing errors after the deploy, please ROLL BACK to the previous version" | `/m-skills:deployment-architect — roll back` → the resolved rollback command, for you to run |
 | "Please audit our site content so AI search and answer engines can properly cite our pages" | `/m-skills:search-optimization-architect — audit` |
+| "This repo is finished — where do I post it so people actually find it?" | `/m-skills:marketing-architect — spread` → it drafts the posts; you send them |
 | "Run /rolling-history, skip the tests, already handled" | `/m-skills:rolling-history — skip gates` |
 
 **The modifier contract:** a modifier narrows scope, never the honesty bar. "Skip gates" means the output says *"gates not run this session; reported green by the user"* — it never prints a ✅ nobody observed. And no phrasing unlocks git: "ship it", "commit it", "just push" all still stop at unstaged files.
@@ -231,9 +234,9 @@ Three tiers. Which tier a piece of guidance belongs to is decided by one questio
 
 | Tier | What it is | How many | Loaded |
 |---|---|---|---|
-| **Architects** | the skills you invoke — they own a stage of the work and carry its constraints | 16 | on invocation |
+| **Architects** | the skills you invoke — they own a stage of the work and carry its constraints | 17 | on invocation |
 | **Modules** | a block two or more architects would otherwise each restate | 9 | when an architect names one |
-| **References** | material one architect or module needs in *some* runs — a mode's procedure, an evidence table, an output template | 47 files | when the run reaches it |
+| **References** | material one architect or module needs in *some* runs — a mode's procedure, an evidence table, an output template | 53 files | when the run reaches it |
 
 A module is addressed **by name** (`module-propagation`), because a name is the only identifier that resolves identically in a plugin install and a copied one. A reference is a plain markdown file inside its architect's own directory, read with the Read tool.
 
@@ -314,7 +317,7 @@ These hold in every skill, in every project:
 | `skills/implementing-architect/check-quality.sh` | Runnable gate pipeline (profile → conf → auto-detect) | ships inside `skills/` |
 | `SKILLS_INDEX.md` | Architect and module catalog, pipeline diagram, provenance | reference |
 
-The 16 architects: `guidelines-meta`, `brainstorming-planner`, `planning-architect`, `product-architect`, `design-architect`, `testing-architect`, `security-architect`, `accessibility-architect`, `implementing-architect`, `debugging-architect`, `code-review-architect`, `documentation-architect`, `rolling-history`, `deployment-architect`, `maintenance-architect`, `search-optimization-architect`.
+The 17 architects: `guidelines-meta`, `brainstorming-planner`, `planning-architect`, `product-architect`, `design-architect`, `testing-architect`, `security-architect`, `accessibility-architect`, `implementing-architect`, `debugging-architect`, `code-review-architect`, `documentation-architect`, `rolling-history`, `deployment-architect`, `maintenance-architect`, `search-optimization-architect`, `marketing-architect`.
 
 The 9 modules: `module-propagation`, `module-threat-model`, `module-gate-battery`, `module-craft-floor`, `module-operability-floor`, `module-findings`, `module-evidence`, `module-handover`, `module-writing-floor`.
 
@@ -322,7 +325,7 @@ The 9 modules: `module-propagation`, `module-threat-model`, `module-gate-battery
 
 | Skill | Invocation |
 |---|---|
-| `brainstorming-planner`, `planning-architect`, `product-architect`, `implementing-architect`, `debugging-architect`, `code-review-architect`, `rolling-history`, `deployment-architect`, `maintenance-architect`, `search-optimization-architect` | `disable-model-invocation: true` — **you** trigger them, Claude never starts one on its own |
+| `brainstorming-planner`, `planning-architect`, `product-architect`, `implementing-architect`, `debugging-architect`, `code-review-architect`, `rolling-history`, `deployment-architect`, `maintenance-architect`, `search-optimization-architect`, `marketing-architect` | `disable-model-invocation: true` — **you** trigger them, Claude never starts one on its own |
 | `design-architect`, `testing-architect`, `documentation-architect`, `security-architect`, `accessibility-architect` | Both — you can call them, and Claude loads them when the work is design-, test-, docs-, security-, or accessibility-shaped |
 | `guidelines-meta` | `user-invocable: false` — background knowledge, loaded by the other skills, hidden from the `/` menu |
 
@@ -398,7 +401,7 @@ Six hooks close that gap. Three **guards** decide, three **advisories** inform.
 |---|---|---|---|
 | `guard-mutations.sh` | `PreToolUse` · Bash | **deny** | §9 git guards, §10 golden updates, plus `rm -rf /`-class commands |
 | `guard-outward.sh` | `PreToolUse` · Bash | **deny** | `deployment-architect` constraint 2 — deploy, publish, migrate, infra apply; plus `gh` writes (PRs, issues, releases, secrets) under §9 |
-| `guard-secrets.sh` | `PreToolUse` · Write/Edit/Bash | **deny** | `security-architect` constraint 5 — writes into `.env`, `*.pem`, `id_rsa`, … |
+| `guard-secrets.sh` | `PreToolUse` · Write/Edit/NotebookEdit/Bash | **deny** | `security-architect` constraint 5 — writes into `.env`, `*.pem`, `id_rsa`, … |
 | `skill-preamble.sh` | `UserPromptExpansion` + `PostToolUse` · Skill | inject | the resolved gate table and §9/§10/§15/§19, so 16 skills stop re-deriving them |
 | `warn-test-weakening.sh` | `PostToolUse` · Write/Edit | advise | the never-weaken rule — a **newly added** `.skip` / `.only` in a test file |
 | `advise-propagation.sh` | `PostToolUse` · Write/Edit | advise | `implementing-architect` Protocol A, once per shared-shape file per session |

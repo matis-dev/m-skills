@@ -38,6 +38,7 @@ case "$INPUT" in *m-skills:*) ;; *) exit 0 ;; esac
 advisory_require_json_engine
 
 EVENT="$(json_field "$INPUT" "hook_event_name")"
+SESSION="$(json_field "$INPUT" "session_id")"
 
 case "$EVENT" in
   UserPromptExpansion)
@@ -67,13 +68,15 @@ GUIDELINES="$DIR/../skills/guidelines-meta/SKILL.md"
 # Once per skill per session. A skill invoked through the Skill tool AND its slash
 # command satisfies both arms below, which injected the same ~40 lines twice; the
 # marker makes that impossible and also stops a re-invocation repeating it.
+# Scoped by the payload's session_id — keyed on anything constant, "once per session"
+# silently becomes "once per machine" and the injection stops happening at all.
 # Same idiom as advise-propagation.sh.
 #
 # Trade-off, stated because it is real: after a context compaction the preamble is
 # gone and will not re-fire for an already-marked skill. Acceptable — §9 and §10 are
 # enforced by guard-mutations.sh whether or not Claude remembers them, and the gate
 # table is re-derivable with `check-quality.sh --list`.
-MARK="$(m_skills_state_dir)/preamble/$SKILL"
+MARK="$(m_skills_state_dir "$SESSION")/preamble/$SKILL"
 [ -f "$MARK" ] && exit 0
 mkdir -p "$(dirname "$MARK")" 2>/dev/null || exit 0
 : > "$MARK" 2>/dev/null || exit 0
@@ -93,7 +96,7 @@ section() {
 gates() {
   local state cache root
   root="$(git -C "${CLAUDE_PROJECT_DIR:-$PWD}" rev-parse --show-toplevel 2>/dev/null || printf '%s' "${CLAUDE_PROJECT_DIR:-$PWD}")"
-  state="$(m_skills_state_dir)"
+  state="$(m_skills_state_dir "$SESSION")"
   cache="$state/gates-$(m_skills_gate_cache_key "$root")"
   if [ -f "$cache" ]; then cat "$cache"; return 0; fi
   mkdir -p "$state" 2>/dev/null || return 1
@@ -107,12 +110,34 @@ GATES="$(gates)"
 # The composition map. Derived from the file itself, never from a table here: a
 # static list would be one more cross-reference to rot, which is the failure this
 # whole tier exists to remove.
-SKILL_FILE="$DIR/../skills/$SKILL/SKILL.md"
+SKILLS_ROOT="$DIR/../skills"
+SKILL_FILE="$SKILLS_ROOT/$SKILL/SKILL.md"
 MODULES="$(grep -ohE 'module-[a-z-]+' "$SKILL_FILE" 2>/dev/null | sort -u)"
 REFS="$(grep -ohE 'references/[a-z0-9-]+\.md' "$SKILL_FILE" 2>/dev/null | sort -u)"
 
+# A skill names a sibling's reference files in prose ("harden → its
+# references/secure-construction.md", where "its" is a module). Listing those under
+# ${CLAUDE_SKILL_DIR}/ told Claude to read five paths that resolve nowhere, so split
+# the hits by where the file actually lives and drop any that exist in neither place.
+OWN_REFS=""; FOREIGN_REFS=""
+for r in $REFS; do
+  if [ -f "$SKILLS_ROOT/$SKILL/$r" ]; then
+    OWN_REFS="$OWN_REFS$r
+"
+  else
+    for d in "$SKILLS_ROOT"/*/; do
+      [ -f "$d$r" ] || continue
+      FOREIGN_REFS="$FOREIGN_REFS$(basename "${d%/}")/$r
+"
+      break
+    done
+  fi
+done
+OWN_REFS="$(printf '%s' "$OWN_REFS" | grep -v '^$' | sort -u)"
+FOREIGN_REFS="$(printf '%s' "$FOREIGN_REFS" | grep -v '^$' | sort -u)"
+
 COMPOSITION=""
-if [ -n "$MODULES" ] || [ -n "$REFS" ]; then
+if [ -n "$MODULES" ] || [ -n "$OWN_REFS" ] || [ -n "$FOREIGN_REFS" ]; then
   COMPOSITION="
 ## What this skill composes from
 
@@ -124,9 +149,14 @@ never paste one back wholesale into a reply.
 Shared modules, loaded by name with the Skill tool:
 $(printf '%s\n' "$MODULES" | sed 's/^/  - /')
 "
-  [ -n "$REFS" ] && COMPOSITION="$COMPOSITION
+  [ -n "$OWN_REFS" ] && COMPOSITION="$COMPOSITION
 Reference files, read with the Read tool from \`\${CLAUDE_SKILL_DIR}/\`:
-$(printf '%s\n' "$REFS" | sed 's/^/  - /')
+$(printf '%s\n' "$OWN_REFS" | sed 's/^/  - /')
+"
+  [ -n "$FOREIGN_REFS" ] && COMPOSITION="$COMPOSITION
+Reference files owned by ANOTHER skill — load that skill by name first, then read the
+file from its directory. They do not exist under this skill's \`\${CLAUDE_SKILL_DIR}/\`:
+$(printf '%s\n' "$FOREIGN_REFS" | sed 's/^/  - /')
 "
 fi
 

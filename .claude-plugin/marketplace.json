@@ -10,7 +10,7 @@
       "name": "m-skills",
       "source": "./",
       "description": "A simple plugin for full-stack developers who use Claude for real work: brainstorm, plan, implement, review, document \u2014 plus design, testing, docs, slicing, debugging, release and upkeep when needed. Resolves each project's stack from a PROJECT-PROFILE.md rather than hardcoding commands, and enforces the strictest guards \u2014 no staging or committing, no auto-accepted golden updates \u2014 with hooks rather than prose.",
-      "version": "4.0.0",
+      "version": "4.1.0",
       "category": "workflow"
     }
   ]

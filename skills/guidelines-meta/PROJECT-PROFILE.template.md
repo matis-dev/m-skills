@@ -27,6 +27,7 @@ Every row carries one of five states. **Never leave a row blank and never guess 
 | Security | `security-architect` | first work touching untrusted input, authorization, or secrets |
 | Accessibility | `accessibility-architect` | first interactive surface, or the first a11y gate run |
 | Search Visibility | `search-optimization-architect` | first GEO / AI-search / crawlability work |
+| Distribution | `marketing-architect` | first time the project needs to be found by people |
 | Documentation Targets, Commit Convention | `rolling-history` | first changelog entry |
 | Documentation Standards | `documentation-architect` | first doc written, audited, or repaired |
 | Product Definition | `product-architect` | first time work is specified or sliced |
@@ -153,6 +154,24 @@ Adjust if this project's order differs. Cheap-and-fast first; the slow gate that
 - **Conversion event AI referrals are judged on:** `<event name>` — sessions are not the metric.
 - **Analytics property / channel group:** `<where assistant referrers are separated from generic referral>`
 - **Publishing owner:** `<who can actually change page content>` — content findings are worthless if nobody can ship them.
+
+## Distribution
+
+*Owner: `marketing-architect` · filled the first time the project needs to be found by people. Read the project before asking — the audience is in the README's opening lines and the issue tracker, the current surfaces are in the repo links and package metadata, prior announcements are in the changelog.*
+
+- **Who this is for, specifically:** `<the person and the situation they are in>` — not a demographic.
+- **What they do instead today:** `<the manual process, the competitor, or nothing>`
+- **Positioning sentence:** `<one line a stranger could repeat back>`
+- **Landing surface:** `<the URL or file a stranger actually hits first>`; **last first-screen check:** `<date | never>`
+- **Surfaces we own:** `<repo, site, registry listing, newsletter — where we can publish without permission>`
+- **Accounts and handles:** `<who holds them>` — `n-a` if none exist yet.
+- **Channels in use:** `<community — form permitted — rules last read on <date>>`
+- **Channels off-limits:** `<forbids self-promotion | banned | deliberately not used — why>`
+- **Launch history:** `<what was posted, where, on what date>` — the row that prevents a community seeing the same post twice. Append, never overwrite.
+- **Baseline metrics:** `<metric = value, read from <source>, on <date>>` — attention and adoption both (Constraint 5).
+- **Adoption metric that matters most:** `<install, completed setup, week-two use>` — the outcome, not the applause.
+- **Attribution:** `<analytics property, or "none — attribution is by asking">`
+- **Budget:** `<hours per week, money>` — `n-a` is a legitimate answer, and hours run out before money does.
 
 ## Documentation Targets
 

@@ -1,5 +1,5 @@
 {
-  "_comment": "Portable permission allowlist for this skills pack. Copy to .claude/settings.local.json in a new project. Read-only inspection and the standard gate commands are pre-allowed. The deny list mirrors what the plugin's guard-mutations.sh and guard-outward.sh hooks enforce, so a copy-the-skills install with no hook wiring still blocks every git write and every gh publish. Read-only git and gh stay allowed \u2014 the code-review path is built on them.",
+  "_comment": "Portable permission allowlist for this skills pack. Copy to .claude/settings.local.json in a new project. Read-only inspection and the standard gate commands are pre-allowed. The deny list is a SUBSET backstop for a copy-the-skills install with no hook wiring — it is not a mirror of the plugin's guards, because prefix matching cannot see inside `cd x && git commit`, cannot catch --no-verify, and cannot express \"the writing forms of git branch but not the listing ones\". Only unambiguous writes are listed here; guard-mutations.sh and guard-outward.sh cover the rest. Read-only git and gh stay allowed, including the listing forms of branch/tag/stash/remote/worktree per guidelines-meta §9 — the code-review path is built on them.",
   "permissions": {
     "allow": [
       "Bash(ls:*)",
@@ -48,8 +48,6 @@
       "Bash(git push:*)",
       "Bash(git checkout:*)",
       "Bash(git switch:*)",
-      "Bash(git branch:*)",
-      "Bash(git tag:*)",
       "Bash(git merge:*)",
       "Bash(git pull:*)",
       "Bash(git fetch:*)",
@@ -58,13 +56,9 @@
       "Bash(git revert:*)",
       "Bash(git reset:*)",
       "Bash(git restore:*)",
-      "Bash(git stash:*)",
       "Bash(git clean:*)",
       "Bash(git rm:*)",
       "Bash(git mv:*)",
-      "Bash(git remote:*)",
-      "Bash(git worktree:*)",
-      "Bash(git submodule:*)",
       "Bash(git am:*)",
       "Bash(git apply:*)",
       "Bash(git update-ref:*)",
