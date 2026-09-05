@@ -62,7 +62,7 @@ There when you need them:
 /m-skills:marketing-architect
 ```
 
-Plus 14 **route commands** — `/m-skills:decompose`, `/m-skills:rollback`, `/m-skills:ui-audit` and so on — for when you already know which direction you want and don't need the architect to ask. → [§ Skipping the mode question](#skipping-the-mode-question)
+Plus 15 **route commands** — `/m-skills:decompose`, `/m-skills:rollback`, `/m-skills:code-review-architect-uncommitted` and so on — for when you already know which direction you want and don't need the architect to ask. → [§ Skipping the mode question](#skipping-the-mode-question)
 
 They install at user scope, so they're in every project you open — no per-project copying.
 
@@ -151,6 +151,7 @@ Eight architects branch. `/m-skills:product-architect` opens by reading its mode
 | `/m-skills:accessibility-architect <x> — audit` | `/m-skills:a11y-audit` | WCAG 2.2 AA read with what wasn't tested stated |
 | `/m-skills:design-architect <x> — audit` | `/m-skills:ui-audit` | craft floor + refuse list, `path:line`, writes nothing |
 | `/m-skills:design-architect <x> — redesign` | `/m-skills:redesign` | replace the visual world, keep the product truth |
+| `/m-skills:code-review-architect` (branch or PR) | `/m-skills:code-review-architect-uncommitted` | `git diff HEAD` only — staged + unstaged, gates off by default |
 | `/m-skills:documentation-architect — audit` | `/m-skills:docs-audit` | friction log against the code, read-only |
 | `/m-skills:documentation-architect — release-notes` | `/m-skills:release-notes` | user-facing notes, migration guide per break |
 | `/m-skills:search-optimization-architect — audit` | `/m-skills:seo-audit` | tier-ordered, verified against fetched bytes |
@@ -158,7 +159,9 @@ Eight architects branch. `/m-skills:product-architect` opens by reading its mode
 | `/m-skills:maintenance-architect — advisories only` | `/m-skills:advisories` | advisories triaged by reachability, batched |
 | `/m-skills:deployment-architect — roll back` | `/m-skills:rollback` | restore first, resolved command, cause last |
 
-**A route command narrows the route, never the discipline.** Constraints, guardrails, the git guards, and the pre-emit sweep all still apply — none of these is a `skip gates` modifier. The architects are unchanged and still take modifiers longhand; this is an extra door into the same room.
+**A route command narrows the route, never the discipline.** Constraints, guardrails, the git guards, and the pre-emit sweep all still apply. The architects are unchanged and still take modifiers longhand; this is an extra door into the same room.
+
+One command pre-applies a modifier: `/m-skills:code-review-architect-uncommitted` starts in `skip gates`, because a mid-work read of the working tree is not a merge gate. It is not *silent* about it — the skipped battery is named in every run's output per §19, and `run gates` restores it. No other route command lowers the bar, and none of them lowers it quietly.
 
 Routes deliberately left out: `security → harden`, `a11y → spec | build`, `docs → generate`, `design → polish`. Those are reached by *citation* from `planning-architect` and `implementing-architect` mid-run, not typed at a prompt — a command for them would sit in the menu and never be picked.
 
@@ -361,7 +364,7 @@ These hold in every skill, in every project:
 | `scripts/warn-test-weakening.sh` | Flags a newly added `.skip` / `.only` in a test file | stays put |
 | `scripts/advise-propagation.sh` | Prompts the Protocol A sweep when a shared-shape file is edited | stays put |
 | `tests/run-tests.sh` | The pack's own test suite — 558 assertions, no dependencies | stays put |
-| `commands/*.md` | The 14 route commands — thin pre-routed entries into one architect's mode | plugin: stays put · copy-mode: → `<project>/.claude/commands/`, paths rewritten |
+| `commands/*.md` | The 15 route commands — thin pre-routed entries into one architect's mode | plugin: stays put · copy-mode: → `<project>/.claude/commands/`, paths rewritten |
 | `skills/<architect>/SKILL.md` | An architect's spine — constraints, modes, procedure | plugin: stays put · copy-mode: → `<project>/.claude/skills/` |
 | `skills/module-*/` | The 9 shared modules, addressed by name | same |
 | `skills/*/references/*.md` | On-demand material, read via `${CLAUDE_SKILL_DIR}` | same |
@@ -375,7 +378,7 @@ The 17 architects: `guidelines-meta`, `brainstorming-planner`, `planning-archite
 
 The 9 modules: `module-propagation`, `module-threat-model`, `module-gate-battery`, `module-craft-floor`, `module-operability-floor`, `module-findings`, `module-evidence`, `module-handover`, `module-writing-floor`.
 
-The 14 route commands: `kickoff`, `decompose`, `prd`, `brief`, `threat-model`, `a11y-audit`, `ui-audit`, `redesign`, `docs-audit`, `release-notes`, `seo-audit`, `spread`, `advisories`, `rollback`. → [§ Skipping the mode question](#skipping-the-mode-question)
+The 15 route commands: `kickoff`, `decompose`, `prd`, `brief`, `threat-model`, `a11y-audit`, `ui-audit`, `redesign`, `code-review-architect-uncommitted`, `docs-audit`, `release-notes`, `seo-audit`, `spread`, `advisories`, `rollback`. → [§ Skipping the mode question](#skipping-the-mode-question)
 
 **Who invokes what** — pipeline stages are yours to trigger; knowledge skills load themselves when relevant:
 
@@ -458,7 +461,7 @@ Six hooks close that gap. Three **guards** decide, three **advisories** inform.
 | `guard-mutations.sh` | `PreToolUse` · Bash | **deny** | §9 git guards, §10 golden updates, plus `rm -rf /`-class commands |
 | `guard-outward.sh` | `PreToolUse` · Bash | **deny** | `deployment-architect` constraint 2 — deploy, publish, migrate, infra apply; plus `gh` writes (PRs, issues, releases, secrets) under §9 |
 | `guard-secrets.sh` | `PreToolUse` · Write/Edit/NotebookEdit/Bash | **deny** | `security-architect` constraint 5 — writes into `.env`, `*.pem`, `id_rsa`, … |
-| `skill-preamble.sh` | `UserPromptExpansion` + `PostToolUse` · Skill | inject | the resolved gate table and §9/§10/§15/§19, so 16 skills stop re-deriving them |
+| `skill-preamble.sh` | `UserPromptExpansion` + `PostToolUse` · Skill | inject | the resolved gate table and §9/§10/§15/§19, so 17 skills stop re-deriving them |
 | `warn-test-weakening.sh` | `PostToolUse` · Write/Edit | advise | the never-weaken rule — a **newly added** `.skip` / `.only` in a test file |
 | `advise-propagation.sh` | `PostToolUse` · Write/Edit | advise | `implementing-architect` Protocol A, once per shared-shape file per session |
 
@@ -648,7 +651,7 @@ That last group exists because those four rules are the ones whose removal makes
 
 ## 🔗 What this pack absorbed, and from where
 
-**Everything here is influence, not inventory.** No source ships as a separate command — each is folded into the skill that had the gap, so the surface stays at nine skills no matter how many sources get absorbed. Every source is credited with its real link and its actual license.
+**Everything here is influence, not inventory.** No source ships as a separate command — each is folded into the skill that had the gap, so absorbing one never widens the command surface. It grows only when a genuinely new stage of the work does. Every source is credited with its real link and its actual license.
 
 The point of absorbing rather than stacking: these sources cover blind spots in the pipeline skills. A planning skill has no opinion about contrast ratios; a review skill has no opinion about how its own findings should be shaped. Folding the answer into `guidelines-meta` or `design-architect` means every skill inherits it without anyone invoking anything.
 
