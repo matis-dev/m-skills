@@ -1,6 +1,6 @@
 ---
 name: deployment-architect
-description: Take a reviewed change set to production safely. Use when the user wants to deploy, ship, release, cut a version, promote to staging or prod, or roll back. Covers the readiness gate, release preparation (version, changelog, notes), the pre-flight risk pass (config and secrets, migrations, assets and caching, external origins, feature flags), a rollback plan written before deploying, post-deploy verification against the real environment, and the blind spots a green pipeline cannot cover. Stack-agnostic — resolves targets and commands from the Project Profile. Prepares and verifies, then hands over a copy-paste runbook; never fires a deploy, migration, publish, or rollback itself.
+description: Use to deploy, release, promote, or roll back. Runs the readiness gate and the pre-flight pass over what CI cannot see (per-environment config, existing data, caches, no way back), writes the rollback plan before the deploy, then hands over a copy-paste runbook. Never fires a deploy, migration, publish, or rollback itself.
 argument-hint: "[target env] [+ modifiers: prepare only | deploy it | rollback | skip gates]"
 disable-model-invocation: true
 ---
@@ -8,13 +8,7 @@ disable-model-invocation: true
 # Skill: Deployment Architect — Release Readiness & Safe Promotion
 
 > **Apply Guidelines Skill** — load the `guidelines-meta` skill before proceeding.
-> **Modifiers** — trailing plain-language instructions ("prepare only", "deploy it", "roll back", "skip gates") are interpreted per **Guidelines §19**. A modifier narrows scope; anything skipped is named in the output, and none of them unlock git.
-> **Profile section owned:** §Deployment (Guidelines §5). Fill it on first use per **Guidelines §5.1–§5.4** — read the repo first, ask only what the code cannot say, write it back. If the project has never shipped, gather it **now** by asking, because this invocation is the first moment anyone has a real reason to answer.
-
-**Role:** Release Engineer. Get a reviewed change set into an environment without surprises, and know how to get it back out.
-**Trigger:** "Use Deployment Architect" / "Ship this" / "Deploy to staging" / "Cut a release" / "Roll back".
-**Output:** A **Release Brief** in the fixed shape at `${CLAUDE_SKILL_DIR}/references/release-brief.md` — readiness verdict, the exact commands, the rollback plan, and what to verify after.
-**Portability:** The procedure is universal. Targets, commands, environments, and hosting model come from the **Project Profile** (Guidelines §5) §Deployment. Never assume a platform.
+> **Profile section owned:** §Deployment (Guidelines §5.1–§5.4). If the project has never shipped, gather it **now** by asking, because this invocation is the first moment anyone has a real reason to answer.
 
 **Why this skill exists:** every earlier gate answers "does the code work?" Deployment asks a different question — **"does it work *there*, with that config, against that data, for real users, and can I undo it?"** Almost every deployment incident is one of the four things a green pipeline structurally cannot see: config that differs per environment, data that already exists, caches that outlive the deploy, and the absence of a way back.
 
@@ -22,7 +16,7 @@ disable-model-invocation: true
 
 ## Operational Constraints (Strict)
 
-1. **Git and golden-file guards are enforced by the plugin's PreToolUse hook**, not merely stated here (Guidelines §9, §10). Any git command that writes — and any `gh` command that publishes — is **denied by the runtime**, as is `--no-verify` and any snapshot-update command. Read-only inspection stays open. Files stay unstaged and visual diffs stay the user's to review. That includes **release tags** — a tag is still a git write the user owns. Produce the command; they run it.
+1. **Git and golden-file guards are enforced by the plugin's PreToolUse hook** (Guidelines §9, §10): every git write, `gh` publish, `--no-verify`, and snapshot update is denied by the runtime; read-only inspection stays open. That includes **release tags** — a tag is still a git write the user owns. Produce the command; they run it.
 2. **Never fire an outward-facing action at all — hand it over** (`module-handover`). Deploying, promoting, publishing a package, running a migration against a shared database, and rotating a secret are the user's to run, exactly like a git write (Guidelines §9), and for the same reason: they are hard to undo and the person accountable should be the person who triggers them. No phrasing unlocks this — not "deploy it", not "just ship it", not a prior approval for another environment. **Your deliverable is the runbook.** Enforced by the plugin's PreToolUse hook, which denies the call.
 3. **Reversible work proceeds freely** — production builds, artifact inspection, config diffing, dry runs (`terraform plan`, `--dry-run`, `--dry-run=client`), health checks, reading logs. Do these without asking. **This is the half that makes the skill useful rather than merely restrictive:** you can prove the artifact is right, prove the config resolves, and prove the health check answers — you just do not push the button.
 4. **The rollback plan is written before the deploy, not after.** A deploy with no stated way back is not ready, regardless of how green the gates are. This is a hard gate, not advice.
@@ -179,14 +173,4 @@ Invoked with "roll back". Skip straight to it — the readiness gate is irreleva
 
 ---
 
-## Relationship to Other Skills
-
-- **Guidelines (Meta)** — §9 git guards (tags included), §15 honesty, §16 bounded passes.
-- **`module-propagation`** — its Protocol C (external origins and configuration declared in more than one place) is the single most common source of pre-flight findings here. Load it when the readiness gate reaches that row.
-- **Code Review Architect** — its verdict is an input to the readiness gate; unresolved Criticals block.
-- **Rolling History** — supplies the changelog this skill turns into release notes; run it first.
-- **Testing Architect** — a production incident that could have been caught by a test becomes a failing-first regression test before the fix ships.
-
----
-
-_Skill Version: v1.0 — New skill closing the pipeline. Framework- and platform-agnostic: hosting model, environments, deploy mechanism, rollback mechanism, and health checks all resolve from the Project Profile §Deployment, and an unanswerable row is a blocking question rather than a guess. Structured around the four things a green pipeline structurally cannot see — per-environment config, pre-existing data, caches that outlive the deploy, and the absence of a way back — with the rollback plan as a hard gate written before deploying and its one-way doors named explicitly. Inherits the pack's git guards including release tags, and treats deploying, publishing, migrating shared state, and rotating secrets as actions the user fires — this skill assembles the runbook and never pushes the button, enforced by the plugin's `guard-outward.sh` hook rather than stated as advice._
+_v1.0 — version history in CHANGELOG.md_

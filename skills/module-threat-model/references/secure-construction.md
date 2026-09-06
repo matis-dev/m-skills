@@ -2,7 +2,7 @@
 
 *`module-threat-model` reference — read when the run needs it.*
 
-## 3. Secure Construction — the Write-Time Half
+## Secure Construction — the Write-Time Half
 
 Grouped by sink, because that is how you meet them.
 

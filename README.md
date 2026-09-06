@@ -119,7 +119,7 @@ Commands below use the plugin form — in copy mode, drop the `m-skills:` prefix
 | Situation | Command |
 |---|---|
 | Starting a project from nothing | `/m-skills:brainstorming-planner kickoff` → what to build, first slice, foundational decisions routed to their owners |
-| Screen or component to design | `/m-skills:design-architect` → visitor mode, craft floor, refuse list |
+| Screen or component to design | `/m-skills:design-architect` → visitor mode, direction brief (structure · palette · type · signature moment), craft floor, refuse list |
 | Tests to add or upgrade | `/m-skills:testing-architect` |
 | Untrusted input, auth, secrets, or an advisory | `/m-skills:security-architect` → trust boundaries at plan time, the fix and its regression test after |
 | Modal, menu, drag, async status, or an axe log | `/m-skills:accessibility-architect` → the accessible contract before it's built, WCAG 2.2 AA by default |
@@ -149,7 +149,7 @@ Eight architects branch. `/m-skills:product-architect` opens by reading its mode
 | `/m-skills:product-architect — brief` | `/m-skills:brief` | one page: north star and anti-goals |
 | `/m-skills:security-architect <x> — model` | `/m-skills:threat-model` | trust boundaries, read-only, before it's built |
 | `/m-skills:accessibility-architect <x> — audit` | `/m-skills:a11y-audit` | WCAG 2.2 AA read with what wasn't tested stated |
-| `/m-skills:design-architect <x> — audit` | `/m-skills:ui-audit` | craft floor + refuse list, `path:line`, writes nothing |
+| `/m-skills:design-architect <x> — audit` | `/m-skills:ui-audit` | brief or stamp present, craft floor + refuse list, `path:line`, writes nothing |
 | `/m-skills:design-architect <x> — redesign` | `/m-skills:redesign` | replace the visual world, keep the product truth |
 | `/m-skills:code-review-architect` (branch or PR) | `/m-skills:code-review-architect-uncommitted` | `git diff HEAD` only — staged + unstaged, gates off by default |
 | `/m-skills:documentation-architect — audit` | `/m-skills:docs-audit` | friction log against the code, read-only |
@@ -205,7 +205,7 @@ flowchart TD
     CR -.-> CITE
     subgraph KNOW["Knowledge skills &mdash; also auto-loaded when the work is design-, test-, docs-, security-, or a11y-shaped"]
         CITE{{"cited at plan,<br/>implement, review"}}
-        CITE -.-> DES["<b>/design-architect</b><br/>visitor mode · craft floor · refuse list"]
+        CITE -.-> DES["<b>/design-architect</b><br/>visitor mode · direction brief · craft floor · refuse list"]
         CITE -.-> TST["<b>/testing-architect</b><br/>layers · placement · green-but-lying traps"]
         CITE -.-> DOC["<b>/documentation-architect</b><br/>reader &amp; doc type · runnable examples · drift"]
         CITE -.-> SEC["<b>/security-architect</b><br/>trust boundaries · secure sinks · the fix + its test"]
@@ -290,7 +290,7 @@ Three tiers. Which tier a piece of guidance belongs to is decided by one questio
 |---|---|---|---|
 | **Architects** | the skills you invoke — they own a stage of the work and carry its constraints | 17 | on invocation |
 | **Modules** | a block two or more architects would otherwise each restate | 9 | when an architect names one |
-| **References** | material one architect or module needs in *some* runs — a mode's procedure, an evidence table, an output template | 53 files | when the run reaches it |
+| **References** | material one architect or module needs in *some* runs — a mode's procedure, an evidence table, an output template | 56 files | when the run reaches it |
 
 A module is addressed **by name** (`module-propagation`), because a name is the only identifier that resolves identically in a plugin install and a copied one. A reference is a plain markdown file inside its architect's own directory, read with the Read tool.
 
@@ -312,12 +312,7 @@ A module is addressed **by name** (`module-propagation`), because a name is the 
 
 Modules are hidden from the `/` menu (`user-invocable: false`) — you never invoke one directly. They point at each other freely but **never load each other**: one level of composition, so there is no load order to debug.
 
-### What a run actually loads
-
-Measured, in lines, by adding up the files each invocation reads. Honest in both directions:
-
-| Invocation | Before | Now |
-|---|---|---|
+---|---|---|
 | `search-optimization-architect` — technical pass | 332 | **222** |
 | `design-architect` — polish | 153 | **144** |
 | `security-architect` — model | 187 | **179** |
@@ -373,6 +368,7 @@ These hold in every skill, in every project:
 | `settings.template.json` | Permission allowlist + git denylist | → `<project>/.claude/settings.local.json` |
 | `skills/implementing-architect/check-quality.sh` | Runnable gate pipeline (profile → conf → auto-detect) | ships inside `skills/` |
 | `SKILLS_INDEX.md` | Architect and module catalog, pipeline diagram, provenance | reference |
+| [`CHANGELOG.md`](CHANGELOG.md) | Release history, and the per-skill version notes that used to sit at the foot of each `SKILL.md` | reference |
 
 The 17 architects: `guidelines-meta`, `brainstorming-planner`, `planning-architect`, `product-architect`, `design-architect`, `testing-architect`, `security-architect`, `accessibility-architect`, `implementing-architect`, `debugging-architect`, `code-review-architect`, `documentation-architect`, `rolling-history`, `deployment-architect`, `maintenance-architect`, `search-optimization-architect`, `marketing-architect`.
 
@@ -662,8 +658,8 @@ The point of absorbing rather than stacking: these sources cover blind spots in 
 | **[JuliusBrussee/caveman](https://github.com/JuliusBrussee/caveman)** | none declared | `guidelines-meta` **§17** | The compression half of the reply protocol — drop filler, hedging, and pleasantries while leaving code, commits, and security warnings uncompressed. |
 | **[DietrichGebert/ponytail](https://github.com/DietrichGebert/ponytail)** | MIT | `guidelines-meta` **§2** | The Laziness Ladder — does it need to exist at all → stdlib → native/framework → installed dependency → one clear line → only then new code. |
 | **[`code-simplifier` agent, anthropics/claude-code](https://github.com/anthropics/claude-code/blob/main/plugins/pr-review-toolkit/agents/code-simplifier.md)** | none declared | `guidelines-meta` **§2** | No nested ternaries; preserve behavior exactly when simplifying — change how, never what; don't trade debuggability for fewer lines. |
-| **[pbakaus/impeccable](https://github.com/pbakaus/impeccable)** | Apache 2.0 | [`design-architect`](skills/design-architect/SKILL.md) §1–2 · `guidelines-meta` **§16** | Visitor modes (Persuade / Operate / Read / Experience), the craft floor, the browser-surfaces insight, brief-wins, refinement-vs-redesign, and "verify in bounded passes, not a loop". |
-| **[nutlope/hallmark](https://github.com/nutlope/hallmark)** | MIT | [`design-architect`](skills/design-architect/SKILL.md) §3–5 · `guidelines-meta` **§15, §18** | The refuse list and slop gates, structural-fingerprint variety, token discipline, redrawn-chrome and glyph-icon tells, "no invented metrics", and the six-axis pre-emit self-critique. |
+| **[pbakaus/impeccable](https://github.com/pbakaus/impeccable)** | Apache 2.0 | [`design-architect`](skills/design-architect/SKILL.md) §1, §3, `references/palette-and-type.md` · `guidelines-meta` **§16** | Visitor modes (Persuade / Operate / Read / Experience), the craft floor, the browser-surfaces insight, brief-wins, refinement-vs-redesign, the shape-before-build brief, "build roles, not a bag of swatches", and "verify in bounded passes, not a loop". |
+| **[nutlope/hallmark](https://github.com/nutlope/hallmark)** | MIT | [`design-architect`](skills/design-architect/SKILL.md) §4–5, `references/refuse-list.md`, `references/structures.md` (macrostructures, adapted) · `guidelines-meta` **§15, §18** | The refuse list and slop gates, named page structures, structural-fingerprint variety and the stamp, the vibe → palette → pairing → axes construction order, token discipline, redrawn-chrome and glyph-icon tells, "no invented metrics", and the six-axis pre-emit self-critique. |
 | **[`code-review` plugin, anthropics/claude-code](https://github.com/anthropics/claude-code/tree/main/plugins/code-review)** | none declared | [`code-review-architect`](skills/code-review-architect/SKILL.md) §7 | The confidence gate — post only findings you'd rate ≥ 80, plus the explicit false-positive filter list. |
 | **[`security-guidance` plugin, anthropics/claude-code](https://github.com/anthropics/claude-code/tree/main/plugins/security-guidance)** | none declared | [`code-review-architect`](skills/code-review-architect/SKILL.md) Phase 4 · [`testing-architect`](skills/testing-architect/SKILL.md) §2 | The threat model by sink category — injection, unsafe deserialization, insecure DOM APIs — plus the loop-closer: every finding becomes a failing-first regression test. |
 

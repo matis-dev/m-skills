@@ -22,6 +22,17 @@ user-invocable: false
 
 **The contract a role obliges you to supply.** If you write `role="button"` on a non-button you must also supply: `tabindex="0"`, an Enter handler, a Space handler (including preventing page scroll), a visible focus indicator, `aria-disabled` **plus** actually blocking the action, and an accessible name. Six things the native element gave you for free. This is why the answer is almost always "use the button".
 
+The same control both ways — the native element is the whole contract in one line:
+
+```html
+<button type="button" aria-label="Close dialog">×</button>
+
+<span role="button" tabindex="0" aria-label="Close dialog"
+      onclick="closeDialog()"
+      onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); closeDialog(); }">×</span>
+<!-- still owed: a :focus-visible style, and an aria-disabled path that actually blocks closeDialog() -->
+```
+
 **Accessible name, in priority order** — `aria-labelledby` → `aria-label` → the element's own content → `title` (weak, avoid relying on it). Rules that matter in practice:
 
 - **The visible label must be part of the accessible name.** A button reading "Save" with `aria-label="Submit changes"` is unusable by voice control: the user says "click Save" and nothing happens.
@@ -79,13 +90,15 @@ For anything that changes without the user's focus moving: form validation resul
 
 ## 4. The Refuse List
 
-- **`outline: none` with no replacement indicator.** The single most common self-inflicted barrier.
-- **Positive `tabindex`.**
-- **`aria-hidden` on anything focusable**, or on a whole page region that still contains active controls.
-- **A `<div>` or `<span>` with a click handler and nothing else.**
-- **`aria-label` that contradicts or omits the visible label.**
-- **Placeholder text as the only label.** It disappears on input, and it fails contrast in most designs.
-- **Blocking paste into password or one-time-code fields.**
-- **Drag as the only way to do something.**
-- **Removing a scan rule to reach green.**
-- **An accessibility overlay or widget marketed as making a site compliant.** It does not; it frequently makes things worse; disabled-user organizations broadly oppose them. Say so once, plainly, if asked to add one.
+Each line names the default, then what to do instead.
+
+- **`outline: none` with no replacement indicator** → a `:focus-visible` ring from the palette, 2px or more, offset from the element. The single most common self-inflicted barrier.
+- **Positive `tabindex`** → `tabindex="0"` or none, and fix the DOM order instead.
+- **`aria-hidden` on anything focusable**, or on a page region that still holds active controls → hide the region *and* make its controls inert (`inert`, or remove them from the tab order).
+- **A `<div>` or `<span>` with a click handler and nothing else** → `<button>`; if it navigates, `<a href>`.
+- **`aria-label` that contradicts or omits the visible label** → let the visible text be the name; extend it with `aria-describedby` if more is needed.
+- **Placeholder text as the only label** → a visible `<label>`; the placeholder carries a format hint at most.
+- **Blocking paste into password or one-time-code fields** → allow paste; password managers and the cognitive-function-test exemption depend on it.
+- **Drag as the only way to do something** → add a single-pointer path — buttons, a menu, a numeric input — to the same result.
+- **Removing a scan rule to reach green** → fix the node, or record the exemption in the profile with its reason and owner.
+- **An accessibility overlay or widget marketed as making a site compliant** → fix the source. It does not comply, it frequently makes things worse, and disabled-user organizations broadly oppose them. Say so once, plainly, if asked to add one.

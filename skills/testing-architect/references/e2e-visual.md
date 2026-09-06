@@ -2,7 +2,7 @@
 
 *`testing-architect` reference — read when the run needs it.*
 
-## 4. E2E & Visual Tests
+## E2E & Visual Tests
 
 ### Helpers Are Mandatory
 Use the project's existing e2e helper module — never re-implement seeding, auth, consent dismissal, or theming inline. Helpers encode app-specific bootstrap behavior (ready signals, storage versions, overlay blockers) that inline code gets subtly wrong. If a needed helper doesn't exist, add it *to the helper module* in the same change.

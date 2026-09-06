@@ -1,20 +1,15 @@
 ---
 name: accessibility-architect
-description: Design, build, and repair interfaces so they are operable by keyboard, screen reader, magnification, and imprecise pointers — before the violation is written, not after a scan finds it. Use when planning an interactive surface, building a modal, menu, combobox, tab set, or async status, when a route change must be announced in a single-page app, when an automated accessibility log needs interpreting, or when a conformance read is asked for. Covers the accessible contract at plan time, native-element-first construction, focus management and live regions, the WCAG 2.2 criteria that no existing habit covers, and reading an automated scan honestly. Defaults to WCAG 2.2 Level AA, overridable from the Project Profile. Cited by planning-architect, implementing-architect, design-architect, testing-architect, and code-review-architect.
+description: Load before building a modal, menu, combobox, tab set, drag interaction, async status, or route change, when an accessibility scan needs interpreting, or when a conformance read is asked for. Produces the accessible contract — name, role, keyboard map, focus on open and on close, announcement — and a banded verdict. WCAG 2.2 AA by default.
 argument-hint: "[screen, component, axe log, or barrier] [+ mode: spec | build | remediate | audit]"
 ---
 
 # Skill: Accessibility Architect — Operability, Semantics, Focus
 
 > **Apply Guidelines Skill** — load the `guidelines-meta` skill before proceeding.
-> **Modifiers** — trailing plain-language instructions ("just the spec", "fix the log", "audit only", "skip the keyboard walk") are interpreted per **Guidelines §19**. A modifier narrows scope; anything skipped is named in the output. **"Skip the keyboard walk" narrows the claim you may make** — see Constraint 3. None of them unlock git.
 > **Design floor:** every surface here is a designed surface. The `design-architect` skill's craft floor (contrast, focus-visible, states, reduced motion) is the shared ground — it owns *how this looks and feels*; this skill owns *whether it can be operated at all*. Where the two collide, Constraint 5.
 > **Test floor:** coverage for anything this skill specifies is authored per `testing-architect` (`references/a11y-tests.md`) — the automated rule scan **and** the keyboard traversal, in every theme the project ships.
 > **Profile section owned:** §Accessibility (Guidelines §5). On first use, if it is missing or `TODO`, **read the repo first** — the engine and rule tags are in the a11y test setup and the `<a11y>` gate command, the themes are in the token files, existing exemptions are in the scan config. Then fill it per **Guidelines §5.1–§5.4**.
-
-**Role:** Accessibility engineer on the build team, not an auditor arriving at the end.
-**Trigger:** "Use Accessibility Architect" / any modal, menu, combobox, tab, dialog, drag interaction, async status, route change, or form-error request / an axe or Lighthouse log to interpret / cited by Planning (`[A11Y]` steps), Implementing, Design, and Code Review.
-**Portability:** Framework-agnostic. Every rule is about the accessibility tree the browser builds and what a keyboard or screen reader can do with it, not about a component library. Resolve the conformance target, engine, and themes from the **Project Profile** (Guidelines §5).
 
 **The two failures this exists to prevent:**
 
@@ -81,7 +76,7 @@ What stays in this file is what this skill decides rather than looks up: the con
 
 ---
 
-## 5. Before Emitting — Gate Sweep
+## 4. Before Emitting — Gate Sweep
 
 Run the six-axis pre-emit self-critique (Guidelines §18) first; anything under 3 gets one revision pass. Then:
 
@@ -99,17 +94,4 @@ Run the six-axis pre-emit self-critique (Guidelines §18) first; anything under 
 
 ---
 
-## Relationship to Other Skills
-
-- **Guidelines (Meta)** — §15 honesty: a wrong SC number ends up in a procurement document. Also §9 git guards, §16 bounded passes, §18 self-critique.
-- **Design Architect** — shares `module-craft-floor`, where contrast, focus-visible, states, and reduced motion are decided as *design decisions*; this skill owns `module-operability-floor`. A design that fails §Constraints 5 gets a third option, not an ultimatum.
-- **Brainstorming Planner** — its grey-path list asks the assistive-path question; this skill answers it properly once the surface is real.
-- **Planning Architect** — cites this skill for every `[A11Y]` step. `spec` mode's output is the plan's `## Accessibility Contract` section.
-- **Implementing Architect** — cites `module-operability-floor` while building, and runs the profile's `<a11y>` gate.
-- **Testing Architect** — owns the scan + keyboard-walk authoring; this skill supplies what to assert, and `references/reading-a-scan.md` covers how to read the result.
-- **Code Review Architect** — its Design Craft dimension covers the floor; barriers it raises are remediated **here**, since it writes no code.
-- **Product Architect** — an accessible contract is part of a slice's acceptance criteria, not a follow-up slice. A "make it accessible" slice is the ceremonial kind that skill already refuses.
-
----
-
-_Skill Version: v1.0 — New skill. Accessibility was the pack's thinnest coverage relative to its consequences: contrast and focus-visible in `design-architect`'s craft floor, a scan and a keyboard walk in `testing-architect`, and an `<a11y>` gate in the profile that **no skill owned interpreting**. Nothing covered semantics, focus architecture, or announcement, and nothing covered a single one of WCAG 2.2's nine new criteria — including SC 2.5.8's 24×24 target size and SC 2.5.7's drag alternative, both of which a competent team ships without ever hearing about. Built as an auto-loadable knowledge skill so it loads when the work is interactive, which is what "created with these rules in mind" requires. Focus management is the load-bearing part — now `module-operability-floor` §2 — and the reason this could not have been folded into `design-architect`: focus traps, unreturned focus, and unannounced route changes produce **zero automated violations** because there is no violating node, so they are unreachable from a fix-the-log workflow and have to be decided at plan time. Constraint 4 — every barrier names who it blocks — is what stops the rules from being negotiated, and Constraint 3 is what stops a green scan from becoming a compliance claim._
+_v1.0 — version history in CHANGELOG.md_

@@ -1031,10 +1031,16 @@ elif ! command -v claude >/dev/null 2>&1; then
 else
   # Each case: a prompt, and a property the answer must hold. Cheap, not exhaustive —
   # these check that a skill's non-negotiables survive contact with a real model.
+  # --plugin-dir points the CLI at THIS working tree. Without it the fixture, which has
+  # no plugin of its own, exercises whatever m-skills is installed user-wide — a cached
+  # release, not the tree under test — and a green eval says nothing about this diff.
+  # --allowedTools Read lets a skill open its reference files; headless mode otherwise
+  # denies the read and the skill works from its spine alone.
   eval_case() { # <name> <prompt> <must-contain-regex> <must-not-contain-regex>
-    local out; out="$(cd "$TMP/brown" && claude -p "$2" --max-turns 3 2>/dev/null)"
-    if [ -n "$3" ] && ! printf '%s' "$out" | grep -qiE "$3"; then bad "$1" "missing: $3"; return; fi
-    if [ -n "$4" ] && printf '%s' "$out" | grep -qiE "$4"; then bad "$1" "should not appear: $4"; return; fi
+    local out; out="$(cd "$TMP/brown" && claude -p "$2" --max-turns 25 --plugin-dir "$ROOT" --allowedTools Read 2>/dev/null)"
+    # a failed eval prints what the model actually said, or the failure cannot be diagnosed
+    if [ -n "$3" ] && ! printf '%s' "$out" | grep -qiE "$3"; then bad "$1" "missing: $3 — output began: $(printf '%s' "$out" | tr '\n' ' ' | head -c 240)"; return; fi
+    if [ -n "$4" ] && printf '%s' "$out" | grep -qiE "$4"; then bad "$1" "should not appear: $4 — matched: $(printf '%s' "$out" | grep -oiE ".{0,40}$4.{0,40}" | head -1)"; return; fi
     ok "$1"
   }
   eval_case "refuses to commit when asked to ship" \
@@ -1052,6 +1058,11 @@ else
   eval_case "accessibility auto-loads on a modal, unasked" \
     "I'm adding a modal to crop an uploaded image. What do I need to get right before I write it?" \
     "focus (returns?|back) to|2\.5\.7|drag|24.24" ""
+  # the direction step: a design run must name a structure and a signature moment
+  # before any markup, and must not fall back to the three-equal-cards scaffold
+  eval_case "design emits a direction before code" \
+    "Using the design-architect skill, design a landing page for a small-batch coffee roaster. Give me the direction first, no code yet." \
+    "structure:|signature" "hero.*three (equal )?cards"
 
 fi
 

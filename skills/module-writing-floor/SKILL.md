@@ -30,28 +30,28 @@ Checks on the **rendered document**, not on intentions. Run them together in one
 
 ## 2. The Refuse List
 
-What documentation defaults to when nobody decided. The project's own brief can earn any of them back; reaching for one on autopilot means you weren't writing for a reader.
+What documentation defaults to when nobody decided. The project's own brief can earn any of them back; reaching for one on autopilot means you weren't writing for a reader. Each line names the default, then what to do instead.
 
 **Voice and framing**
-- "Simply", "just", "easy", "obvious", "of course", "as you can see". They add nothing when the reader succeeds and blame them when they fail.
-- Time estimates of any kind (§1).
-- Marketing voice inside a reference or how-to page. Sell on the landing page, not in the parameter table.
-- A wall of prose before the reader knows what the thing is. First sentence: what it is. Second: who it's for or what problem it kills.
-- "See the code for details", "refer to the source", "self-explanatory". If the code were sufficient, the doc would not be open.
-- Apologetic or provisional framing — "this section is a bit rough", "docs coming soon" — left permanently in a shipped file. Either write it or open an issue.
+- "Simply", "just", "easy", "obvious", "of course", "as you can see" → delete the word. They add nothing when the reader succeeds and blame them when they fail.
+- Time estimates of any kind (§1) → the prerequisite list and the number of steps; the reader has their own clock.
+- Marketing voice inside a reference or how-to page → sell on the landing page; the parameter table states types, defaults, and failure behaviour.
+- A wall of prose before the reader knows what the thing is → first sentence, what it is; second, who it's for or what problem it kills.
+- "See the code for details", "refer to the source", "self-explanatory" → state the behaviour here, or link the exact symbol with a one-line summary. If the code were sufficient, the doc would not be open.
+- Apologetic or provisional framing — "this section is a bit rough", "docs coming soon" — left permanently in a shipped file → write it, or open an issue and link it.
 
 **Structure**
-- A feature table that restates the module list with no task attached to any row.
-- An auto-generated symbol dump presented as a guide. Generated reference is fine *as reference*, linked from a hand-written page that explains when to reach for what.
-- Deep heading nests (H4 and below) used to organise what is really a table.
-- Emoji on every heading as a substitute for hierarchy; badge rows longer than the description they sit above.
-- A "Contributing" or "License" section that crowds the quick start above the fold.
-- Duplicating the same fact in three files.
+- A feature table that restates the module list with no task attached → a task table: *to do X, see Y*.
+- An auto-generated symbol dump presented as a guide → generated reference *as reference*, linked from a hand-written page that says when to reach for what.
+- Deep heading nests (H4 and below) organising what is really a table → a table.
+- Emoji on every heading as a substitute for hierarchy; badge rows longer than the description they sit above → plain headings; one badge row at most, shorter than the line under it.
+- A "Contributing" or "License" section crowding the quick start above the fold → below the first success, linked from the top if needed.
+- The same fact in three files → one home and links from the other two.
 
 **Content**
-- Invented numbers: benchmarks, adoption counts, uptime, "10× faster", coverage percentages nobody measured (Guidelines §15).
-- `foo` / `bar` / `example.com` / `YOUR_API_KEY_HERE` where a real identifier from this repo would teach more.
-- Documented aspirations — a flag, endpoint, or option that does not exist yet.
-- A comment or docstring that restates its own signature (`// gets the user` above `getUser()`). That is noise under Guidelines §13, not documentation.
-- Copying an upstream library's docs into your repo instead of linking. It is stale the day the dependency bumps.
-- Screenshots as the only home of a value someone needs to type.
+- Invented numbers — benchmarks, adoption counts, uptime, "10× faster", coverage nobody measured → a measured figure with source and date, or a labelled placeholder (Guidelines §15).
+- `foo` / `bar` / `example.com` / `YOUR_API_KEY_HERE` → a real identifier from this repo; a labelled placeholder only where the value is a secret.
+- Documented aspirations — a flag, endpoint, or option that does not exist yet → document what exists; a roadmap lives in a file that says it is one.
+- A comment or docstring that restates its own signature (`// gets the user` above `getUser()`) → the contract a caller cannot see from the signature: failure behaviour, side effects, units (Guidelines §13).
+- Copying an upstream library's docs into your repo → link the upstream page at the version the lockfile pins. A copy is stale the day the dependency bumps.
+- Screenshots as the only home of a value someone needs to type → the value as text beside the image.

@@ -23,6 +23,15 @@ Every finding carries, in this order:
 5. **The concrete fix** — a pointer specific enough to act on.
 6. **Who owns the fix**, when the emitting skill does not write code. A security finding goes to `security-architect`, an accessibility barrier to `accessibility-architect`, a test gap to `testing-architect`, a doc defect to `documentation-architect`. **A review that ends in a list nobody can act on is half a deliverable.**
 
+One finding in that shape:
+
+```
+[High] Authorization · src/api/orders.ts:88
+Consequence: any signed-in user can fetch another customer's order by changing the id — reachable from the public route.
+Fix: load the order through `ordersFor(currentUser)` instead of `orders.byId()`; add the cross-tenant regression test.
+Owner: security-architect (remediate).
+```
+
 ---
 
 ## 2. The Confidence Gate

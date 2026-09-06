@@ -2,7 +2,7 @@
 
 *`testing-architect` reference — read when the run needs it.*
 
-## 5. Accessibility Tests
+## Accessibility Tests
 
 ### Two Layers, Both Required
 1. **Automated rule scan** — run the project's a11y engine against the relevant WCAG tag set, attach violations as a test artifact, fail on any violation. Exclusions are for genuinely third-party, unfixable widgets only, each justified with an inline comment naming the reason.

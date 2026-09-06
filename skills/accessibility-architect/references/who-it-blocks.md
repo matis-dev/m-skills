@@ -2,7 +2,7 @@
 
 *`accessibility-architect` reference — read when the run needs it.*
 
-## 3. Who Each Barrier Blocks
+## Who Each Barrier Blocks
 
 The reason Constraint 4 exists. A rule that is only a rule gets negotiated; a rule attached to a person gets fixed.
 

@@ -1,18 +1,13 @@
 ---
 name: documentation-architect
-description: Write, audit, and repair the documentation a project ships — README, quick start, how-to guides, architecture and decision records, API and CLI reference, docstrings on the public surface, migration guides, and user-facing release notes. Use when creating or rewriting any doc, when a reader got stuck, when docs have drifted from the code, or before shipping a change that alters setup, contracts, or structure. Covers reader-and-type selection (tutorial, how-to, reference, explanation), the documentation floor (time-to-first-success, runnable examples, CommonMark, resolving links, honest version facts), the refuse list of doc slop, one-home-per-fact drift control, diagrams that show a mechanism, and an audit mode that produces a friction log instead of a vibe. Stack-agnostic — resolves doc paths, format, and voice from the Project Profile. Cited by rolling-history, planning-architect, and code-review-architect.
+description: Load when writing, auditing, or repairing any doc a project ships — README, quick start, how-to, architecture record, API or CLI reference, docstrings, migration guide, release notes — or when a reader got stuck. Picks reader and doc type first, traces every identifier to a file actually read, and returns a friction log in audit mode.
 argument-hint: "[doc or target] [+ mode: generate | audit | reference | polish | release-notes]"
 ---
 
 # Skill: Documentation Architect — Docs That Survive Contact With a Reader
 
 > **Apply Guidelines Skill** — load the `guidelines-meta` skill before proceeding.
-> **Modifiers** — trailing plain-language instructions ("audit", "polish", "reference only", "proceed") are interpreted per **Guidelines §19**. A modifier narrows scope; anything skipped is named in the output, and none of them unlock git.
 > **Profile section owned:** §Documentation Standards (Guidelines §5). On first use, if it is missing or `TODO`, **read the repo for the answers first** — the format is in the existing docs, the voice is in the README, the docstring convention is in the source, the site generator is in the manifest and config. Then fill it per **Guidelines §5.1–§5.4**. §Documentation Targets — *which* docs exist and when each is touched — is owned by `rolling-history`; read it, don't rewrite it.
-
-**Role:** Technical writer and documentation architect. Turn what the code does into what a reader can do.
-**Trigger:** "Use Documentation Architect" / any write-or-fix-a-doc request / cited by Rolling History when a doc actually needs an edit, by Planning for docs-bearing steps, and by Code Review for doc findings.
-**Portability:** Format-agnostic. Every rule targets the rendered document and the reader in front of it, not a generator. Resolve doc paths, markup flavour, site tooling, and voice from the **Project Profile** (Guidelines §5) before writing anything.
 
 **The problem this exists to solve:** documentation fails in two directions and both look fine from the inside. It is written *from the code outward* — accurate, complete, and useless, because it answers "what is this symbol" when the reader asked "how do I do the thing". Or it is written once, correctly, and then the code moves and the doc doesn't, so it becomes a confident liar that costs more than no doc at all. Everything below aims at one outcome: a reader with the stated goal gets there, and nothing in the file claims something the repo cannot back up.
 
@@ -97,7 +92,7 @@ When a duplicate is unavoidable (a quick start genuinely needs the install comma
 
 ---
 
-## 7. Modes of Invocation
+## 6. Modes of Invocation
 
 | Ask | What this skill does |
 |---|---|
@@ -111,7 +106,7 @@ When a duplicate is unavoidable (a quick start genuinely needs the install comma
 
 ---
 
-## 8. Before Emitting — Gate Sweep
+## 7. Before Emitting — Gate Sweep
 
 Run the six-axis pre-emit self-critique (Guidelines §18) first; anything under 3 gets one revision pass. Then confirm:
 
@@ -129,16 +124,4 @@ If a gate fails, fix it. A confidently wrong doc costs more than a missing one.
 
 ---
 
-## Relationship to Other Skills
-
-- **Guidelines (Meta)** — everything here inherits from it, especially §3 surgical changes, §13 minimal comments (reconciled in `references/reference-docs.md`), §15 honest output, §16 bounded passes, §18 self-critique.
-- **Rolling History** — owns the changelog, the §Documentation Targets table, and the *verdict* on which docs a session reaches. When that verdict is anything other than `no change`, this skill does the writing. The two never both edit the changelog: that file is Rolling History's alone.
-- **Planning Architect** — cite this skill on any plan step that ships a doc, and name the reader and doc type in the step itself.
-- **Code Review Architect** — `module-writing-floor` is the source of documentation findings; report them with `path:line` and the same confidence gate as any other finding (`module-findings`).
-- **Design Architect** — for docs with a rendered surface (a docs site, a landing page), `module-craft-floor` governs the *presentation*; this skill governs the *content*.
-- **Deployment Architect** — migration guides and upgrade instructions are written here from the facts that skill establishes; it owns the rollback plan, this owns the words a reader follows.
-- **Testing Architect** — a documented example that must keep working belongs in the test suite. Say so when one qualifies.
-
----
-
-_Skill Version: v1.0 — New skill. Closes the pack's last coverage gap: `rolling-history` could detect that a doc needed an edit but had no discipline for writing one, and every other stage assumed documentation was somebody else's problem. Consolidates three prior standalone prompts (documentation generation, documentation audit, technical reference / API) into one skill built around two failure modes rather than a template: docs written from the code outward that answer the wrong question, and docs that drift into confident lies. Hence §1 reader-and-type selection, §2 ground truth before writing, §5 one-home-per-fact drift control, and §7's friction log in place of a subjective grade. `references/reference-docs.md` reconciles reference docstrings with Guidelines §13. Release notes are covered; the changelog stays with `rolling-history`._
+_v1.0 — version history in CHANGELOG.md_

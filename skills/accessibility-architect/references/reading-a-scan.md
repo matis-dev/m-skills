@@ -2,7 +2,7 @@
 
 *`accessibility-architect` reference — read when the run needs it.*
 
-## 4. Reading an Automated Log
+## Reading an Automated Log
 
 `audit` mode, and the correct response whenever someone says "axe is clean".
 

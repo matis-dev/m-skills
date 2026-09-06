@@ -2,7 +2,7 @@
 
 *`testing-architect` reference — read when the run needs it.*
 
-## 6. Test Plan Output (when invoked from Planning Architect)
+## Test Plan Output (when invoked from Planning Architect)
 
 Fill each change-step's test line with this shape. Omit layers the project doesn't have.
 

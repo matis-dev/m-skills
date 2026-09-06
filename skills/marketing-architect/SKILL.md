@@ -1,6 +1,6 @@
 ---
 name: marketing-architect
-description: Plan how a project gets found, tried, and kept by people — positioning, where to post it and the rules of entry, launch sequencing, and honest measurement. Use when the user wants to spread the word about something they finished, asks where to announce or list a project, wants to make a repo or product popular, is planning a launch, or wants a full campaign. Covers the funnel floor (positioning → artifact → placement → response → retention, where a failure early cannot be bought off later), an audience-first channel atlas that never assumes the project is a repo, rules of entry verified live because a ban is permanent, and adoption metrics kept separate from attention metrics. Drafts every post and publishes none; never projects a number.
+description: Use when a finished project needs to be found by people — where to post, how to position it, whether to run a campaign. Walks the funnel floor in order (positioning → artifact → placement → response → retention) and stops at the first break; reads every community's rules live. Drafts posts, publishes none, projects no number.
 argument-hint: "[project, repo, or product] [+ mode: spread | position | launch | campaign | measure | audit]"
 disable-model-invocation: true
 ---
@@ -8,14 +8,9 @@ disable-model-invocation: true
 # Skill: Marketing Architect — Positioning, Placement, Proof
 
 > **Apply Guidelines Skill** — load the `guidelines-meta` skill before proceeding.
-> **Modifiers** — trailing plain-language instructions ("just tell me where to post", "skip the campaign", "positioning only", "proceed") are interpreted per **Guidelines §19**. A modifier narrows scope; anything skipped is named in the output, and none of them unlock git or authorize a post.
 > **Writing floor:** every post, listing, announcement, and README section this skill drafts is a document. Apply `module-writing-floor` to it. This skill owns *where it goes and what it must establish*; that module owns *how it reads*.
 > **Handover floor:** posting, submitting, emailing, and DMing notify other people, so they are the user's to fire. Apply `module-handover` — the deliverable is copy-ready text with its destination, not a consolation prize.
 > **Profile section owned:** §Distribution (Guidelines §5). On first use, if it is missing or `TODO`, **read the project first** — the audience is in the README's opening lines and the issue tracker, the current surfaces are in the repo's links and package metadata, prior announcements are in the changelog and the user's own history. Then fill it per **Guidelines §5.1–§5.4**. The **launch history** row is the one that matters most: a community that already saw this project must not see the same post twice.
-
-**Role:** Distribution engineer. Work out who this is for, whether the thing they land on explains itself, where those people already are, and what that place demands of a newcomer — then hand over the text and stay out of the way.
-**Trigger:** "Use Marketing Architect" / "how do I make this popular" / "where should I post this" / "nobody is using it" / launch, announcement, or campaign planning.
-**Portability:** Not limited to software. A repo, a SaaS, an app, a book, a service, a community — §1 resolves the audience before anything else, and nothing below assumes a package registry exists. Resolve the surfaces, accounts, and prior history from the **Project Profile** (Guidelines §5).
 
 **The two failures this exists to prevent:**
 
@@ -142,17 +137,4 @@ Run the six-axis pre-emit self-critique (Guidelines §18) first; anything under 
 
 ---
 
-## Relationship to Other Skills
-
-- **Guidelines (Meta)** — §15 honesty carries this skill. Its domain is built on unfalsifiable claims and survivorship stories, so §15 binds harder here than almost anywhere else in the pack. Also §16 bounded passes, §18 self-critique, §19 modifiers.
-- **Search Optimization Architect** — that skill owns being found by **machines** (retrieval, crawlers, AI engines); this one owns being found by **people** (channels, communities, launches). They share `module-evidence` and meet at the landing surface: it must both retrieve well and convert.
-- **Brainstorming Planner** — kickoff may raise distribution as an optional early question. It is optional on purpose; a product that does not exist has no audience to research, and deferring is the normal answer.
-- **Product Architect** — owns who the product is for and what it does. This skill consumes that, never re-decides it; if positioning fails at §2 link 1, the fix may belong there.
-- **Design Architect** — the landing surface is a designed surface. A first-screen failure is often a craft problem, and `module-craft-floor` judges the rendered result.
-- **Documentation Architect** — owns the README and the docs as documents. This skill says what the first screen must establish for a stranger; that skill owns whether the rest of it reads.
-- **Deployment Architect** — nothing gets announced before it is actually shippable and reachable. A launch aimed at a broken install is the most expensive version of Constraint 7.
-- **Rolling History** — the changelog is where a release note starts; the announcement is a different document for a different reader.
-
----
-
-_Skill Version: v1.0 — New skill. The pack could make a project findable by machines and had nothing for making it findable by people, so the pipeline ended at deploy and the question that decides whether the work mattered went unanswered. Built from an August 2026 evidence sweep, and its organizing idea is §2's funnel floor: five links in order, where an early failure cannot be bought off with more volume later. That ordering is not a slogan — the one event study that tested these factors against each other found a launch's outcome dominated by the project's pre-existing baseline and by the reception of the post, not by the channel or the label on it, which is links 1, 2, and 4 outweighing link 3. Hence a skill that will decline to produce a channel list, and hence §1's audience table before any channel is named. The two depths the user asked for are modes, not separate skills: `spread` is the light door and the default, `campaign` the heavy one that opens by saying when it is the wrong instrument — one spine, because the constraints are identical at both depths and a second architect would restate all eight. Constraint 3 exists because this is the only domain in the pack where a mistake is permanent: a removed post is a bad day, a ban is the channel gone for good, so no community is ever recommended from memory. Constraint 5 and the dated evidence base exist because attention and adoption diverge routinely, and the market that sells the former measures it in the numbers that are easiest to buy._
+_v1.0 — version history in CHANGELOG.md_

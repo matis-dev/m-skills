@@ -1,6 +1,6 @@
 ---
 name: search-optimization-architect
-description: Make a web property retrievable, extractable, and citable by AI search engines and agents — and measure it honestly. Use when the user wants GEO/AEO/AI-search work, an AI-visibility audit, a content brief written for retrieval, llms.txt or schema decisions, crawler and rendering diagnosis, entity and topical-authority strategy, or a citation/share-of-voice dashboard. Covers the evidence ladder (what is load-bearing, what is plausible, what is theater), retrieval-shaped content and the island test, server-rendering and crawl policy as the one non-negotiable technical lever, query fan-out coverage, off-site entity surfaces, and a measurement protocol with repeated runs and confidence bands rather than single-run vanity numbers. Every claim carries its evidence tier; no promised ranking, citation, or lift is ever invented.
+description: Use for GEO, AEO, and AI-search work — an AI-visibility audit, retrieval-shaped content, llms.txt or schema decisions, crawl and rendering diagnosis, a citation dashboard. Sorts every tactic by evidence tier (load-bearing, plausible, theater), verifies against fetched bytes, measures with repeated runs. Never promises a ranking, citation, or lift.
 argument-hint: "[URL, page, site, or topic] [+ mode: audit | brief | technical | entity | measure]"
 disable-model-invocation: true
 ---
@@ -8,14 +8,9 @@ disable-model-invocation: true
 # Skill: Search Optimization Architect — Retrieval, Extraction, Citation
 
 > **Apply Guidelines Skill** — load the `guidelines-meta` skill before proceeding.
-> **Modifiers** — trailing plain-language instructions ("audit", "just the technical pass", "brief only", "skip the measurement plan") are interpreted per **Guidelines §19**. A modifier narrows scope; anything skipped is named in the output, and none of them unlock git.
 > **Writing floor:** every content artifact this skill emits is a document. Apply `module-writing-floor` to it. This skill owns *what makes it retrievable*; that module owns *how it reads*.
 > **Design floor:** any page this skill restructures is still a page. Apply `module-craft-floor` before shipping visible changes — a retrieval-optimized page that reads as machine feed has failed the human half of its job.
 > **Profile section owned:** §Search Visibility (Guidelines §5). On first use, if it is missing or `TODO`, **read the repo and the live site first** — the rendering mode is in the framework config and in `view-source`, the robots policy is in `robots.txt`, the schema is in the emitted `<script type="application/ld+json">`, the sitemap is at its declared path, the analytics property is in the tag config. Then fill it per **Guidelines §5.1–§5.4**.
-
-**Role:** AI-search engineer. Get the page into the model's context, get the answer out of the page intact, and get the brand named — then prove it with numbers that survive a second run.
-**Trigger:** "Use Search Optimization Architect" / any GEO, AEO, AI-visibility, llms.txt, schema, or "why doesn't ChatGPT mention us" request.
-**Portability:** Stack-agnostic. Every rule targets the bytes the crawler receives and the text the retriever indexes, not a CMS or a framework. Resolve rendering mode, hosting, and analytics from the **Project Profile** (Guidelines §5).
 
 **The two failures this exists to prevent:**
 
@@ -151,17 +146,4 @@ Run the six-axis pre-emit self-critique (Guidelines §18) first; anything under 
 
 ---
 
-## Relationship to Other Skills
-
-- **Guidelines (Meta)** — §15 honesty is the load-bearing one here; this domain's failure mode is confident fabrication. Also §16 bounded passes, §18 self-critique.
-- **Documentation Architect** — owns which document to write and for whom; `module-writing-floor` owns whether it reads. The structure rules in `references/retrieval-content.md` sit on top of that floor, never instead of it.
-- **Design Architect** — any page restructured here is still a designed surface; its craft floor applies before shipping.
-- **Marketing Architect** — this skill owns being found by **machines** (retrieval, crawlers, engines); that one owns being found by **people** (channels, communities, launches). They share `module-evidence` and meet at the landing surface, which has to both retrieve well and convert.
-- **Product Architect** — a content program is scoped and sliced there; this skill supplies the fan-out map and the prioritization input.
-- **Planning Architect / Implementing Architect** — rendering and crawl-policy fixes (`references/technical-readiness.md`) are code changes and go through the normal plan → implement → gates path.
-- **Deployment Architect** — `robots.txt`, redirects, and canonical changes are one-way doors in practice: a wrong directive can drop a site out of retrieval for a crawl cycle. Treat them as deploy-gated changes with a stated rollback.
-- **Code Review Architect** — technical findings are reviewable like any other; cite `path:line` for the rendering change and `url` for the live evidence.
-
----
-
-_Skill Version: v1.0 — New skill. Built from the user's GEO notebook brief plus a fresh August 2026 evidence sweep, and it deliberately contradicts the brief in two places: `llms.txt` and JSON-LD are demoted from pillars to Tier 3 / Tier 2 respectively, because the strongest available studies show no citation effect from either. What the brief got right is kept and sharpened — the island test, atomic answers, question headings, and fan-out coverage all survive, now with their mechanism (position bias and chunk independence) stated so they can be applied rather than copied. The evidence ladder in §2 is the skill's organizing idea and the pack's §15 honesty rule applied to a market that runs on unfalsifiable claims; the dated evidence base exists so no figure in this skill can be repeated without its caveat and its date._
+_v1.0 — version history in CHANGELOG.md_

@@ -2,7 +2,7 @@
 
 *`module-threat-model` reference — read when the run needs it.*
 
-## 6. Regression Targets
+## Regression Targets
 
 **What to test against comes from here; how the test is built and where it lives belongs to `testing-architect` §2.** The pairing rule is one-directional: the test must **fail against the unpatched code**. A security test that passes before the fix is asserting the happy path with a scary name. Name the test by the attack, not by the fix.
 

@@ -2,7 +2,7 @@
 
 *`security-architect` reference — read when the run needs it.*
 
-## 2. Evidence Base *(dated — re-verify before citing, Constraints 1)*
+## Evidence Base *(dated — re-verify before citing, Constraints 1)*
 
 Gathered August 2026.
 

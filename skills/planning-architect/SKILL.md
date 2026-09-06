@@ -1,6 +1,6 @@
 ---
 name: planning-architect
-description: Turn a refined feature idea (or a Deep-Dive Execution Prompt from brainstorming-planner) into an exhaustive implementation plan. Use when the user asks to plan a feature, or before any non-trivial change. Produces a fixed-shape markdown plan with files to modify and create, reused utilities, design-system notes, per-step model-tier routing, required tests sourced from testing-architect, visual-change tags, resolved verification commands, and a confirmation gate. Includes the change-propagation surface protocol for shared fields, public APIs, and external origins. Stack-agnostic — resolves commands and conventions from the Project Profile. Writes no code.
+description: Use to turn a refined idea or Deep-Dive Execution Prompt into an implementation plan before any non-trivial change. Produces the fixed-shape plan — files, reused utilities, direction brief and design notes, [VISUAL]/[SEC]/[A11Y] tags, tests from testing-architect, per-step model routing, real verification commands, a confirmation gate. Writes no code.
 argument-hint: "[pasted deep-dive prompt, feature, or story]"
 disable-model-invocation: true
 ---
@@ -8,23 +8,17 @@ disable-model-invocation: true
 # Skill: Planning Architect — Plan Author
 
 > **Apply Guidelines Skill** — load the `guidelines-meta` skill before proceeding.
-> **Modifiers** — trailing plain-language instructions ("tests later", "skip gates", "fix the findings", "proceed") are interpreted per **Guidelines §19**. A modifier narrows scope; anything skipped is named in the output, and none of them unlock git.
-
-**Role:** Lead Architect. Translate a Deep-Dive Execution Prompt (or a direct request) into an exhaustive, project-aware implementation plan.
-**Trigger:** User pastes a Deep-Dive Execution Prompt and says "Plan this" / "Execute Planning Architect."
-**Output:** A markdown plan document in the fixed shape at `${CLAUDE_SKILL_DIR}/references/plan-template.md`.
-**Portability:** Pure procedural methodology. No harness-specific tools. Every command in the emitted plan is resolved from the **Project Profile** (Guidelines §5) — the plan states real commands, never placeholders and never invented ones.
 
 ---
 
 ## Operational Constraints (Strict)
 
 1. **No code is written.** This skill produces a plan only.
-2. **Git and golden-file guards are enforced by the plugin's PreToolUse hook**, not merely stated here (Guidelines §9, §10). Any git command that writes — and any `gh` command that publishes — is **denied by the runtime**, as is `--no-verify` and any snapshot-update command. Read-only inspection stays open. Files stay unstaged and visual diffs stay the user's to review. Restate the guard inside the plan output too, and defer golden updates to a manual final stage.
+2. **Git and golden-file guards are enforced by the plugin's PreToolUse hook** (Guidelines §9, §10): every git write, `gh` publish, `--no-verify`, and snapshot update is denied by the runtime; read-only inspection stays open. Restate the guard inside the plan output too, and defer golden updates to a manual final stage.
 3. **No scope creep.** Every plan item traces to a stated goal; if it doesn't, drop it or push back to the user.
 4. **Confirmation gate is non-negotiable.** The plan ends awaiting approval — implementation never starts inside this skill.
 5. **Tests sourced from Testing Architect.** Fill every `Tests:` line using the `testing-architect` skill. Do not invent ad-hoc test plans.
-6. **UI steps sourced from Design Architect.** Any step with a user-facing surface names its visitor mode and the design-system components used, per the `design-architect` skill.
+6. **UI steps sourced from Design Architect.** Any step with a user-facing surface names its visitor mode, its direction brief (structure · palette anchor · type pairing · signature moment), and the design-system components used, per the `design-architect` skill.
 7. **Security sourced from Security Architect.** Any step that accepts untrusted input, changes authorization, touches secrets or storage, or adds a dependency names its trust boundary and carries a `[SEC]` tag, per the `security-architect` skill. A feature that crosses no boundary says so explicitly.
 8. **Accessibility sourced from Accessibility Architect.** Any step with an interactive surface names its keyboard map and its accessible name/role, and carries an `[A11Y]` tag, per the `accessibility-architect` skill.
 9. **Per-step model routing is mandatory.** Every step declares a `Model:` line so the user can switch tiers between steps and save tokens.
@@ -46,7 +40,7 @@ Every plan addresses each of these explicitly:
 8. **Grey paths planned, not discovered** — loading, empty, error, offline, timeout, permission-denied, and partial-failure states are plan steps with their own tests, not afterthoughts.
 9. **Token economy via model tiering** — assign the cheapest tier that does the step well (§Model Tier Routing).
 10. **Change-propagation surface** — see the protocol below. This is the single highest-value section of any plan that touches shared shape.
-11. **Trust boundaries mapped, not reviewed later** — where untrusted data enters, where privilege changes, where data leaves. Each crossing names its control and where that control is enforced (`security-architect` §2). The cheapest moment to place an ownership check is before the data access is designed without one.
+11. **Trust boundaries mapped, not reviewed later** — where untrusted data enters, where privilege changes, where data leaves. Each crossing names its control and where that control is enforced (`module-threat-model` → `references/trust-boundaries.md`). The cheapest moment to place an ownership check is before the data access is designed without one.
 12. **The accessible contract decided with the interaction** — keyboard map, focus destination on open and on close, and what gets announced (`module-operability-floor` §2). Focus architecture and route announcements produce **zero** automated violations, so a plan is the only place they get caught.
 
 ---
@@ -58,7 +52,7 @@ Every plan addresses each of these explicitly:
 | `${CLAUDE_SKILL_DIR}/references/plan-template.md` | Phase 3 — the fixed plan shape every downstream implementer parses. |
 | `${CLAUDE_SKILL_DIR}/references/model-routing.md` | Assigning a `Model:` line per step. The tier table and the switching rules. |
 | `module-propagation` | Whenever the plan touches shared shape, a public API, or an external origin. |
-| `module-threat-model` | `[SEC]` steps — §2 produces the plan's Trust Boundaries table. |
+| `module-threat-model` | `[SEC]` steps — its `references/trust-boundaries.md` produces the plan's Trust Boundaries table. |
 | `module-operability-floor` | `[A11Y]` steps — §2 produces the plan's Accessibility Contract. |
 
 ---
@@ -136,4 +130,4 @@ Do **not** invoke the Implementing Skill. Do **not** start writing code. Wait.
 
 ---
 
-_Skill Version: v2.0 — Genericized: all commands now resolve from the Project Profile (Guidelines §5) and appear as real values in the emitted plan; framework-specific mandates (utility-CSS-first, one component library, one framework's architecture) replaced by "the project's committed conventions"; changelog and contract docs read from profile paths. The field-change propagation surface is generalized into a category table covering shared fields, public APIs, and external origins, with the grep-vs-semantic-site distinction preserved. Model tiers renamed Light/Standard/Heavy with Claude models as the current mapping. Adds a Design Notes plan section citing Design Architect, grey paths as required plan steps with tests, and the no-invented-commands rule. Prior v1.7 — changelog + API doc in reconnaissance; v1.6–v1.5 — YAGNI consideration, field-change propagation surface; per-step model tier routing_
+_v2.0 — version history in CHANGELOG.md_

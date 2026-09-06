@@ -22,6 +22,7 @@
 - `<path>` — <existing artifact being extended>
 
 ## Design Notes  *(omit if no user-facing surface)*
+- Direction brief: <structure · palette anchor · type pairing · signature moment — from design-architect §2>
 - Visitor mode: <Persuade | Operate | Read | Experience>
 - Design-system components used: <names>
 - Custom styling justification (if any): <reason>

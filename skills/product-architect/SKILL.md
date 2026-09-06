@@ -1,6 +1,6 @@
 ---
 name: product-architect
-description: Define what to build and cut it into shippable pieces. Use to split an approved plan or a too-big feature into independently shippable slices with acceptance criteria (decompose — the common case), to refine one feature into milestones (deep-dive), or, upstream of any code, to write a product brief, a PRD, or a research and interview plan. Covers vertical slicing over horizontal, INVEST, the slice ceiling that forces a second cut, Gherkin acceptance criteria, prioritized scope with explicit non-goals, non-functional requirements, and the Mom Test discipline for user research. Every number is sourced or labelled a hypothesis — a PRD's invented metric becomes a fact nobody can trace. Stack-agnostic; cites documentation-architect for the writing floor and hands each slice back to planning or implementing.
+description: Use to cut an approved plan into shippable vertical slices (decompose), refine one feature into milestones (deep-dive), or — upstream of code — write a brief, PRD, or research plan. Enforces the slice ceiling, INVEST, and Gherkin acceptance criteria. Every number is sourced or labelled a hypothesis.
 argument-hint: "[the plan, feature, or idea] [+ mode: decompose | deep-dive | prd | brief | research]"
 disable-model-invocation: true
 ---
@@ -8,13 +8,8 @@ disable-model-invocation: true
 # Skill: Product Architect — Define It, Then Cut It Small
 
 > **Apply Guidelines Skill** — load the `guidelines-meta` skill before proceeding.
-> **Modifiers** — trailing plain-language instructions ("decompose", "prd", "proceed", "skip the research") are interpreted per **Guidelines §19**. A modifier narrows scope; anything skipped is named in the output, and none of them unlock git.
 > **Writing floor:** every artifact this skill emits is a document. Apply `module-writing-floor` to it — structure, active voice, no time estimates, no invented numbers. This skill owns *what the document says*; that module owns *how it reads*.
 > **Profile section owned:** §Product Definition (Guidelines §5). On first use, if it is missing or `TODO`, **read the repo first** — the tracker is in the issue templates and PR links, the priority vocabulary is in the existing issues, the acceptance-criteria format is in the last few tickets, the slice ceiling is visible in the size of merged PRs. Then fill it per **Guidelines §5.1–§5.4**.
-
-**Role:** Technical product owner. Turn intent into work that can actually be finished.
-**Trigger:** "Use Product Architect" / "split this plan" / "write a PRD" / any request to size, slice, or specify work.
-**Portability:** No stack assumptions. Trackers, point scales, and priority vocabularies are resolved from the **Project Profile** (Guidelines §5), never assumed.
 
 **The two failures this exists to prevent:**
 1. **Work arrives at implementation too big to finish.** It becomes a branch that lives for three weeks, cannot be reviewed in one sitting, cannot be shipped in halves, and rots against main. Nothing upstream catches this, because a large plan looks exactly like a good plan.
@@ -44,7 +39,7 @@ The upstream path cannot be moved downstream, and pretending otherwise is how sp
 3. **Non-goals are a deliverable, not a courtesy.** Every artifact names what it is *not* doing. Scope containment is most of the value here; a spec with no `Won't` section has not been scoped.
 4. **Slices are vertical.** Every slice delivers observable value end to end. "All the backend, then all the frontend" is not two slices — it is one slice and a half-finished branch (Guidelines §12).
 5. **Never invent a persona, quote, or user need.** If discovery hasn't happened, the persona is an assumption with a name on it, and the artifact says so.
-6. **This skill writes documents and tickets, never code.** **Git and golden-file guards are enforced by the plugin's PreToolUse hook**, not merely stated here (Guidelines §9, §10). Any git command that writes — and any `gh` command that publishes — is **denied by the runtime**, as is `--no-verify` and any snapshot-update command. Read-only inspection stays open. Files stay unstaged and visual diffs stay the user's to review.
+6. **This skill writes documents and tickets, never code.** **Git and golden-file guards are enforced by the plugin's PreToolUse hook** (Guidelines §9, §10): every git write, `gh` publish, `--no-verify`, and snapshot update is denied by the runtime; read-only inspection stays open.
 
 ---
 
@@ -90,16 +85,4 @@ Run the six-axis self-critique (Guidelines §18) first; anything under 3 gets on
 
 ---
 
-## Relationship to Other Skills
-
-- **Guidelines (Meta)** — §2 (no padding, no ceremonial tickets), §11 (tests ship with code, never a separate slice), §12 (no half-finished slices), §15 (the sourcing rule), §17 (cap lists, one next action).
-- **Brainstorming Planner** — upstream sibling. It pressure-tests whether the idea is right; this writes it down and sizes it. Its grey paths feed the PRD and become slices.
-- **Planning Architect** — **the usual input.** It produces the technical plan; `decompose` cuts that plan into shippable slices along seams the plan already found.
-- **Implementing Architect** — the usual output. One run per slice, carrying its acceptance criteria.
-- **Documentation Architect** — owns the writing floor for everything emitted here, and turns a shipped PRD's contract into user-facing docs.
-- **Testing Architect** — acceptance criteria are the source for the test cases; it owns which layer each one lands in.
-- **Design Architect** — any slice with a user-facing surface names its visitor mode and the design-system components, decided here rather than during implementation.
-
----
-
-_Skill Version: v1.0 — New skill. Fills the pack's last structural gap: `planning-architect` accepted a story as input but nothing produced one, so cutting large work into shippable pieces happened only in the user's head. Positioned **after** the plan for its primary modes, because slicing follows the seams a plan has already found — cutting earlier produces stories that fight the architecture. `brief`, `prd`, and `research` remain upstream and say so when invoked late, rather than pretending a retro-spec is a spec. Consolidates five prior standalone prompts (PRD, product brief, user story generation, market research + competitive analysis, user research script, feature deep dive). The sourcing rule in §Constraints 1–2 is the deliberate correction to those prompts, whose "data-backed" framing invited exactly the confident fabrication Guidelines §15 forbids._
+_v1.0 — version history in CHANGELOG.md_

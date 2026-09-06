@@ -1,6 +1,6 @@
 ---
 name: implementing-architect
-description: Execute an approved plan and validate it against the project's quality pipeline. Use when implementing a plan, or when a change must clear lint, type-check, tests, build, e2e, visual, and accessibility gates before review. Includes the Change Propagation Protocols for shared data shape, public APIs and test doubles, and external origins and configuration — the mirror sites automated gates do not catch. Stack-agnostic — resolves every command from the Project Profile. Never stages, commits, pushes, or auto-updates golden files.
+description: Use to execute an approved plan. Implements only what the plan says, authors the paired tests, runs every profile gate in one batch, then the Change Propagation Protocols (shared shape, public API and test doubles, external origins) that a green pipeline cannot prove. Never stages, commits, pushes, or auto-updates golden files.
 argument-hint: "[plan, story, or findings to fix] [+ modifiers: defer tests | skip gates]"
 disable-model-invocation: true
 allowed-tools: Bash(bash ${CLAUDE_SKILL_DIR}/check-quality.sh:*)
@@ -9,12 +9,7 @@ allowed-tools: Bash(bash ${CLAUDE_SKILL_DIR}/check-quality.sh:*)
 # Skill: Implementing Architect — Implementation & Quality Validator
 
 > **Apply Guidelines Skill** — load the `guidelines-meta` skill before proceeding.
-> **Modifiers** — trailing plain-language instructions ("tests later", "skip gates", "fix the findings", "proceed") are interpreted per **Guidelines §19**. A modifier narrows scope; anything skipped is named in the output, and none of them unlock git.
-> **Profile section owned:** §Conventions and §Guardrails (Guidelines §5). Fill it on first use per **Guidelines §5.1–§5.4** — read the repo first, ask only what the code cannot say, write it back. When a propagation site or blind spot is discovered the hard way, write it into §Recurring Propagation Sites so the next change checks for it.
-
-**Role:** Implementation & Quality Validator.
-**Purpose:** Execute an approved plan against the project's automated quality pipeline. Surface failures; never bypass them.
-**Portability:** The procedure (input contract → ordered gates → manual visual review → summary) is universal. Every command is resolved from the **Project Profile** (Guidelines §5) — never assumed, never invented.
+> **Profile section owned:** §Conventions and §Guardrails (Guidelines §5.1–§5.4). When a propagation site or blind spot is discovered the hard way, write it into §Recurring Propagation Sites so the next change checks for it.
 
 ---
 
@@ -33,9 +28,9 @@ If invoked without one:
 
 ## Core Operational Constraints (Strict)
 
-1. **Git and golden-file guards are enforced by the plugin's PreToolUse hook**, not merely stated here (Guidelines §9, §10). Any git command that writes — and any `gh` command that publishes — is **denied by the runtime**, as is `--no-verify` and any snapshot-update command. Read-only inspection stays open. Files stay unstaged and visual diffs stay the user's to review. The update command stays user-only (§Manual Visual Review).
+1. **Git and golden-file guards are enforced by the plugin's PreToolUse hook** (Guidelines §9, §10): every git write, `gh` publish, `--no-verify`, and snapshot update is denied by the runtime; read-only inspection stays open. The update command stays user-only (§Manual Visual Review).
 2. **Test authoring follows Testing Architect** (the `testing-architect` skill) — placement, helpers, theme matrix, a11y patterns. No ad-hoc test setups.
-3. **UI work follows Design Architect** (the `design-architect` skill) — `module-craft-floor` and that skill's refuse list apply before a UI change is called done.
+3. **UI work follows Design Architect** (the `design-architect` skill) — its §2 direction brief is written before the markup, and `module-craft-floor` and its refuse list apply before a UI change is called done.
 4. **`[SEC]` steps follow Security Architect** (the `security-architect` skill, `harden` mode) — the sink is built correctly the first time: parameterized, encoded at the sink, authorization checked at the data access, error path failing **closed**. Never fix a finding by weakening a check.
 5. **`[A11Y]` steps follow Accessibility Architect** (the `accessibility-architect` skill, `build` mode) and `module-operability-floor` — native element first, and every overlay moves focus in, traps it, closes on Escape, and **returns focus to the trigger**. A green `<a11y>` gate does not cover any of that.
 6. **Every gate in the profile must pass** — lint, types, tests + coverage, build, e2e, visual, a11y, audit, whichever exist. A gate that doesn't exist is `n-a`; a gate that fails is reported, never skipped.
@@ -79,7 +74,7 @@ If the change fits none of the three shapes, say so in one line and move on.
 - [ ] If a public API changed: **Protocol B** run — every spy list, mock class, and inline stub updated; tests asserting the old collaborator fixed.
 - [ ] If a new external origin or config value was introduced: **Protocol C** run — every declaration site updated, verified in a real served build (visual gates are blind to this).
 - [ ] Tests authored per Testing Architect.
-- [ ] UI-visible changes cleared the Design Architect craft floor and refuse list.
+- [ ] UI-visible changes cleared the Design Architect craft floor and refuse list, and match the direction brief.
 - [ ] `[SEC]` steps built per Security Architect — sink parameterized or encoded, authorization at the data access, error paths fail closed, no secret in a tracked file, and every fix carries a regression test that fails without it.
 - [ ] `[A11Y]` steps built per Accessibility Architect — keyboard-reachable with a visible focus indicator, overlays return focus to the trigger, route and status changes announced. Verified by walking it, not by the green `<a11y>` gate.
 - [ ] Every gate in the profile run and recorded per `module-gate-battery`; no gate skipped, no failure hidden.
@@ -98,4 +93,4 @@ If the change fits none of the three shapes, say so in one line and move on.
 
 ---
 
-_Skill Version: v4.0 — Genericized: every command resolved from the Project Profile (Guidelines §5) and printed as a real value in the summary; the summary template became a gate table led by status + next action per the reply protocol. The three propagation protocols are consolidated and generalized — A (shared data shape) now covers any schema/form/serialization stack, B (public API & test doubles) is stated in terms of hand-maintained name lists rather than one spy framework, C (external origins & configuration) generalizes the CSP-in-two-places rule to any duplicated policy or env declaration, keeping the "consistently broken renders identically, so visual gates pass" blind spot. Adds a Design Architect step for UI work, bounded-passes ceiling, and an explicit trivial-change exception to the plan gate. Prior v3.6 — service-API + CSP protocols added, field protocol reframed field-agnostic; v3.5 — YAGNI + one-liners in the procedure_
+_v4.0 — version history in CHANGELOG.md_

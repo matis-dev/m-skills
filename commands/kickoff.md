@@ -7,7 +7,7 @@ Run `brainstorming-planner` in **Kickoff** mode. The mode is already chosen — 
 
 1. Read `${CLAUDE_PLUGIN_ROOT}/skills/brainstorming-planner/SKILL.md` — the Active Discovery protocol and its guardrails apply in full.
 2. Read `${CLAUDE_PLUGIN_ROOT}/skills/brainstorming-planner/references/kickoff.md`.
-3. Load the `guidelines-meta` skill, and `module-threat-model` §2 once the idea is real enough to have a trust boundary.
+3. Load the `guidelines-meta` skill, and `module-threat-model` → `references/trust-boundaries.md` once the idea is real enough to have a trust boundary.
 
 Target: $ARGUMENTS
 

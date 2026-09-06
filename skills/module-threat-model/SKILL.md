@@ -12,7 +12,7 @@ user-invocable: false
 
 ---
 
-## 2. Read One Section, Not the File
+## Read One Section, Not the File
 
 §1 above is the shared vocabulary and is short on purpose. Everything else is a reference file — read the one this run needs.
 

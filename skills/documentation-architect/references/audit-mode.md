@@ -2,7 +2,7 @@
 
 *`documentation-architect` reference — read when the run needs it.*
 
-## 6. Audit Mode — Produce a Friction Log, Not a Verdict
+## Audit Mode — Produce a Friction Log, Not a Verdict
 
 Triggered by "audit", "review the docs", or a report that someone got stuck. **Read-only: write nothing.** The output is evidence, not opinion.
 

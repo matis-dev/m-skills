@@ -191,7 +191,7 @@ Use these verbatim. Do not re-derive them, and never invent a command that is no
 ${GATES}
 \`\`\`
 
-A role showing \`n-a\` has no gate in this project — say so and move on (Guidelines §5.3).
+A role showing \`n-a\` has no gate in this project — say so and move on (Guidelines §5 step 3, §15).
 
 ## Enforced, not advisory
 

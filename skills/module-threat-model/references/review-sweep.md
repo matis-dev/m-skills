@@ -2,7 +2,7 @@
 
 *`module-threat-model` reference — read when the run needs it.*
 
-## 4. The Review Sweep
+## The Review Sweep
 
 Each item is yes/no/n-a; any "yes" is a finding with severity. Sections with no findings are explicitly noted clean.
 

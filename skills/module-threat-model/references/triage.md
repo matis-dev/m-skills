@@ -2,7 +2,7 @@
 
 *`module-threat-model` reference — read when the run needs it.*
 
-## 5. Triage — Reachability Before Severity
+## Triage — Reachability Before Severity
 
 When an advisory, scanner finding, or report arrives:
 

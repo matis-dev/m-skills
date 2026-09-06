@@ -2,7 +2,7 @@
 
 *`documentation-architect` reference — read when the run needs it.*
 
-## 5. The Public Surface — Reference and Docstrings
+## The Public Surface — Reference and Docstrings
 
 Reference documentation covers the **contract**, not the implementation. It is exempt from Guidelines §13's minimal-comments rule for exactly one reason: §13 governs inline comments aimed at a maintainer reading the body, while a docstring on an exported symbol is the interface's own documentation, aimed at a caller who will never open the file. Inside a function body, §13 still applies in full.
 

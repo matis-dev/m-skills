@@ -8,7 +8,7 @@ user-invocable: false
 
 **Loaded by:** `design-architect` · `code-review-architect` · `accessibility-architect` · `maintenance-architect` · `search-optimization-architect`. Read it whenever a run judges a rendered surface; do not restate its content in a skill file.
 
-**What this is:** the floor a user-facing surface cannot fall below, regardless of direction, brief, or framework. It holds the *mechanics*; it never picks the direction — that is `design-architect`'s §1 mode selection and the brief.
+**What this is:** the floor a user-facing surface cannot fall below, regardless of direction, brief, or framework. It holds the *mechanics*; it never picks the direction — that is `design-architect`'s §1 mode and §2 direction.
 
 **How to run it:** on the **built result**, in one batched inspection round covering every viewport and every theme the project ships. Read the *computed* values; do not trust the source. Two rounds maximum (Guidelines §16).
 

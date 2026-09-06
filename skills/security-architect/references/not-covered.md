@@ -2,7 +2,7 @@
 
 *`security-architect` reference — read when the run needs it.*
 
-## 3. What This Skill Does Not Cover
+## What This Skill Does Not Cover
 
 Named rather than faked (Guidelines §15):
 

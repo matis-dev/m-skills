@@ -65,7 +65,7 @@ Everything below is **repo-wide** unless a package overrides it.
 *Owner: SessionStart bootstrap · auto-detected. A role with no command is `n-a`, never invented.*
 
 > **This table is machine-read.** `check-quality.sh` parses these rows and treats them as the authority
-> (Guidelines §5 rule 1), so keep the shape: one row per role, the role in the first cell, the command in
+> (Guidelines §5 step 1), so keep the shape: one row per role, the role in the first cell, the command in
 > the second. A cell left blank, set to `n-a`, or still holding a `<placeholder>` falls through to
 > auto-detection rather than becoming an invented command — so a half-filled table is safe.
 
@@ -105,13 +105,16 @@ Adjust if this project's order differs. Cheap-and-fast first; the slow gate that
 *Owner: `design-architect` · filled at the first UI work. If the project has no interface yet, these are **established** — decided once and then treated as committed — rather than detected.*
 
 - **Does this project have a UI?** `<yes | no — n-a the rest | not yet: pending first screen>`
-- **Visual world:** `<committed look, or "none yet — establish on first screen">`
-- **Design tokens live in:** `<file//path | none yet>`
+- **Direction brief:** `<the /* direction … */ block from design-architect §2, verbatim | none yet — establish on first screen>`
+- **Structure family in use:** `<from structures.md — e.g. master-detail for app screens, split-column for marketing>` — the next surface picks a different one
+- **Palette:** `<anchor hue · paper band (light | dim | dark) · what the accent owns>` — e.g. `copper · light, warm-tinted · the primary action`
+- **Type pairing:** `<display / body · tone>` — e.g. `Fraunces / Inter · editorial`
+- **Signature-moment convention:** `<what the one authored moment is spent on>` — e.g. `the live figure, never a decorative animation`
+- **Design tokens live in:** `<file/path | none yet>`
 - **Component vocabulary:** `<library, or the project's own primitives>`
 - **Themes shipped:** `<light | dark | both | named themes>`
 - **Default visitor mode:** `<Persuade | Operate | Read | Experience>` — per surface, this is just the common case
-- **Type / colour decisions worth not re-litigating:** `<display face, body face, accent, anything already argued about>`
-- **Deliberate exceptions to the refuse list:** `<pattern + the brief that earned it>`
+- **Refuses:** `<the 2–3 defaults this world does not earn>`; **deliberate exceptions to the refuse list:** `<pattern + the brief that earned it>`
 
 ## Security
 
@@ -194,7 +197,7 @@ Anything not listed does not exist in this project — don't propose edits to it
 
 - **Markup flavour:** `<CommonMark | GFM | reStructuredText | AsciiDoc | MDX>`
 - **Docs site / generator:** `<none — docs live in the repo | the generator + its build command | pending: first docs site>`
-- **Docs build / link check command:** `<command>` — `n-a` if none. Never invented (Guidelines §5.3).
+- **Docs build / link check command:** `<command>` — `n-a` if none. Never invented (Guidelines §5 step 3, §15).
 - **Primary readers, in order:** `<end users | integrators | contributors | operators>` — the first one is who the README serves.
 - **Docstring convention on exported symbols:** `<JSDoc/TSDoc | Google-style | numpydoc | rustdoc | godoc | none — n-a the rest>`
 - **Generated reference?** `<no | yes — from <source> by <command>, output at <path>; never hand-edit the output>`

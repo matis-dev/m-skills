@@ -1,6 +1,6 @@
 ---
 name: rolling-history
-description: Record what shipped in the project's changelog and produce a copy-paste commit brief. Use when the user asks to finish the session and log changes, or wants the changelog updated. Keeps the project's technical baseline in sync with current state, assesses whether README, architecture, deployment, API, or test docs also need surgical edits (handing the writing to documentation-architect), and emits a commit message valid against the project's own commit convention. Runs only after quality gates pass and visual diffs are manually approved. Stack-agnostic — resolves doc paths and commit rules from the Project Profile. Never executes any git command.
+description: Use at the end of a session to update the changelog and produce a commit brief as text. Assesses whether README, architecture, deployment, API, or test docs need a surgical edit and hands the writing to documentation-architect. Runs after gates pass and visual diffs are approved. Never executes git.
 argument-hint: "[what shipped, if not obvious from the diff] [+ modifiers: skip gates]"
 disable-model-invocation: true
 
@@ -9,14 +9,9 @@ disable-model-invocation: true
 # Skill: Rolling History (Continuous Documentation)
 
 > **Apply Guidelines Skill** — load the `guidelines-meta` skill before proceeding.
-> **Modifiers** — trailing plain-language instructions ("tests later", "skip gates", "fix the findings", "proceed") are interpreted per **Guidelines §19**. A modifier narrows scope; anything skipped is named in the output, and none of them unlock git.
 > **Profile section owned:** §Documentation Targets and §Commit Convention (Guidelines §5). §Documentation Standards belongs to `documentation-architect` — read it, don't fill it. Fill it on first use per **Guidelines §5.1–§5.4** — read the repo first, ask only what the code cannot say, write it back. If the repo has no changelog or no commit history to infer from, ask which convention to adopt rather than picking one silently.
 
-**Role:** Technical Archivist.
-**Purpose:** Bridge code diffs and human-readable project history. Keep the changelog a living, accurate dashboard of current state — not an append-only log of intentions.
-**Trigger:** "Use Rolling History" / "Finish session and log changes."
 **Run only after:** the Implementing Skill's gates have passed **and** the user has manually reviewed (and approved or updated) any failed visual baselines. This skill records what **shipped** — never what's still in flight.
-**Portability:** Doc paths, changelog format, and commit rules all come from the **Project Profile** (Guidelines §5). Never assume a file exists; never create a doc the project doesn't have.
 
 ---
 
@@ -103,7 +98,7 @@ Display in chat. **Never run any git command.** This is text the user copies.
 
 ## Guardrails
 
-- **Git and golden-file guards are enforced by the plugin's PreToolUse hook**, not merely stated here (Guidelines §9, §10). Any git command that writes — and any `gh` command that publishes — is **denied by the runtime**, as is `--no-verify` and any snapshot-update command. Read-only inspection stays open. Files stay unstaged and visual diffs stay the user's to review. Read-only inspection (`diff`, `log`, `status`) is fine and is what this skill runs. It produces commit text; the user runs the command.
+- **Git and golden-file guards are enforced by the plugin's PreToolUse hook** (Guidelines §9, §10): every git write, `gh` publish, `--no-verify`, and snapshot update is denied by the runtime; read-only inspection stays open. Read-only inspection (`diff`, `log`, `status`) is fine and is what this skill runs. It produces commit text; the user runs the command.
 - **Never invent history.** If a change's purpose is unclear, ask. Fabricated rationale in a changelog outlives everyone who could correct it (Guidelines §15).
 - **Never let the baseline drift.** It is a current-state summary, not an archive.
 - **Never pad the doc-impact assessment.** Most sessions reach no secondary doc; saying so is the correct answer, not a lazy one.
@@ -113,4 +108,4 @@ Display in chat. **Never run any git command.** This is text the user copies.
 
 ---
 
-_Skill Version: v2.0 — Genericized: Step 0 resolves the changelog path, doc set, and commit convention from the Project Profile (or from the repo's own config and history) instead of hardcoding one project's paths and rules; Step 2 mirrors whatever structure the changelog already uses rather than prescribing one file's table shape; Step 3's doc-impact set became a reaches-it-when table driven by the profile, with the multi-language/duplicated-copy rule generalized. Subject-case enforcement now reads the project's rule instead of assuming sentence-case, with the assumption kept only as a worked example. Adds the no-invented-history rule and an explicit ask-before-creating-a-doc guard. Prior v1.5 — single changelog path + dev-log table shape + five doc-impact targets; v1.4 — doc-impact assessment added; v1.3 — sentence-case enforcement, absolute git prohibition_
+_v2.0 — version history in CHANGELOG.md_

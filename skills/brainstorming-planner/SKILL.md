@@ -1,6 +1,6 @@
 ---
 name: brainstorming-planner
-description: Refine a feature idea before any code is written, or kick off a brand-new project. Use when the user wants to brainstorm, challenge assumptions, explore alternatives, pressure-test a concept, or start a project from nothing. Runs Socratic probing, SCAMPER, 5 Whys, inversion, and error-first grey-path design (offline, timeouts, empty and loading states, partial failure), then emits a Deep-Dive Execution Prompt to hand off to the planning-architect skill. Stack-agnostic — resolves the project's conventions from the Project Profile.
+description: Use to refine a feature idea before any code, or to kick off a project from nothing. Challenges assumptions, forces the grey paths (offline, timeout, empty, partial failure), and emits a Deep-Dive Execution Prompt for planning-architect. Kickoff mode routes each foundational decision to the skill that owns it.
 argument-hint: "[feature or idea] [+ mode: kickoff for a new project]"
 disable-model-invocation: true
 ---
@@ -8,12 +8,8 @@ disable-model-invocation: true
 # Skill: Brainstorming & Strategic Planner
 
 > **Apply Guidelines Skill** — load the `guidelines-meta` skill before proceeding.
-> **Modifiers** — trailing plain-language instructions ("kickoff", "proceed", "skip the prompt") are interpreted per **Guidelines §19**. A modifier narrows scope; anything skipped is named in the output, and none of them unlock git.
 
-**Role:** Senior Product Architect, Strategic Consultant, & Inquisitive Mentor
-**Core Objective:** Facilitate high-level dialogue to refine feature ideas, challenge assumptions, and suggest improvements before execution
 **Downstream consumer:** The Deep-Dive Execution Prompt this skill emits is consumed by the `planning-architect` skill. Paste the emitted prompt into a fresh session running that skill — or into a stronger-model session running it.
-**Portability:** Pure dialogue methodology. No tool calls, no commands. The only project-specific input is the **Project Profile** (Guidelines §5), read once so the conversation stays grounded in the stack that actually exists.
 
 ---
 
@@ -34,7 +30,7 @@ If neither exists, **this is probably a new project — switch to Kickoff Mode b
 |---|---|
 | `${CLAUDE_SKILL_DIR}/references/kickoff.md` | **Kickoff mode** — a project that does not exist yet. The greenfield entry point: what is being built, the first slice, and routing each foundational decision to the skill that owns it. |
 | `${CLAUDE_SKILL_DIR}/references/deep-dive-prompt.md` | Emitting the handoff. The Deep-Dive Execution Prompt template, filled from the profile and the conversation. |
-| `module-threat-model` §2 | The trust-boundary question, once the idea is real enough to have one. |
+| `module-threat-model` → `references/trust-boundaries.md` | The trust-boundary question, once the idea is real enough to have one. |
 
 ---
 
@@ -69,7 +65,7 @@ The same is true of the two questions above. If the surface is interactive, name
 
 ## Strict Guardrails
 
-1. **Git and golden-file guards are enforced by the plugin's PreToolUse hook**, not merely stated here (Guidelines §9, §10). Any git command that writes — and any `gh` command that publishes — is **denied by the runtime**, as is `--no-verify` and any snapshot-update command. Read-only inspection stays open. Files stay unstaged and visual diffs stay the user's to review. At this stage that also means never *proposing* a git step: work stays on the active branch, and no plan you emit suggests a new one.
+1. **Git and golden-file guards are enforced by the plugin's PreToolUse hook** (Guidelines §9, §10): every git write, `gh` publish, `--no-verify`, and snapshot update is denied by the runtime; read-only inspection stays open. At this stage that also means never *proposing* a git step: work stays on the active branch, and no plan you emit suggests a new one.
 2. **Reuse as DNA** — new features are composed from existing components, services, and patterns. Cite them by path when you propose them.
 3. **No Over-Engineering (YAGNI)** — only what was asked; no speculative abstractions or future-proofing the user didn't request. Favor the simplest implementation that works (Guidelines §2).
 4. **Tests planned via Testing Architect** — when the prompt mentions tests, defer the *how* to the `testing-architect` skill (cited by the downstream Planning Architect). Same deferral for security and accessibility: surface the boundary and the assistive path here, and let `security-architect` and `accessibility-architect` own the answers downstream.
@@ -90,4 +86,4 @@ After the session, provide — five bullets maximum per section (Guidelines §17
 
 ---
 
-_Skill Version: v2.0 — Genericized: project-specific stack/UI mandates replaced by a Project Profile read (Guidelines §5); the emitted prompt now carries resolved stack, gates, and reuse paths as filled placeholders instead of hardcoded framework rules. Adds a pre-brainstorm history skim, Inversion + cost-of-being-wrong to the critique frameworks, grey paths promoted to a required output block, explicit non-goals as a first-class section, a Design Architect hand-off for UI-facing ideas, and the no-invented-facts guardrail. Prior v1.8 — YAGNI + one-liner preference named in guardrails and the emitted prompt; handoff target named; Guidelines and Testing Architect cited_
+_v2.0 — version history in CHANGELOG.md_

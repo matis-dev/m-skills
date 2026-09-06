@@ -1,6 +1,6 @@
 ---
 name: debugging-architect
-description: Diagnose a defect without spiralling. Use when something is broken, failing, flaky, slow, or behaving unexpectedly, and the cause is not yet known. Covers reproduction first, narrowing before hypothesising, one falsifiable hypothesis at a time, a bounded pass ceiling that forces a stop-and-reassess, the regression test written before the fix, and turning the finding into a permanent guard. Stack-agnostic — resolves commands from the Project Profile. For production incidents it restores service before investigating.
+description: Use when something is broken, failing, flaky, or slow and the cause is not yet known. Reproduce, narrow, then one falsifiable hypothesis at a time under a three-hypothesis ceiling; regression test before the fix; a guard so it cannot recur silently. Produces a fixed-shape Diagnosis. Production incidents restore service first.
 argument-hint: "[symptom or failing test] [+ modifiers: production | flaky | prepare only]"
 disable-model-invocation: true
 ---
@@ -8,12 +8,8 @@ disable-model-invocation: true
 # Skill: Debugging Architect — Diagnosis Without the Spiral
 
 > **Apply Guidelines Skill** — load the `guidelines-meta` skill before proceeding.
-> **Modifiers** — trailing plain-language instructions ("production", "flaky", "just diagnose") are interpreted per **Guidelines §19**. A modifier narrows scope; anything skipped is named in the output, and none of them unlock git.
 > **Profile section owned:** §Guardrails → Known blind spots (Guidelines §5). Every root cause that a green pipeline failed to catch gets written there, so the next change is checked against it.
 
-**Role:** Diagnostician. Find the actual cause, prove it, fix it once, and make it impossible to reintroduce silently.
-**Trigger:** "Use Debugging Architect" / "This is broken" / "Why is this failing?" / a failing test whose cause isn't obvious.
-**Output:** A **Diagnosis** (fixed shape, §Output Format) — reproduction, evidence, root cause, the fix, and the guard that now prevents recurrence.
 
 **Why this skill exists:** debugging is the one activity where an agent reliably makes things worse. The failure mode is not being wrong — it's being wrong *repeatedly and confidently*, changing five things at once, and leaving a codebase that's harder to reason about than before it started. Every rule below exists to stop that.
 
@@ -28,7 +24,7 @@ disable-model-invocation: true
 5. **No speculative fixes.** "This might help" is not a fix. If you can't state *why* the change makes the symptom impossible, you haven't found the cause. Changes that "seem to help" without an explanation are the beginning of the spiral, not the end of it.
 6. **Revert your own probes.** Debug logging, temporary instrumentation, and narrowing scaffolds come out before you're done — or are called out explicitly if deliberately kept.
 7. **Production first, diagnosis second.** If users are affected, `deployment-architect`'s Rollback Mode runs *first*. Restore service, then debug the artifact at leisure. Production is not a debugging environment.
-8. **Git and golden-file guards are enforced by the plugin's PreToolUse hook**, not merely stated here (Guidelines §9, §10). Any git command that writes — and any `gh` command that publishes — is **denied by the runtime**, as is `--no-verify` and any snapshot-update command. Read-only inspection stays open. Files stay unstaged and visual diffs stay the user's to review. `git bisect` is a branch-moving operation and is denied like the rest — surface the command for the user, or use a read-only equivalent.
+8. **Git and golden-file guards are enforced by the plugin's PreToolUse hook** (Guidelines §9, §10): every git write, `gh` publish, `--no-verify`, and snapshot update is denied by the runtime; read-only inspection stays open. `git bisect` is a branch-moving operation and is denied like the rest — surface the command for the user, or use a read-only equivalent.
 
 ---
 
@@ -151,15 +147,4 @@ The step that separates debugging from firefighting. A fix nobody can accidental
 
 ---
 
-## Relationship to Other Skills
-
-- **Guidelines (Meta)** — §16 bounded passes is the load-bearing one here; §15 honesty forbids a confidently-wrong diagnosis; §17's debug-spiral clause is enforced as constraint 3.
-- **Testing Architect** — writes the failing-first regression test. The green-but-lying traps in `module-gate-battery` §3 are frequently the cause when a test "passes but the feature is broken".
-- **Implementing Architect** — its blind-spot list is the first place to look; `module-propagation` applies to fixes exactly as it does to features.
-- **Code Review Architect** — a review finding too subtle to diagnose from the diff comes here; both skills shape findings per `module-findings`.
-- **Deployment Architect** — production incidents roll back *first*; the resulting guard becomes a pre-flight check.
-- **Planning Architect** — if the cause was a wrong assumption in a plan, that's plan feedback, not a code problem.
-
----
-
-_Skill Version: v1.0 — New skill covering the pipeline's largest gap: every other stage assumed the cause was already known. Built around the failure mode agents actually exhibit — being wrong repeatedly and confidently while changing several things at once — so the binding rules are the hard three-hypothesis ceiling (making Guidelines §17's debug-spiral clause enforceable), one falsifiable prediction per pass, no speculative fixes, and no fixing by weakening. Separate disciplines for flaky failures (prove a rate, never retry a race away) and unreproducible reports (ship instrumentation, not a guess). Phase 6 closes the incident→prevention loop the pack previously lacked, writing gate blind spots back to the Project Profile so the next change is checked against what was learned._
+_v1.0 — version history in CHANGELOG.md_

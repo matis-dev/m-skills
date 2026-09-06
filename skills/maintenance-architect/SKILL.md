@@ -1,6 +1,6 @@
 ---
 name: maintenance-architect
-description: Keep a project from rotting. Use for dependency upgrades, security advisories, deprecation warnings, lockfile hygiene, dead code, accumulated suppressions, skipped or flaky tests, and stale documentation. Covers triage by urgency, batching upgrades so a break is attributable, the reversibility rule, what deliberately not to upgrade, and the rot sweep that finds what no gate reports. Stack-agnostic — resolves commands from the Project Profile. Never bundles an upgrade with a refactor.
+description: Use for dependency upgrades, security advisories, deprecations, lockfile hygiene, and the rot sweep (suppressions, skipped tests, dead code, stale docs). Triages by reachability, batches upgrades so a break is attributable, records deliberate non-upgrades in the profile. Never bundles an upgrade with a refactor.
 argument-hint: "[+ modifiers: advisories only | upgrades | rot sweep | prepare only]"
 disable-model-invocation: true
 ---
@@ -8,12 +8,8 @@ disable-model-invocation: true
 # Skill: Maintenance Architect — Dependency Health & Rot Control
 
 > **Apply Guidelines Skill** — load the `guidelines-meta` skill before proceeding.
-> **Modifiers** — trailing plain-language instructions ("advisories only", "rot sweep", "prepare only") are interpreted per **Guidelines §19**. A modifier narrows scope; anything skipped is named in the output, and none of them unlock git.
 > **Profile section owned:** §Guardrails → do-not-touch and pinned-dependency rationale (Guidelines §5). Every deliberate *non*-upgrade gets recorded with its reason, so nobody re-litigates it in six months.
 
-**Role:** Custodian. Keep the project current enough to be safe and boring enough to be predictable.
-**Trigger:** "Use Maintenance Architect" / "What needs upgrading?" / a security advisory / deprecation warnings in the build output / periodic upkeep.
-**Output:** A **Maintenance Report** (fixed shape, §Output Format) — triaged, batched, each batch independently revertible.
 
 **Why this skill exists:** maintenance is the work that is never urgent until it is catastrophic. It falls between building and shipping, so it belongs to nobody and happens never — until a security advisory lands on a dependency four majors behind, and the upgrade that should have taken an afternoon takes a week. This skill makes it a routine with a defined scope instead of an emergency.
 
@@ -26,7 +22,7 @@ disable-model-invocation: true
 3. **Green before, green after — with the same gates.** Establish a passing baseline *first*. Upgrading on top of an already-failing suite means you cannot attribute the failure, and you will blame the upgrade.
 4. **Never upgrade to silence a warning you haven't read.** Deprecation warnings name a migration path. Read it. Bumping the version to make the message go away, without following the migration, defers the break to a worse moment.
 5. **Never weaken to pass.** Not a suppression, not a skip, not a pinned-back transitive to dodge a real incompatibility (Testing Architect constraint 3). A suppression added during maintenance is rot created by rot-control.
-6. **Git and golden-file guards are enforced by the plugin's PreToolUse hook**, not merely stated here (Guidelines §9, §10). Any git command that writes — and any `gh` command that publishes — is **denied by the runtime**, as is `--no-verify` and any snapshot-update command. Read-only inspection stays open. Files stay unstaged and visual diffs stay the user's to review. Lockfile changes stay unstaged. **The lockfile is the rollback** — surface `git checkout <lockfile>` as a command per `module-handover` §4; the hook denies it if you run it yourself.
+6. **Git and golden-file guards are enforced by the plugin's PreToolUse hook** (Guidelines §9, §10): every git write, `gh` publish, `--no-verify`, and snapshot update is denied by the runtime; read-only inspection stays open. Lockfile changes stay unstaged. **The lockfile is the rollback** — surface `git checkout <lockfile>` as a command per `module-handover` §4; the hook denies it if you run it yourself.
 7. **An upgrade is a deploy.** Anything that reaches production goes through the `deployment-architect` skill. A dependency bump is a production change wearing a smaller hat.
 8. **Bounded** (Guidelines §16). One inventory pass, one batch of changes, one verification round per batch. Not an open loop of nudging versions until CI turns green.
 
@@ -38,7 +34,7 @@ disable-model-invocation: true
 |---|---|
 | `${CLAUDE_SKILL_DIR}/references/rot-sweep.md` | Phase 5 — the findings no gate reports because nothing fails. |
 | `${CLAUDE_SKILL_DIR}/references/report-format.md` | Assembling the output. |
-| `module-threat-model` §5 | Triaging an advisory by reachability. |
+| `module-threat-model` → `references/triage.md` | Triaging an advisory by reachability. |
 | `module-gate-battery` | Between batches, and for the visual-diff stop. |
 | `module-handover` | The revert command, the lockfile rollback. |
 
@@ -72,7 +68,7 @@ Read, don't guess. Resolve `<audit>` and the rest from the profile.
 | **Routine** | Patch and minor bumps, tooling, types | Batch it (§3) |
 | **Deliberate hold** | Breaking major with no benefit here · a rewrite in disguise · a dependency being removed anyway | **Record the reason in the profile** and stop re-examining it |
 
-**Reachability is the honest question** for advisories (`module-threat-model` §5), and it takes minutes to answer. "Critical" on a package used only by a build script that never sees untrusted input is not a production emergency — say so plainly rather than performing urgency. Equally, a "moderate" on a parser fed by user uploads deserves the Now tier. **Never inflate a rating to look diligent, and never downgrade one to avoid work** (Guidelines §15).
+**Reachability is the honest question** for advisories (`module-threat-model` → `references/triage.md`), and it takes minutes to answer. "Critical" on a package used only by a build script that never sees untrusted input is not a production emergency — say so plainly rather than performing urgency. Equally, a "moderate" on a parser fed by user uploads deserves the Now tier. **Never inflate a rating to look diligent, and never downgrade one to avoid work** (Guidelines §15).
 
 ---
 
@@ -142,16 +138,4 @@ Maintenance done on a schedule stays small; done on discovery, it is always an e
 
 ---
 
-## Relationship to Other Skills
-
-- **Guidelines (Meta)** — §15 forbids inflating or deflating a severity rating; §16 bounds the batches; §2 applies to dependencies too, where the best upgrade is a removal.
-- **Testing Architect** — the green baseline, and the rule that nothing is weakened to pass.
-- **Debugging Architect** — a batch that breaks is reverted and bisected, not debugged in place; flaky tests found in the sweep go there.
-- **Code Review Architect** — its `<audit>` gate is this skill's inbox; an upgrade diff is reviewed like any other.
-- **Deployment Architect** — an upgrade reaching production is a deploy, with the same pre-flight and rollback plan.
-- **Planning Architect** — a framework or runtime major is a planned project, not a maintenance chore.
-- **Rolling History** — records what was upgraded and why, so the next person sees the reasoning rather than a wall of version numbers.
-
----
-
-_Skill Version: v1.0 — New skill owning the work that previously belonged to nobody: dependency health, advisories, deprecations, and rot. Built around three rules that make maintenance safe rather than merely done — never bundle an upgrade with a refactor (mixed diffs destroy bisectability), one batch/one class/one revert with the lockfile as the rollback, and triage by **reachability** rather than headline severity, which is the honest question and forbids both performing urgency and dodging work. Phase 5's rot sweep covers what no gate reports because nothing fails: suppressions, permanently-skipped tests that masquerade as coverage, unused dependencies, dead code, stale TODOs, and doc drift. Deliberate non-upgrades are recorded in the Project Profile with a revisit condition so they are decided once rather than re-litigated._
+_v1.0 — version history in CHANGELOG.md_

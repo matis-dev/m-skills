@@ -2,7 +2,7 @@
 
 *`module-threat-model` reference — read when the run needs it.*
 
-## 2. Trust Boundaries — the Plan-Time Artifact
+## Trust Boundaries — the Plan-Time Artifact
 
 Three questions, answered before any step is written:
 

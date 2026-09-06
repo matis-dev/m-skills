@@ -1,6 +1,6 @@
 ---
 name: code-review-architect
-description: Review a change set (working tree, branch diff, or PR) for maintainability, performance, security, correctness, and design craft, ending in one merged 0-100 score and verdict. Use when the user asks to review this branch, review a PR, or wants a quality and security read before staging. Runs the project's static gates, a full threat model (injection, untrusted deserialization, storage, authz and IDOR, path traversal, dependency advisories, secrets, logging), the change-propagation audit, and a confidence gate that drops findings below 80 percent certainty. Stack-agnostic — resolves gates and conventions from the Project Profile. Read-only, writes no code.
+description: Use to review a working tree, branch, or PR before staging. Runs the gates, a threat model by sink, the propagation audit, and a ≥80 confidence gate on findings; ends in one 0–100 score with a banded verdict. Every finding carries path and line and names the skill that owns its fix. Writes no code.
 argument-hint: "[branch, PR#, or empty for working tree] [+ modifiers: skip gates]"
 disable-model-invocation: true
 ---
@@ -8,20 +8,14 @@ disable-model-invocation: true
 # Skill: Code Review Architect — Quality, Security & Craft Review
 
 > **Apply Guidelines Skill** — load the `guidelines-meta` skill before proceeding.
-> **Modifiers** — trailing plain-language instructions ("tests later", "skip gates", "fix the findings", "proceed") are interpreted per **Guidelines §19**. A modifier narrows scope; anything skipped is named in the output, and none of them unlock git.
 > **Remediation is elsewhere.** This skill writes no code (§Constraints). A security finding is fixed by the `security-architect` skill; an accessibility barrier by the `accessibility-architect` skill; a test gap by the `testing-architect` skill. Name the owning skill on the finding so the fix has somewhere to go — a review that ends in a list nobody can act on is half a deliverable.
-
-**Role:** Lead Reviewer. Evaluate a change set against the project's conventions and produce one unified verdict covering **maintainability, performance, security, correctness, and design craft**.
-**Trigger:** "Use Code Review Architect" / "Review this branch" / "Review PR #N".
-**Output:** A markdown review in the fixed shape at `${CLAUDE_SKILL_DIR}/references/output-format.md`, ending in a single combined score and verdict.
-**Portability:** The procedure is universal. Gates, conventions, and blind spots come from the **Project Profile** (Guidelines §5).
 
 ---
 
 ## Operational Constraints (Strict)
 
 1. **Read-only.** Writes no production code. May read freely and run gates; every fix is the user's call.
-2. **Git and golden-file guards are enforced by the plugin's PreToolUse hook**, not merely stated here (Guidelines §9, §10). Any git command that writes — and any `gh` command that publishes — is **denied by the runtime**, as is `--no-verify` and any snapshot-update command. Read-only inspection stays open. Files stay unstaged and visual diffs stay the user's to review. Restate the guard inside the review output.
+2. **Git and golden-file guards are enforced by the plugin's PreToolUse hook** (Guidelines §9, §10): every git write, `gh` publish, `--no-verify`, and snapshot update is denied by the runtime; read-only inspection stays open. Restate the guard inside the review output.
 3. **No scope creep in findings.** Comment only on the change set unless an issue *outside* the diff is directly load-bearing for it. If you stray, label it `[OUT-OF-DIFF]` and justify in one line.
 4. **Findings follow `module-findings`** — the citation requirement, the confidence gate (post only what you'd rate ≥ 80), the false-positive list, the "worth a second look" bucket for severe-but-unverified items, the severity bands, and the verdict rules. Load it before writing a single finding.
 5. **Tests evaluated via Testing Architect**; **UI evaluated via Design Architect.** Don't invent ad-hoc critique in either domain.
@@ -39,7 +33,7 @@ Every review addresses each dimension explicitly. Silence on one is itself a fin
 2. **Performance** — algorithmic cost on the hot path, N+1 queries or writes, bundle/binary impact, lazy boundaries, subscription/listener/handle leaks, list rendering keys, asset weight, avoidable re-computation, caching correctness.
 3. **Security** — the threat model in Phase 4, anchored to OWASP Top 10:2025 via the `security-architect` skill §1.
 4. **Correctness & Tests** — does the change do what it claims? Tests paired with code (Guidelines §11)? Coverage on new branches? Green-but-lying traps (`module-gate-battery` §3)?
-5. **Design craft & accessibility** — for UI-visible diffs, `module-craft-floor` and the `design-architect` refuse list, plus `module-operability-floor`.
+5. **Design craft & accessibility** — for UI-visible diffs, `module-craft-floor` and the `design-architect` refuse list, plus `module-operability-floor`. A UI-visible diff with no direction brief or stamp, or whose brief fails the generic test ("could this serve a competitor unchanged?"), is a Design Craft finding.
 6. **Project conventions** — the committed design system, architecture topology, and idioms from the profile.
 7. **Inherited guards** — the change set itself contains no committed git/CI bypasses, no auto-update of golden files, no `--no-verify` traces in scripts.
 8. **Goal trace** — every change line traces to a stated objective. Flag drive-by edits.
@@ -81,11 +75,11 @@ Then, on top of that pass:
 
 ### Phase 4 — Security Pass
 
-Load the `module-threat-model` skill and run its **§4 review sweep** over the diff. Each item is yes/no/n-a; any "yes" is a finding with severity, and a group with no findings is explicitly noted clean rather than omitted. Group headings carry their **OWASP Top 10:2025** anchor — cite the category only when you are certain of it, and describe the weakness without an identifier when you are not (Guidelines §15).
+Load the `module-threat-model` skill and run its `references/review-sweep.md` over the diff. Each item is yes/no/n-a; any "yes" is a finding with severity, and a group with no findings is explicitly noted clean rather than omitted. Group headings carry their **OWASP Top 10:2025** anchor — cite the category only when you are certain of it, and describe the weakness without an identifier when you are not (Guidelines §15).
 
 **If the plan carried `[SEC]` tags, start there.** Verify the trust boundaries the plan named actually got their controls, at the place the plan said. That is a cheaper and more reliable pass than re-deriving the threat model from the diff, and a boundary the plan named but the diff does not implement is a finding on its own.
 
-> **Findings are described here; the fix is written by the `security-architect` skill** (`remediate` mode), with the regression test that fails against the unpatched code. Reachability is part of the finding, not an afterthought: state the path from an attacker-controlled input to the sink, or state that you could not establish one. The severity bands for this pass are in that module's §4.
+> **Findings are described here; the fix is written by the `security-architect` skill** (`remediate` mode), with the regression test that fails against the unpatched code. Reachability is part of the finding, not an afterthought: state the path from an attacker-controlled input to the sink, or state that you could not establish one. The severity bands for this pass are `module-findings` §3.
 
 ### Phase 5 — Synthesis
 - Trace every diff hunk to a stated goal. Drive-bys → Maintainability finding.
@@ -142,14 +136,4 @@ A dimension floors at 0. Dimensions sum to `Total / 100`, and every deduction tr
 
 ---
 
-## Relationship to Other Skills
-
-- **Guidelines (Meta)** — every principle here inherits from it.
-- **Testing Architect** — cited for all test-quality findings.
-- **Design Architect** — cited for all UI craft findings.
-- **Planning Architect** — if the review surfaces a structural problem too big for a follow-up fix, recommend a fresh plan.
-- **Implementing Architect** — applies approved fixes under user control; this skill never edits code.
-
----
-
-_Skill Version: v2.0 — Genericized: gates, conventions, doc targets, and blind spots resolve from the Project Profile (Guidelines §5); framework-specific review rows (utility-CSS purge, one framework's change detection, one API doc) replaced by stack-neutral equivalents. Threat model restated by sink category rather than by one app's shape, keeping prototype pollution, IDOR, path traversal, and the policy-declared-in-two-places blind spot. Adds a fifth scored dimension, Design Craft, sourced from the new Design Architect (re-weighted away when the diff has no UI), a consolidated change-propagation audit covering shape/API/origin, the no-estimated-numbers rule, and a verdict-first output shape. Prior v1.6 — API-doc drift check; v1.5 — confidence gate + deserialization/IDOR/path-traversal groups; v1.4–v1.2 — YAGNI pass, i18n/CSP/service-API checks, field-change propagation_
+_v2.0 — version history in CHANGELOG.md_
