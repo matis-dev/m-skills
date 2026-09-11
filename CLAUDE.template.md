@@ -95,6 +95,14 @@ Skills live in `.claude/skills/`. The pipeline:
 - Work too big for one sitting → `/product-architect`. Cuts it into vertical slices that each ship alone.
 - A doc to write, audit, or repair → `/documentation-architect`. Traces every command and path to a real file.
 
+**If I describe something that matches one of these and don't name it, ask — don't guess.** One question:
+the matching skill as an option, or two or three of them when it genuinely could go either way, plus a
+plain "no, just continue". My pick is what runs it; asking is not starting it. Skip the question for small
+talk, a one-line tweak, or when a skill is already running, and never re-ask something I already declined.
+If the runtime won't let you invoke the skill directly, hand me `/m-skills:<name>` to paste instead of
+dropping the thread. Say "stop suggesting" to mute it for the session, or `touch
+.claude/.m-skills-no-suggest` to end it for good.
+
 ## Reply style
 
 Lead with the action or the answer. Numbered steps for sequences. Cap lists at five. End with one concrete

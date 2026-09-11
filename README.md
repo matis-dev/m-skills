@@ -251,6 +251,10 @@ flowchart TD
 
 The verbose prompts you've been pasting still work verbatim — but each maps to a command plus a plain-language modifier. Modifiers are interpreted per **Guidelines §19**, so the same phrase means the same thing in every skill.
 
+**You no longer have to know the command.** Describe what you want in your own words and Claude offers the match — *"This looks like a `planning-architect` job — plan it before any code goes in. Run it?"* — as a question you answer, not an action it takes. Where the request genuinely sits between two skills, you get both as options instead of a guess. The table below stays the reference; it is no longer the price of entry.
+
+**Why it offers instead of simply running it.** The eleven pipeline skills carry `disable-model-invocation: true`, which keeps them out of Claude's skill roster altogether — it cannot start one on a hunch. Removing that flag was considered and rejected: it would let a passing *"yeah, ship it"* open a deployment readiness pass, or an offhand *"this is broken"* start a full diagnostic, and an ambiguous sentence could match three skills with no way to choose between them. Offering costs none of that. **The question is the gate** — nothing runs until you pick — so the protection is identical and the only thing removed is the part that never protected anything: having to remember the name. → [Suggesting a skill](#suggesting-a-skill) to turn it off.
+
 | What you used to paste | Now |
 |---|---|
 | "Please use /brainstorming-planner skill to help me come up with a clear instruction…" | `/m-skills:brainstorming-planner <the idea>` |
@@ -380,7 +384,7 @@ The 15 route commands: `kickoff`, `decompose`, `prd`, `brief`, `threat-model`, `
 
 | Skill | Invocation |
 |---|---|
-| `brainstorming-planner`, `planning-architect`, `product-architect`, `implementing-architect`, `debugging-architect`, `code-review-architect`, `rolling-history`, `deployment-architect`, `maintenance-architect`, `search-optimization-architect`, `marketing-architect` | `disable-model-invocation: true` — **you** trigger them, Claude never starts one on its own |
+| `brainstorming-planner`, `planning-architect`, `product-architect`, `implementing-architect`, `debugging-architect`, `code-review-architect`, `rolling-history`, `deployment-architect`, `maintenance-architect`, `search-optimization-architect`, `marketing-architect` | `disable-model-invocation: true` — **you** trigger them. Claude still never *starts* one on its own; it [offers](#suggesting-a-skill) when your message clearly fits, and your pick is what starts it |
 | `design-architect`, `testing-architect`, `documentation-architect`, `security-architect`, `accessibility-architect` | Both — you can call them, and Claude loads them when the work is design-, test-, docs-, security-, or accessibility-shaped |
 | `guidelines-meta` | `user-invocable: false` — background knowledge, loaded by the other skills, hidden from the `/` menu |
 
@@ -511,6 +515,21 @@ later` modifiers it structurally cannot see.
 It fires on `startup`, `resume`, **`clear`, and `compact`** — a context clear is exactly where a session-only setting lapses without you noticing, which is the working-memory tax §17 exists to remove. "Stop adhd mode" turns it off for the current session without touching the flag.
 
 There is no `/i-have-adhd` command, deliberately: an output style is influence, not something to remember to invoke.
+
+### Suggesting a skill
+
+The eleven gated skills are invisible to Claude — absent from its roster, unreachable on its own. Without help that means *"please implement the plan"* quietly gets ordinary behaviour: no gate battery, no propagation sweep, and no hint that `implementing-architect` was ever an option. A third `SessionStart` hook (`scripts/suggest-skills.sh`) injects the roster and one instruction: when a message clearly matches one of them, **ask** — never assume, never stay silent.
+
+Unlike the reply protocol this is **on by default**, because the people it helps are the ones who have not read this file. Switching it off uses the same convention as the guards:
+
+| Flag file | Scope |
+|---|---|
+| `.claude/.m-skills-no-suggest` | This project only |
+| `~/.claude/.m-skills-no-suggest` | Every project |
+
+Saying **"stop suggesting"** ends it for the current session without touching a file, and the hook prints all three routes each session so the escape hatch is never something you have to look up. It fires on `startup`, `resume`, `clear`, and `compact`, for the same reason the reply-protocol hook does.
+
+The roster is derived from the skill files on every run rather than written down here, so a twelfth gated skill is offered the day it is added — and `tests/run-tests.sh` fails if one ever goes missing.
 
 ---
 

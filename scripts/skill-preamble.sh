@@ -5,7 +5,7 @@
 # memory files, memory_type User|Project|Local|Managed — not skills). This covers
 # both invocation paths instead:
 #
-#   UserPromptExpansion  → the user typed /m-skills:<name>. Covers the 10 skills
+#   UserPromptExpansion  → the user typed /m-skills:<name>. Covers the 11 skills
 #                          with disable-model-invocation: true. Emits additionalContext.
 #   PostToolUse (Skill)  → the model invoked an auto-loadable knowledge skill
 #                          (design, testing, security, accessibility, documentation).

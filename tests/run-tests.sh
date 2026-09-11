@@ -712,7 +712,57 @@ assert_contains "global flag activates" "$(run_ad)" "all projects"
 rm "$TMP/home/.claude/.m-skills-adhd-always"
 
 # ─────────────────────────────────────────────────────────────────────────────
-section "5. Behaviour — the enforcement hooks"
+section "5. Behaviour — suggest-skills.sh"
+
+# The gated skills are absent from the model's roster, so without this hook a message
+# like "please implement the plan" gets default behaviour and the user never learns
+# implementing-architect existed. These assertions cover the two ways that regresses:
+# the hook going quiet, and the roster going stale.
+
+SG="$ROOT/scripts/suggest-skills.sh"
+mkdir -p "$TMP/sghome/.claude" "$TMP/sgproj/.claude"
+run_sg() { CLAUDE_PROJECT_DIR="$TMP/sgproj" CLAUDE_CONFIG_DIR="$TMP/sghome/.claude" bash "$SG" 2>/dev/null; }
+
+# On by default — unlike adhd-always-on.sh there is no flag to switch it on, because
+# the users it serves are the ones who never read the README.
+out="$(run_sg)"
+assert_contains "active without any flag"        "$out" "SKILL SUGGESTIONS ACTIVE"
+assert_contains "names the gating mechanism"     "$out" "disable-model-invocation"
+assert_contains "instructs asking, not invoking" "$out" "ASK"
+assert_contains "carries the decline option"     "$out" "No — just continue"
+assert_contains "carries the paste fallback"     "$out" "/m-skills:<name>"
+assert_contains "carries the anti-pester rule"   "$out" "already declined"
+assert_contains "states the session off-switch"  "$out" "stop suggesting"
+assert_contains "states the flag-file off-switch" "$out" ".m-skills-no-suggest"
+
+# Derived, not hardcoded: every gated skill must appear. A twelfth one added later and
+# missed here would be exactly the invisibility this hook exists to remove.
+for f in "$ROOT"/skills/*/SKILL.md; do
+  grep -q "^disable-model-invocation: true" "$f" || continue
+  s="$(basename "$(dirname "$f")")"
+  assert_contains "roster includes $s" "$out" "$s"
+done
+
+# ...and nothing the model can already reach unaided.
+assert_missing "roster excludes auto-loadable skills" "$out" "design-architect"
+assert_missing "roster excludes modules"              "$out" "module-propagation"
+
+touch "$TMP/sgproj/.claude/.m-skills-no-suggest"
+assert_empty "project flag silences it" "$(run_sg)"
+rm "$TMP/sgproj/.claude/.m-skills-no-suggest"
+
+touch "$TMP/sghome/.claude/.m-skills-no-suggest"
+assert_empty "global flag silences it" "$(run_sg)"
+rm "$TMP/sghome/.claude/.m-skills-no-suggest"
+
+# Fails open: no skills tree beside the script is silence, never a broken session.
+mkdir -p "$TMP/fakeplugin/scripts"
+cp "$SG" "$TMP/fakeplugin/scripts/"
+assert_empty "silent when the skills tree is missing" \
+  "$(CLAUDE_PROJECT_DIR="$TMP/sgproj" CLAUDE_CONFIG_DIR="$TMP/sghome/.claude" bash "$TMP/fakeplugin/scripts/suggest-skills.sh" 2>/dev/null)"
+
+# ─────────────────────────────────────────────────────────────────────────────
+section "6. Behaviour — the enforcement hooks"
 
 # These are the assertions that matter most in the pack: the rules they cover used
 # to live only in prose, so a regression here silently returns the pack to the state
@@ -1022,7 +1072,7 @@ unset CLAUDE_SESSION_ID CLAUDE_PROJECT_DIR CLAUDE_CONFIG_DIR
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
-section "6. Eval — model in the loop (opt-in)"
+section "7. Eval — model in the loop (opt-in)"
 
 if [ "${RUN_EVALS:-0}" != "1" ]; then
   skip "behavioural evals" "set RUN_EVALS=1 to run; costs tokens"

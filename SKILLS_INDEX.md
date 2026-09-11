@@ -33,7 +33,7 @@ Then, in the target project either way:
 
 **Skip step 1 entirely and everything still works** — skills auto-detect from `package.json` / `Makefile` / `pyproject.toml` / `Cargo.toml` / `go.mod` and CI config. The profile just makes it a one-time cost instead of a per-session one.
 
-**Who invokes what:** the pipeline stages carry `disable-model-invocation: true` — you trigger them, Claude never starts one unasked. `design-architect`, `testing-architect`, `documentation-architect`, `security-architect`, and `accessibility-architect` stay auto-loadable because their knowledge is useful mid-task. `guidelines-meta` and every `module-*` are `user-invocable: false` — loaded by another skill, hidden from the `/` menu.
+**Who invokes what:** the pipeline stages carry `disable-model-invocation: true` — you trigger them, and Claude never *starts* one unasked. It does **offer**: when a message clearly matches one, a `SessionStart` hook has it ask rather than guess, and your pick is what starts the skill. On by default; `.claude/.m-skills-no-suggest` turns it off (see [README](README.md#suggesting-a-skill)). `design-architect`, `testing-architect`, `documentation-architect`, `security-architect`, and `accessibility-architect` stay auto-loadable because their knowledge is useful mid-task. `guidelines-meta` and every `module-*` are `user-invocable: false` — loaded by another skill, hidden from the `/` menu.
 
 ---
 

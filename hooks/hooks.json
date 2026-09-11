@@ -1,5 +1,5 @@
 {
-  "description": "m-skills lifecycle hooks. Two SessionStart context hooks (silent unless opted in), three PreToolUse guards enforcing the rules the skills previously only stated, and three advisories. Guards honour .claude/.m-skills-no-guards (project) or the same file in $CLAUDE_CONFIG_DIR (global).",
+  "description": "m-skills lifecycle hooks. Three SessionStart context hooks, three PreToolUse guards enforcing the rules the skills previously only stated, and three advisories. Guards honour .claude/.m-skills-no-guards (project) or the same file in $CLAUDE_CONFIG_DIR (global); the skill-suggestion hook honours .m-skills-no-suggest at either scope, and the adhd hook is opt-in rather than opt-out.",
   "hooks": {
     "SessionStart": [
       {
@@ -23,6 +23,18 @@
             "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/adhd-always-on.sh"],
             "timeout": 10,
             "statusMessage": "m-skills: checking adhd always-on flag..."
+          }
+        ]
+      },
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/suggest-skills.sh"],
+            "timeout": 10,
+            "statusMessage": "m-skills: loading skill suggestions..."
           }
         ]
       }
