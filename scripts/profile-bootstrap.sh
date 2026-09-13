@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
 # m-skills — SessionStart bootstrap.
 #
-# Fires once per session. Stays completely silent unless this project is missing
-# .claude/PROJECT-PROFILE.md, in which case it detects what it can mechanically and
-# hands Claude a verified starting point plus instructions for the judgment rows.
+# Fires once per session. Two jobs:
+#   1. Every session: report real env files that git tracks, once tracked, or does
+#      not ignore — from names alone, before the model has read anything.
+#   2. Only when .claude/PROJECT-PROFILE.md is missing or drifted: detect what it can
+#      mechanically and hand Claude a verified starting point.
 #
-# Silent when: the profile exists · this isn't a project directory · the user opted out.
+# Silent when: nothing to report · this isn't a project directory · the user opted out
+# (.m-skills-no-bootstrap silences job 2 only; job 1 honours .m-skills-no-guards).
 # Never writes anything unless M_SKILLS_AUTOPROFILE=1 is set.
 #
 # Output contract: plain-text stdout becomes Claude's context on SessionStart. The first
@@ -44,6 +47,104 @@ if [ "${1:-}" = "--fingerprint" ]; then
   m_skills_fingerprint "$(m_skills_pkg_scripts)"
   exit 0
 fi
+
+# ── Secret files and git — every session, profile or not ──────────────────────
+# Names only: git's index, log, and ignore rules. No secret file is opened, so nothing
+# in one reaches the model. Runs ahead of every profile branch: a .env committed next
+# month matters more than any profile row, and a project that already has a profile
+# would otherwise never hear about it.
+m_skills_secret_hygiene() {
+  . "$PLUGIN/scripts/lib/hook-json.sh" 2>/dev/null || return 0
+  m_skills_guards_disabled && return 0
+  git rev-parse --is-inside-work-tree >/dev/null 2>&1 || return 0
+
+  local spec=(':(glob)**/.env' ':(glob)**/.env.*' ':(glob)**/.envrc')
+  real_env() { grep -E "$M_SKILLS_ENV_RE" | grep -Ev "$M_SKILLS_EXAMPLE_RE" | sort -u; }
+  bullets()  { printf '%s\n' "$1" | grep -v '^$' | sed 's/^/  - /'; }
+
+  local tracked history unignored ignored on_disk
+  tracked="$(git ls-files -- "${spec[@]}" 2>/dev/null | real_env)"
+  history="$(git log --all --format= --name-only --diff-filter=A -- "${spec[@]}" 2>/dev/null | real_env)"
+  [ -n "$tracked" ] && history="$(printf '%s\n' "$history" | grep -vxF -- "$tracked")"
+  unignored="$(git ls-files --others --exclude-standard -- "${spec[@]}" 2>/dev/null | real_env)"
+  # --directory stops git descending into ignored trees such as node_modules
+  ignored="$(git ls-files --others --ignored --exclude-standard --directory -- "${spec[@]}" 2>/dev/null | real_env)"
+  on_disk="$(printf '%s\n' "$tracked" "$unignored" "$ignored" | grep -v '^$' | sort -u)"
+
+  local sandboxed=0 hint=1 f
+  for f in .claude/settings.json .claude/settings.local.json "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json"; do
+    [ -f "$f" ] && [ "$(json_field "$(cat "$f")" sandbox.enabled)" = "true" ] && sandboxed=1
+  done
+  { [ -z "$on_disk" ] || [ "$sandboxed" -eq 1 ] || [ -f .claude/.m-skills-no-sandbox-hint ]; } && hint=0
+  [ -z "$tracked$history$unignored" ] && [ "$hint" -eq 0 ] && return 0
+
+  local ignore_lines='    .env
+    .env.*
+    .envrc
+    !.env.example
+    !.env.sample
+    !.env.template'
+
+  if [ -n "$tracked$history" ]; then
+    local tracked_part="" history_part="" untrack=""
+    [ -n "$tracked" ] && tracked_part="
+Tracked right now:
+$(bullets "$tracked")"
+    [ -n "$history" ] && history_part="
+Removed from the index, but still in history — every existing clone has them:
+$(bullets "$history")"
+    [ -n "$tracked" ] && untrack="
+- Stop tracking. The user runs it, because git writes are theirs: \`git rm --cached $(printf '%s\n' "$tracked" | tr '\n' ' ' | sed 's/ $//')\`, then commit, with these lines in .gitignore:
+$ignore_lines"
+    cat <<EOF
+m-skills 🚨 SECRET FILES IN GIT — raise this with the user BEFORE anything else, including their current request.
+
+Found by name in git's index and log. No file was opened, so whether they hold real values is unknown — treat them as exposed.
+$tracked_part$history_part
+
+Tell the user, plainly, first:
+- Rotate every credential these files ever held, at its provider. Untracking, deleting, or ignoring a file does not undo the exposure. Rotation is theirs; never attempt it.$untrack
+- Purging history (git filter-repo, BFG) rewrites every commit and needs a force-push. Name it as an option, never run it, and say rotation comes first.
+- Never open, cat, or grep these files to check the values — that is the exposure this prevents. \`git log --all --oneline -- <path>\` shows when one was committed without printing it.
+
+EOF
+  fi
+
+  if [ -n "$unignored" ]; then
+    cat <<EOF
+m-skills ⚠️ ENV FILES NOT IGNORED BY GIT — one \`git add .\` away from being committed:
+$(bullets "$unignored")
+
+Open your reply with this in one line, whatever the user asked, and offer to add these lines to .gitignore (a file edit — ask first):
+$ignore_lines
+Confirm afterwards with \`git check-ignore -v <path>\`, never by opening the file.
+
+EOF
+  fi
+
+  if [ "$hint" -eq 1 ]; then
+    local deny_read="" perm_deny="" p
+    while IFS= read -r p; do
+      [ -z "$p" ] && continue
+      deny_read="$deny_read${deny_read:+, }\"./$p\""
+      perm_deny="$perm_deny${perm_deny:+, }\"Read(./$p)\""
+    done <<< "$on_disk"
+    cat <<EOF
+m-skills ℹ️ Real env files are on disk in this project:
+$(bullets "$on_disk")
+guard-secrets.sh denies reads that name them, but \`grep -r\` or a script that loads dotenv reaches them without naming them — only the OS closes that. At a natural pause, offer ONCE to merge this into .claude/settings.json (ask first; the sandbox also isolates the network, so point the user at /sandbox to review it):
+
+{
+  "permissions": { "deny": [$perm_deny] },
+  "sandbox": { "enabled": true, "filesystem": { "denyRead": [$deny_read] } }
+}
+
+If they decline, create .claude/.m-skills-no-sandbox-hint so this is not offered again.
+
+EOF
+  fi
+}
+m_skills_secret_hygiene
 
 # ── Silence conditions ────────────────────────────────────────────────────────
 [ -f "$OPTOUT" ] && exit 0

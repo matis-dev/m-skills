@@ -72,7 +72,7 @@
         ]
       },
       {
-        "matcher": "Write|Edit|NotebookEdit|Bash",
+        "matcher": "Read|Grep|Write|Edit|NotebookEdit|Bash",
         "hooks": [
           {
             "type": "command",

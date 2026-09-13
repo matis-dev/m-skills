@@ -8,7 +8,7 @@ Run `documentation-architect` in **Onboard** mode. The mode is already chosen �
 1. Read `${CLAUDE_PLUGIN_ROOT}/skills/documentation-architect/SKILL.md` — its constraints apply in full, including constraint 5: no new doc without asking.
 2. Read `${CLAUDE_PLUGIN_ROOT}/skills/documentation-architect/references/onboard.md`.
 3. Load the `guidelines-meta` skill (§5 is the profile procedure) and `module-writing-floor` before emitting anything a reader follows.
-4. Mechanical sweep: `bash ${CLAUDE_PLUGIN_ROOT}/scripts/profile-bootstrap.sh` (silent when a profile exists and still holds). Fingerprint for the profile marker: `bash ${CLAUDE_PLUGIN_ROOT}/scripts/profile-bootstrap.sh --fingerprint`. Template: `${CLAUDE_PLUGIN_ROOT}/skills/guidelines-meta/PROJECT-PROFILE.template.md`.
+4. Mechanical sweep: `bash ${CLAUDE_PLUGIN_ROOT}/scripts/profile-bootstrap.sh` (silent when a profile exists and still holds). Fingerprint for the profile marker: `bash ${CLAUDE_PLUGIN_ROOT}/scripts/profile-bootstrap.sh --fingerprint`. Template: `${CLAUDE_PLUGIN_ROOT}/skills/guidelines-meta/PROJECT-PROFILE.template.md`. If the sweep opens with a 🚨 or ⚠️ secret-file block, raise that with the user first.
 
 Target: $ARGUMENTS
 

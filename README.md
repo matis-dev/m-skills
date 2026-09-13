@@ -358,11 +358,11 @@ These hold in every skill, in every project:
 | `.claude-plugin/marketplace.json` | Single-plugin marketplace catalog | stays put — read by `/plugin marketplace add` |
 | `hooks/hooks.json` | Wires all eight hooks | stays put |
 | `scripts/lib/hook-json.sh` | Shared hook plumbing — payload parsing, decision emitters, the opt-out check | stays put |
-| `scripts/profile-bootstrap.sh` | Detects the stack when no profile exists yet | stays put |
+| `scripts/profile-bootstrap.sh` | Every session: flags env files git tracks, once committed, or doesn't ignore. Without a profile: detects the stack | stays put |
 | `scripts/adhd-always-on.sh` | Applies the reply protocol session-wide when its flag is set | stays put |
 | `scripts/guard-mutations.sh` | **Denies** git mutations, golden-file updates, catastrophic `rm`/`dd` | stays put |
 | `scripts/guard-outward.sh` | **Denies** a deploy, publish, migration, infra apply, or `gh` write — you get a runbook instead | stays put |
-| `scripts/guard-secrets.sh` | **Denies** writes into secret-bearing files; reads and `.env.example` untouched | stays put |
+| `scripts/guard-secrets.sh` | **Denies** reading or writing secret-bearing files; `.env.example` variants untouched | stays put |
 | `scripts/skill-preamble.sh` | Injects the resolved gates, §9/§10/§15/§19, and the skill's composition map when a pack skill starts; resolves a route command to the architect it routes into, so the map is right and the preamble lands once | stays put |
 | `scripts/warn-test-weakening.sh` | Flags a newly added `.skip` / `.only` in a test file | stays put |
 | `scripts/advise-propagation.sh` | Prompts the Protocol A sweep when a shared-shape file is edited | stays put |
@@ -434,12 +434,17 @@ Only what the repo genuinely cannot say gets asked, and it's a short list: inten
 
 **To do it in one sitting, run `/m-skills:onboard`.** It is the same investigate-then-ask pass across every section, plus the docs. The docs already there are mapped as the targets `rolling-history` and `documentation-architect` read. The commit convention comes from config or `git log`. The questions only you can answer come as one batch of at most five. With no changelog, it offers one with a current-state baseline — past history stays in git, nothing is rebuilt from commit subjects. It edits no existing doc; drift it notices goes in the report.
 
+**Secret files are checked first, every session, before anything is read.** The hook asks git — by file name, never opening a file — whether a real `.env` is tracked, was ever committed, or is not ignored. A tracked or once-committed one is raised as an emergency before Claude answers anything else: rotate the credentials, untrack with a command you run, and purge history only if you choose to. An unignored one gets the `.gitignore` lines offered. An ignored one, with the Bash sandbox off, gets the sandbox block from the Enforcement section offered once. This check runs whether or not a profile exists, because a `.env` committed next month matters more than any profile row.
+
 | Situation | Behavior |
 |---|---|
+| A real `.env` tracked by git, or once committed | 🚨 Every session, profile or not: raised before anything else — rotate, untrack (you run it), never open the file |
+| A real `.env` that git does not ignore | ⚠️ Every session: offers the `.gitignore` lines |
+| Real `.env` files ignored, sandbox off | Offers the sandbox block once; `.claude/.m-skills-no-sandbox-hint` stops it |
 | Profile already exists **and still true** | **Silent.** No output, no cost. |
 | Profile exists but has drifted | Names the specific stale rows and offers to fix only those |
 | Not a project directory | **Silent.** Never nags in scratch folders. |
-| `.claude/.m-skills-no-bootstrap` present | **Silent** forever. |
+| `.claude/.m-skills-no-bootstrap` present | No profile offers, ever. The secret-file check still runs; `.m-skills-no-guards` is what mutes it. |
 | Brand-new project | Says what little is knowable, then offers `brainstorming-planner kickoff` — never a questionnaire |
 | Established project, no profile | Sweeps for structural evidence (~0.5s), Claude reads the files it points at, then asks only the residue — or names `/m-skills:onboard` to do that and adopt the docs in one run |
 
@@ -466,7 +471,7 @@ Six hooks close that gap. Three **guards** decide, three **advisories** inform.
 |---|---|---|---|
 | `guard-mutations.sh` | `PreToolUse` · Bash | **deny** | §9 git guards, §10 golden updates, plus `rm -rf /`-class commands |
 | `guard-outward.sh` | `PreToolUse` · Bash | **deny** | `deployment-architect` constraint 2 — deploy, publish, migrate, infra apply; plus `gh` writes (PRs, issues, releases, secrets) under §9 |
-| `guard-secrets.sh` | `PreToolUse` · Write/Edit/NotebookEdit/Bash | **deny** | `security-architect` constraint 5 — writes into `.env`, `*.pem`, `id_rsa`, … |
+| `guard-secrets.sh` | `PreToolUse` · Read/Grep/Write/Edit/NotebookEdit/Bash | **deny** | `security-architect` constraint 5 — reads and writes of `.env`, `*.pem`, `id_rsa`, … |
 | `skill-preamble.sh` | `UserPromptExpansion` + `PostToolUse` · Skill | inject | the resolved gate table and §9/§10/§15/§19, so 17 skills stop re-deriving them |
 | `warn-test-weakening.sh` | `PostToolUse` · Write/Edit | advise | the never-weaken rule — a **newly added** `.skip` / `.only` in a test file |
 | `advise-propagation.sh` | `PostToolUse` · Write/Edit | advise | `implementing-architect` Protocol A, once per shared-shape file per session |
@@ -477,15 +482,43 @@ Three properties are deliberate and worth knowing before you rely on them:
   denies rather than waving the command through — allowing on failure is exactly the
   fail-open pattern `code-review-architect` Phase 4 flags under OWASP A10. A missed advisory
   costs nothing, so it exits quietly.
-- **Reads are never blocked.** `guard-secrets.sh` denies *writes* into `.env`; `cat .env` and
-  every `.env.example` variant stay open in both directions, because `guidelines-meta` §5,
-  `deployment-architect` Phase 0, and `profile-bootstrap.sh` all read the env contract. A
-  guard that blocked reads would break the pack itself.
+- **Secret files are closed both ways; their examples stay open.** `guard-secrets.sh` denies
+  reading and writing `.env`, keys, and credential files — through `Read`, `Grep`, or a shell
+  command that names the path (`cat .env`, `source .env`, `--env-file=.env`, `open('.env')`,
+  `cat .e*`). Every `.env.example` / `.sample` / `.template` stays open in both directions,
+  because `guidelines-meta` §5, `deployment-architect` Phase 0, and `profile-bootstrap.sh` read
+  the env contract there. Naming a file without opening it (`ls`, `test -f`,
+  `git check-ignore`) and `cp .env.example .env` stay allowed.
 - **Read-only git and `gh` stay open.** `status`, `diff`, `log`, `show`, `blame`, `rev-parse`,
   `merge-base`, and the *listing* forms of `branch` / `tag` / `remote` / `stash` are untouched, as
   are `gh pr view|list|diff|checks`, `gh issue view|list`, and `gh run view|list`. The review and
   history skills are built on them, so a guard that closed them would break the pack — the same
-  asymmetry as reads on `.env`.
+  asymmetry as `.env.example`.
+
+**What the secret guard cannot stop.** A hook sees the command text, not the files a process
+opens. `grep -r KEY .`, a path assembled at runtime, or a script that loads dotenv itself
+reaches `.env` without naming it, and no pattern match closes that. The guard catches the
+accidental read; it is not a boundary. For a boundary, let the OS deny the read — in the
+project's `.claude/settings.json`, where `./` resolves to the project root:
+
+```json
+{
+  "permissions": {
+    "deny": ["Read(.env)", "Read(.env.local)", "Read(.env.production)"]
+  },
+  "sandbox": {
+    "enabled": true,
+    "filesystem": {
+      "denyRead": ["./**/.env", "./**/.env.local", "./**/.env.production"]
+    }
+  }
+}
+```
+
+The `permissions` rules cover Claude's file tools; `denyRead` covers every Bash command and its
+child processes. Enabling the sandbox also turns on its network isolation, so run `/sandbox`
+first to see what it will ask for. Stronger still: keep production secrets out of the working
+tree entirely and inject them at run time from a secret manager.
 
 **Turning it off.** One flag file releases all three guards, per project or globally:
 
@@ -495,7 +528,8 @@ Three properties are deliberate and worth knowing before you rely on them:
 | `~/.claude/.m-skills-no-guards` | Every project |
 
 Every denial names that file in its reason, so you never have to remember it. The advisories
-respect the same flag; the preamble injection does not, since it is context rather than
+respect the same flag, and so does the bootstrap's secret-file check — `.m-skills-no-bootstrap`
+does not mute that one. The preamble injection ignores the flag, since it is context rather than
 enforcement.
 
 **Dependencies.** The hook scripts need `jq` **or** `python3` — parsing a shell command out of

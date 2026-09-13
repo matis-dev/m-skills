@@ -12,6 +12,7 @@ Triggered by `/m-skills:onboard`, or offered when this skill is invoked bare in 
 
 | Found | Do |
 |---|---|
+| The bootstrap opened with 🚨 or ⚠️ | Raise it with the user before anything else, as it instructs, then continue. |
 | Fewer than three source files | Greenfield — stop and offer `/m-skills:kickoff`. There is nothing to adopt. |
 | No profile | Steps 1–5 in full. |
 | A profile already exists | Keep every row that still verifies. Fix drifted rows, fill `TODO` and blank rows the repo now answers, then steps 3–5. Never regenerate a profile someone has edited. |
@@ -24,7 +25,7 @@ Start from the bootstrap's detection block — pointers, not answers (Guidelines
 - the manifests and CI workflows — the commands, and the gate order CI actually runs;
 - one test file — framework, placement, naming;
 - one component and the token or style file, if there is a UI;
-- the deploy config and the env example — hosting, environments, the config contract;
+- the deploy config and the env example — hosting, environments, the config contract. Never a real `.env`: the bootstrap already named which exist and whether git tracks or ignores them;
 - the auth middleware or guard layer and where data access happens, if the app has users;
 - any commitlint or husky config, and `git log --oneline -50`.
 
@@ -37,6 +38,7 @@ Copy the template to `.claude/PROJECT-PROFILE.md`. Every row gets a value traced
 - **§Deployment** — the mechanism rows come from the deploy config. Who fires a deploy, the rollback anyone would really perform, and recovery time are questions for step 4.
 - **§Search Visibility, §Distribution** — `n-a` when the project is not a public web property or not something people need to find; otherwise `pending: first <that> work`.
 - **§Guardrails** — generated dirs, vendored code, and applied migrations go under *Do not touch*. Recurring Propagation Sites stays empty.
+- **§Security → Secrets come from** — the env files the bootstrap named, with their git status (`ignored`, `not ignored`, `tracked — rotation pending`). Values are never read.
 - Delete §Packages in a single-package repo.
 - Put `<!-- m-skills-fingerprint: <n> -->` under the title, with `<n>` from `profile-bootstrap.sh --fingerprint`, so drift detection works from the first session.
 

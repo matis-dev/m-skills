@@ -1,5 +1,5 @@
 {
-  "_comment": "Portable permission allowlist for this skills pack. Copy to .claude/settings.local.json in a new project. Read-only inspection and the standard gate commands are pre-allowed. The deny list is a SUBSET backstop for a copy-the-skills install with no hook wiring — it is not a mirror of the plugin's guards, because prefix matching cannot see inside `cd x && git commit`, cannot catch --no-verify, and cannot express \"the writing forms of git branch but not the listing ones\". Only unambiguous writes are listed here; guard-mutations.sh and guard-outward.sh cover the rest. Read-only git and gh stay allowed, including the listing forms of branch/tag/stash/remote/worktree per guidelines-meta §9 — the code-review path is built on them.",
+  "_comment": "Portable permission allowlist for this skills pack. Copy to .claude/settings.local.json in a new project. Read-only inspection and the standard gate commands are pre-allowed. The deny list is a SUBSET backstop for a copy-the-skills install with no hook wiring — it is not a mirror of the plugin's guards, because prefix matching cannot see inside `cd x && git commit`, cannot catch --no-verify, and cannot express \"the writing forms of git branch but not the listing ones\". Only unambiguous writes are listed here; guard-mutations.sh and guard-outward.sh cover the rest. Read-only git and gh stay allowed, including the listing forms of branch/tag/stash/remote/worktree per guidelines-meta §9 — the code-review path is built on them. The Read(...) denies back up guard-secrets.sh: Claude Code applies them to Read/Grep/Glob and to cat/head/tail/sed in Bash. Rules have no negation, so each real variant is listed and .env.example stays readable by omission.",
   "permissions": {
     "allow": [
       "Bash(ls:*)",
@@ -79,7 +79,19 @@
       "Bash(gh secret set:*)",
       "Bash(gh repo create:*)",
       "Bash(gh repo delete:*)",
-      "Bash(gh workflow run:*)"
+      "Bash(gh workflow run:*)",
+      "Read(.env)",
+      "Read(.env.local)",
+      "Read(.env.*.local)",
+      "Read(.env.development)",
+      "Read(.env.production)",
+      "Read(.env.staging)",
+      "Read(.env.test)",
+      "Read(.envrc)",
+      "Read(*.pem)",
+      "Read(*.key)",
+      "Read(id_rsa)",
+      "Read(id_ed25519)"
     ]
   },
   "outputStyle": "default",

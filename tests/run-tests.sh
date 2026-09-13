@@ -709,6 +709,59 @@ out="$(CLAUDE_PROJECT_DIR="$GW" CLAUDE_PLUGIN_ROOT="$ROOT" M_SKILLS_AUTOPROFILE=
   && ok "greenfield + autoprofile writes a draft" || bad "greenfield + autoprofile writes a draft"
 assert_contains "greenfield draft write is announced too" "$out" "DRAFT has been written"
 
+# ── Secret files in git: every session, profile or not, from names alone. The
+#    fixtures carry a profile so the only possible output is the secret report.
+mkgit()   { mkdir -p "$1/.claude" && git -C "$1" init -q >/dev/null 2>&1 && touch "$1/.claude/PROJECT-PROFILE.md"; }
+gcommit() { git -C "$1" add -A >/dev/null 2>&1; git -C "$1" -c user.name=t -c user.email=t@t -c commit.gpgsign=false commit -qm x >/dev/null 2>&1; }
+run_sec() { CLAUDE_PROJECT_DIR="$1" CLAUDE_PLUGIN_ROOT="$ROOT" CLAUDE_CONFIG_DIR="$TMP/nocfg" bash "$BS" 2>/dev/null; }
+
+S1="$TMP/sec-tracked"; mkgit "$S1"; mkdir -p "$S1/apps/api"
+printf 'KEY=real\n' > "$S1/apps/api/.env"; printf 'KEY=\n' > "$S1/.env.example"
+gcommit "$S1"
+# unreadable: the report must come from git's index, never from opening the file
+chmod 000 "$S1/apps/api/.env"
+out="$(run_sec "$S1")"
+chmod 644 "$S1/apps/api/.env"
+assert_contains "tracked .env raises the emergency"   "$out" "SECRET FILES IN GIT"
+assert_contains "names the tracked path"              "$out" "  - apps/api/.env"
+assert_contains "demands rotation"                    "$out" "Rotate every credential"
+assert_contains "hands over untracking"               "$out" "git rm --cached apps/api/.env"
+assert_missing  "an example file is not an emergency" "$out" "  - .env.example"
+case "$out" in '{'*) bad "secret report is plain text" "starts with {" ;; *) ok "secret report is plain text" ;; esac
+touch "$S1/.claude/.m-skills-no-bootstrap"
+assert_contains "declining the profile does not mute the emergency" "$(run_sec "$S1")" "SECRET FILES IN GIT"
+touch "$S1/.claude/.m-skills-no-guards"
+assert_empty    "the guards opt-out mutes it"         "$(run_sec "$S1")"
+
+S2="$TMP/sec-history"; mkgit "$S2"; printf 'K=v\n' > "$S2/.env.production"; gcommit "$S2"
+git -C "$S2" rm --cached -q .env.production; printf '.env.production\n' > "$S2/.gitignore"; gcommit "$S2"
+out="$(run_sec "$S2")"
+assert_contains "a once-committed .env is still an emergency" "$out" "still in history"
+assert_contains "names the historic path"             "$out" "  - .env.production"
+assert_missing  "nothing to untrack when it is gone"  "$out" "git rm --cached"
+
+S3="$TMP/sec-unignored"; mkgit "$S3"; touch "$S3/.env.local"
+out="$(run_sec "$S3")"
+assert_contains "an unignored .env warns"             "$out" "NOT IGNORED BY GIT"
+assert_contains "offers the ignore lines"             "$out" "!.env.example"
+assert_missing  "an untracked .env is not an emergency" "$out" "SECRET FILES IN GIT"
+
+S4="$TMP/sec-ignored"; mkgit "$S4"; printf '.env\n' > "$S4/.gitignore"; touch "$S4/.env"
+out="$(run_sec "$S4")"
+assert_contains "an ignored .env gets the sandbox offer" "$out" '"denyRead": ["./.env"]'
+assert_contains "...and the matching Read deny"       "$out" '"Read(./.env)"'
+assert_missing  "an ignored .env does not warn"       "$out" "NOT IGNORED BY GIT"
+printf '{"sandbox":{"enabled":true}}' > "$S4/.claude/settings.json"
+assert_empty    "silent once the sandbox is on"       "$(run_sec "$S4")"
+rm "$S4/.claude/settings.json"; touch "$S4/.claude/.m-skills-no-sandbox-hint"
+assert_empty    "silent once the offer is declined"   "$(run_sec "$S4")"
+
+S5="$TMP/sec-example"; mkgit "$S5"; printf 'K=\n' > "$S5/.env.example"; gcommit "$S5"
+assert_empty    "a tracked .env.example is fine"      "$(run_sec "$S5")"
+
+S6="$TMP/sec-nogit"; mkdir -p "$S6/.claude"; touch "$S6/.claude/PROJECT-PROFILE.md" "$S6/.env"
+assert_empty    "no git, no report"                   "$(run_sec "$S6")"
+
 # ─────────────────────────────────────────────────────────────────────────────
 section "4. Behaviour — adhd-always-on.sh"
 
@@ -923,17 +976,54 @@ expect "allow: gh issue list"          allow "$(decision guard-outward.sh "$(bas
 expect "allow: gh run view"            allow "$(decision guard-outward.sh "$(bash_payload 'gh run view 5')")"
 expect "allow: gh api read"            allow "$(decision guard-outward.sh "$(bash_payload 'gh api /repos/x/y')")"
 
-# ── H5 secrets: writes denied, reads and example files untouched. The example-file
-#    exemption is load-bearing — profile-bootstrap.sh and deployment-architect both
-#    read .env.example, so a guard that blocked it would break the pack itself.
+# ── H5 secrets: writes denied, example files untouched. The example-file exemption
+#    is load-bearing — profile-bootstrap.sh and deployment-architect both read
+#    .env.example, so a guard that blocked it would break the pack itself.
 expect "deny: write .env"              deny  "$(decision guard-secrets.sh "$(write_payload Write '/p/.env')")"
 expect "deny: write .env.production"   deny  "$(decision guard-secrets.sh "$(write_payload Write '/p/.env.production')")"
 expect "deny: write server.pem"        deny  "$(decision guard-secrets.sh "$(write_payload Write '/p/certs/server.pem')")"
 expect "deny: append into .env"        deny  "$(decision guard-secrets.sh "$(bash_payload 'echo "KEY=v" >> .env')")"
 expect "allow: write .env.example"     allow "$(decision guard-secrets.sh "$(write_payload Write '/p/.env.example')")"
 expect "allow: edit .env.sample"       allow "$(decision guard-secrets.sh "$(write_payload Edit '/p/.env.sample')")"
-expect "allow: read .env via cat"      allow "$(decision guard-secrets.sh "$(bash_payload 'cat .env')")"
 expect "allow: write ordinary source"  allow "$(decision guard-secrets.sh "$(write_payload Write '/p/src/app.ts')")"
+
+# ── H5b secrets: reads are closed too. A read puts the credential into the
+#    conversation, which no later write guard can take back. The example files and
+#    the name-only commands must stay open, or the env contract breaks.
+grep_payload() { printf '{"tool_name":"Grep","tool_input":{"pattern":"KEY","%s":%s}}' "$1" "$(esc "$2")"; }
+sec() { decision guard-secrets.sh "$(bash_payload "$1")"; }
+expect "deny: Read .env"                   deny  "$(decision guard-secrets.sh "$(write_payload Read '/p/.env')")"
+expect "deny: Read nested .env.production" deny  "$(decision guard-secrets.sh "$(write_payload Read '/p/apps/api/.env.production')")"
+expect "deny: Read docker.env"             deny  "$(decision guard-secrets.sh "$(write_payload Read '/p/docker.env')")"
+expect "deny: Read id_rsa"                 deny  "$(decision guard-secrets.sh "$(write_payload Read '/home/u/.ssh/id_rsa')")"
+expect "deny: Grep pointed at .env.local"  deny  "$(decision guard-secrets.sh "$(grep_payload path '/p/.env.local')")"
+expect "deny: Grep globbed to .env*"       deny  "$(decision guard-secrets.sh "$(grep_payload glob '.env*')")"
+expect "deny: cat .env"                    deny  "$(sec 'cat .env')"
+expect "deny: head .env"                   deny  "$(sec 'head -5 .env')"
+expect "deny: source .env"                 deny  "$(sec 'set -a; source .env; set +a')"
+expect "deny: dot-source ./.env"           deny  "$(sec '. ./.env')"
+expect "deny: grep a key out of .env"      deny  "$(sec 'grep API_KEY .env.local')"
+expect "deny: --env-file=.env"             deny  "$(sec 'docker run --env-file=.env app')"
+expect "deny: open('.env') in python"      deny  "$(sec "python3 -c \"print(open('.env').read())\"")"
+expect "deny: git show HEAD:.env"          deny  "$(sec 'git show HEAD:.env')"
+expect "deny: a glob onto .env"            deny  "$(sec 'cat .e*')"
+expect "deny: cat behind ls &&"            deny  "$(sec 'ls -la .env && cat .env')"
+expect "deny: cat inside a substitution"   deny  "$(sec 'ls $(cat .env)')"
+expect "deny: copy .env out"               deny  "$(sec 'cp .env /tmp/x')"
+expect "deny: shell write into .envrc"     deny  "$(sec 'echo "export K=v" >> .envrc')"
+expect "allow: Read .env.example"          allow "$(decision guard-secrets.sh "$(write_payload Read '/p/.env.example')")"
+expect "allow: Read src/env.ts"            allow "$(decision guard-secrets.sh "$(write_payload Read '/p/src/env.ts')")"
+expect "allow: Grep over src"              allow "$(decision guard-secrets.sh "$(grep_payload path '/p/src')")"
+expect "allow: cat .env.example"           allow "$(sec 'cat .env.example')"
+expect "allow: ls .env"                    allow "$(sec 'ls -la .env')"
+expect "allow: test -f .env"               allow "$(sec 'test -f .env && echo present')"
+expect "allow: seed .env from template"    allow "$(sec '[ -f .env ] || cp .env.example .env')"
+expect "allow: git check-ignore .env"      allow "$(sec 'git check-ignore -q .env')"
+expect "allow: grep code for var names"    allow "$(sec 'grep -rn process.env src')"
+expect "allow: escaped .env in a regex"    allow "$(sec "grep -n '\\.env' README.md")"
+expect "allow: a glob that names nothing"  allow "$(sec 'cat *.log')"
+expect "allow: git log lists commits"      allow "$(sec 'git log --all --oneline -- .env')"
+expect "deny: git log -p prints the file"  deny  "$(sec 'git log -p -- .env')"
 
 # ── H4 test weakening: only a NEWLY introduced marker fires
 expect "block: spec gains it.skip"     block "$(decision warn-test-weakening.sh "$(edit_payload 'src/a.spec.ts' 'it("x", () => {})' 'it.skip("x", () => {})')")"
@@ -1085,6 +1175,7 @@ expect "allow: NotebookEdit into a notebook"   allow \
 touch "$CLAUDE_PROJECT_DIR/.claude/.m-skills-no-guards"
 expect "opt-out releases git guard"     allow "$(decision guard-mutations.sh "$(bash_payload 'git commit -m x')")"
 expect "opt-out releases secret guard"  allow "$(decision guard-secrets.sh "$(write_payload Write '/p/.env')")"
+expect "opt-out releases secret reads"  allow "$(decision guard-secrets.sh "$(write_payload Read '/p/.env')")"
 expect "opt-out releases outward gate"  allow "$(decision guard-outward.sh "$(bash_payload 'npm publish')")"
 rm -f "$CLAUDE_PROJECT_DIR/.claude/.m-skills-no-guards"
 expect "guard re-arms once flag is gone" deny "$(decision guard-mutations.sh "$(bash_payload 'git commit -m x')")"

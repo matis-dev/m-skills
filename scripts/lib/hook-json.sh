@@ -91,6 +91,17 @@ emit_context() {
   exit 0
 }
 
+# ── Secret-bearing paths ─────────────────────────────────────────────────────
+# One definition for guard-secrets.sh (what may not be read or written) and
+# profile-bootstrap.sh (what must not sit in git). Two copies would drift apart.
+
+# The documented, secret-free contract files. They always pass.
+M_SKILLS_EXAMPLE_RE='\.(example|sample|template|dist|defaults?)$|(^|/)(env|\.env)\.(example|sample|template|dist)$'
+# The env-file family — what the bootstrap reports.
+M_SKILLS_ENV_RE='(^|/)\.env(\.[A-Za-z0-9_-]+)?$|(^|/)\.envrc$'
+# Every secret-bearing path — what the guard denies.
+M_SKILLS_SECRET_RE="$M_SKILLS_ENV_RE"'|\.(pem|key|p12|pfx|jks|keystore)$|(^|/)id_(rsa|dsa|ecdsa|ed25519)$|(^|/)(credentials|service-account|serviceAccountKey|gha-creds.*)\.json$|(^|/)\.npmrc$|(^|/)\.pypirc$|(^|/)\.netrc$'
+
 # ── Shared conditions ────────────────────────────────────────────────────────
 
 # The user's opt-out from the enforcement hooks, project or global. Same flag-file
