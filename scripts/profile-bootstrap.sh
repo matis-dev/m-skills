@@ -32,6 +32,19 @@ m_skills_fingerprint() {
   | cksum | cut -d' ' -f1
 }
 
+# package.json script names, one per line; empty without a manifest or node.
+m_skills_pkg_scripts() {
+  [ -f package.json ] && command -v node >/dev/null 2>&1 || return 0
+  node -e "const s=require('./package.json').scripts||{};console.log(Object.keys(s).join('\n'))" 2>/dev/null
+}
+
+# `--fingerprint` prints the marker for the repo as it is now and exits. A profile written
+# by hand (/m-skills:onboard) stamps it, so the drift check below has something to compare.
+if [ "${1:-}" = "--fingerprint" ]; then
+  m_skills_fingerprint "$(m_skills_pkg_scripts)"
+  exit 0
+fi
+
 # ── Silence conditions ────────────────────────────────────────────────────────
 [ -f "$OPTOUT" ] && exit 0
 
@@ -44,10 +57,7 @@ if [ -f "$PROFILE" ]; then
 
   # 1. CLAIM CHECK (strongest — zero false positives). Every command and path the
   #    profile names is a falsifiable claim. Verify them against the repo as it is now.
-  PKG_SCRIPTS=""
-  if [ -f package.json ] && command -v node >/dev/null 2>&1; then
-    PKG_SCRIPTS="$(node -e "const s=require('./package.json').scripts||{};console.log(Object.keys(s).join('\n'))" 2>/dev/null)"
-  fi
+  PKG_SCRIPTS="$(m_skills_pkg_scripts)"
   # backticked tokens only — prose is not a claim
   CLAIMS="$(grep -oE '`[^`]+`' "$PROFILE" 2>/dev/null | tr -d '`' | sort -u)"
   while IFS= read -r c; do
@@ -268,11 +278,7 @@ esac
 WROTE=""
 if [ "${M_SKILLS_AUTOPROFILE:-0}" = "1" ]; then
   mkdir -p .claude
-  DRAFT_PKG_SCRIPTS=""
-  if [ -f package.json ] && command -v node >/dev/null 2>&1; then
-    DRAFT_PKG_SCRIPTS="$(node -e "const s=require('./package.json').scripts||{};console.log(Object.keys(s).join('\n'))" 2>/dev/null)"
-  fi
-  FP_NOW="$(m_skills_fingerprint "$DRAFT_PKG_SCRIPTS")"
+  FP_NOW="$(m_skills_fingerprint "$(m_skills_pkg_scripts)")"
   {
     echo "# Project Profile"
     # The drift check above looks for this marker; a draft without one can never
@@ -389,7 +395,7 @@ $WROTE
 
 WHAT TO DO WITH THIS — do not act on it now, and do not interrupt whatever the user
 actually asked for. At a natural pause, offer in ONE line: "No PROJECT-PROFILE.md here —
-want me to write one? ~2 min." Then:
+want me to write one? ~2 min. /m-skills:onboard does it and also adopts the existing docs." Then:
 
 - Only if they say yes: fill the template at $PLUGIN/skills/guidelines-meta/PROJECT-PROFILE.template.md
   and write it to .claude/PROJECT-PROFILE.md. Fill every row the repo can answer — the detected values

@@ -1,13 +1,13 @@
 ---
 name: documentation-architect
-description: Load when writing, auditing, or repairing any doc a project ships — README, quick start, how-to, architecture record, API or CLI reference, docstrings, migration guide, release notes — or when a reader got stuck. Picks reader and doc type first, traces every identifier to a file actually read, and returns a friction log in audit mode.
-argument-hint: "[doc or target] [+ mode: generate | audit | reference | polish | release-notes]"
+description: Load when writing, auditing, or repairing any doc a project ships — README, quick start, how-to, architecture record, API or CLI reference, docstrings, migration guide, release notes — when a reader got stuck, or the first time an existing project uses the pack (Onboard). Picks reader and doc type first, traces every identifier to a file actually read, and returns a friction log in audit mode.
+argument-hint: "[doc or target] [+ mode: onboard | generate | audit | reference | polish | release-notes]"
 ---
 
 # Skill: Documentation Architect — Docs That Survive Contact With a Reader
 
 > **Apply Guidelines Skill** — load the `guidelines-meta` skill before proceeding.
-> **Profile section owned:** §Documentation Standards (Guidelines §5). On first use, if it is missing or `TODO`, **read the repo for the answers first** — the format is in the existing docs, the voice is in the README, the docstring convention is in the source, the site generator is in the manifest and config. Then fill it per **Guidelines §5.1–§5.4**. §Documentation Targets — *which* docs exist and when each is touched — is owned by `rolling-history`; read it, don't rewrite it.
+> **Profile section owned:** §Documentation Standards (Guidelines §5). On first use, if it is missing or `TODO`, **read the repo for the answers first** — the format is in the existing docs, the voice is in the README, the docstring convention is in the source, the site generator is in the manifest and config. Then fill it per **Guidelines §5.1–§5.4**. §Documentation Targets — *which* docs exist and when each is touched — is owned by `rolling-history`; read it, don't rewrite it. Onboard mode is the exception: it records every row the repo answers, in every section, once.
 
 **The problem this exists to solve:** documentation fails in two directions and both look fine from the inside. It is written *from the code outward* — accurate, complete, and useless, because it answers "what is this symbol" when the reader asked "how do I do the thing". Or it is written once, correctly, and then the code moves and the doc doesn't, so it becomes a confident liar that costs more than no doc at all. Everything below aims at one outcome: a reader with the stated goal gets there, and nothing in the file claims something the repo cannot back up.
 
@@ -86,6 +86,7 @@ When a duplicate is unavoidable (a quick start genuinely needs the install comma
 | Read | When |
 |---|---|
 | `${CLAUDE_SKILL_DIR}/references/reference-docs.md` | Writing reference docs or docstrings on an exported surface. |
+| `${CLAUDE_SKILL_DIR}/references/onboard.md` | First run in an existing project. Writes the profile, adopts the docs already there. |
 | `${CLAUDE_SKILL_DIR}/references/audit-mode.md` | Auditing existing docs. Read-only; produces a friction log, not a verdict. |
 | `module-writing-floor` | Always, before emitting. The floor and the refuse list. |
 | `module-findings` | Reporting audit findings and their banded verdict. |
@@ -94,8 +95,11 @@ When a duplicate is unavoidable (a quick start genuinely needs the install comma
 
 ## 6. Modes of Invocation
 
+**A bare run in a project the pack has never seen is Onboard.** No target was given, and there is no `.claude/PROJECT-PROFILE.md` or it has no §Documentation Targets: nothing to generate against, no reader to name. Offer Onboard in one line — `/m-skills:onboard` — and never ask what to build.
+
 | Ask | What this skill does |
 |---|---|
+| **Onboard** an existing project | `references/onboard.md`. The profile from the repo, existing docs mapped as targets, a changelog baseline offered when there is none. Edits no existing doc. |
 | **Generate** a doc | §1 type → §2 ground truth → draft → `module-writing-floor` → §7 sweep. |
 | **Audit** existing docs | `references/audit-mode.md`. Read-only, friction log first, `path:line` on every finding. |
 | **Reference** for a module, API, or CLI | `references/reference-docs.md` over the exported surface only. Generate from schema or types where the project can; hand-write the *when to use this*. |
@@ -124,4 +128,4 @@ If a gate fails, fix it. A confidently wrong doc costs more than a missing one.
 
 ---
 
-_v1.0 — version history in CHANGELOG.md_
+_v1.1 — version history in CHANGELOG.md_

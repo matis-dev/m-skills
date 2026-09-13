@@ -62,7 +62,7 @@ There when you need them:
 /m-skills:marketing-architect
 ```
 
-Plus 15 **route commands** — `/m-skills:decompose`, `/m-skills:rollback`, `/m-skills:code-review-architect-uncommitted` and so on — for when you already know which direction you want and don't need the architect to ask. → [§ Skipping the mode question](#skipping-the-mode-question)
+Plus 16 **route commands** — `/m-skills:decompose`, `/m-skills:rollback`, `/m-skills:code-review-architect-uncommitted` and so on — for when you already know which direction you want and don't need the architect to ask. → [§ Skipping the mode question](#skipping-the-mode-question)
 
 They install at user scope, so they're in every project you open — no per-project copying.
 
@@ -89,6 +89,8 @@ claude plugin install m-skills@m-skills --scope user
 Two things that are easy to lose an hour to: `uninstall` accepts `--scope` even though `--help` does not list it, and *local* scope resolves relative to your **current** directory — so the uninstall only works from inside the project it is bound to.
 
 **There is no configuration step.** Open a project and the skills work — they read the stack from your lockfile, manifest, and CI config. The first session offers to save what it found to `.claude/PROJECT-PROFILE.md` so nothing has to be re-detected later; decline and everything still works. That file fills in gradually, a section at a time, as you actually use each skill — it is never a form to sit down and complete. → [§ Setting itself up](#-setting-itself-up)
+
+**Adding the pack to a project that already exists? Run `/m-skills:onboard` once, first.** It writes that profile from the repo in one sitting and adopts the docs already there, so `rolling-history` and `documentation-architect` work from their first run instead of asking.
 
 > **Namespacing needs Claude Code ≥ 2.1.216** to autocomplete as `/m-skills:<name>`. On older versions the plugin installs and works, but the menu shows the bare `/<name>` form. `claude --version` to check.
 
@@ -119,6 +121,7 @@ Commands below use the plugin form — in copy mode, drop the `m-skills:` prefix
 | Situation | Command |
 |---|---|
 | Starting a project from nothing | `/m-skills:brainstorming-planner kickoff` → what to build, first slice, foundational decisions routed to their owners |
+| First run in a project that already exists | `/m-skills:onboard` → profile written from the repo, existing docs adopted as targets, changelog baseline offered |
 | Screen or component to design | `/m-skills:design-architect` → visitor mode, direction brief (structure · palette · type · signature moment), craft floor, refuse list |
 | Tests to add or upgrade | `/m-skills:testing-architect` |
 | Untrusted input, auth, secrets, or an advisory | `/m-skills:security-architect` → trust boundaries at plan time, the fix and its regression test after |
@@ -144,6 +147,7 @@ Eight architects branch. `/m-skills:product-architect` opens by reading its mode
 | Instead of | Type | Runs |
 |---|---|---|
 | `/m-skills:brainstorming-planner kickoff` | `/m-skills:kickoff` | greenfield — what to build, first slice, decisions routed to their owners |
+| `/m-skills:documentation-architect — onboard` | `/m-skills:onboard` | existing project, first run — profile from the repo, docs adopted, nothing rewritten |
 | `/m-skills:product-architect — decompose` | `/m-skills:decompose` | vertical slices with acceptance criteria |
 | `/m-skills:product-architect — prd` | `/m-skills:prd` | a durable spec |
 | `/m-skills:product-architect — brief` | `/m-skills:brief` | one page: north star and anti-goals |
@@ -363,7 +367,7 @@ These hold in every skill, in every project:
 | `scripts/warn-test-weakening.sh` | Flags a newly added `.skip` / `.only` in a test file | stays put |
 | `scripts/advise-propagation.sh` | Prompts the Protocol A sweep when a shared-shape file is edited | stays put |
 | `tests/run-tests.sh` | The pack's own test suite — 558 assertions, no dependencies | stays put |
-| `commands/*.md` | The 15 route commands — thin pre-routed entries into one architect's mode | plugin: stays put · copy-mode: → `<project>/.claude/commands/`, paths rewritten |
+| `commands/*.md` | The 16 route commands — thin pre-routed entries into one architect's mode | plugin: stays put · copy-mode: → `<project>/.claude/commands/`, paths rewritten |
 | `skills/<architect>/SKILL.md` | An architect's spine — constraints, modes, procedure | plugin: stays put · copy-mode: → `<project>/.claude/skills/` |
 | `skills/module-*/` | The 9 shared modules, addressed by name | same |
 | `skills/*/references/*.md` | On-demand material, read via `${CLAUDE_SKILL_DIR}` | same |
@@ -378,7 +382,7 @@ The 17 architects: `guidelines-meta`, `brainstorming-planner`, `planning-archite
 
 The 9 modules: `module-propagation`, `module-threat-model`, `module-gate-battery`, `module-craft-floor`, `module-operability-floor`, `module-findings`, `module-evidence`, `module-handover`, `module-writing-floor`.
 
-The 15 route commands: `kickoff`, `decompose`, `prd`, `brief`, `threat-model`, `a11y-audit`, `ui-audit`, `redesign`, `code-review-architect-uncommitted`, `docs-audit`, `release-notes`, `seo-audit`, `spread`, `advisories`, `rollback`. → [§ Skipping the mode question](#skipping-the-mode-question)
+The 16 route commands: `kickoff`, `onboard`, `decompose`, `prd`, `brief`, `threat-model`, `a11y-audit`, `ui-audit`, `redesign`, `code-review-architect-uncommitted`, `docs-audit`, `release-notes`, `seo-audit`, `spread`, `advisories`, `rollback`. → [§ Skipping the mode question](#skipping-the-mode-question)
 
 **Who invokes what** — pipeline stages are yours to trigger; knowledge skills load themselves when relevant:
 
@@ -400,7 +404,7 @@ So each section is owned by the skill that needs it, and gets filled the first t
 
 | Profile section | Owner | Filled when |
 |---|---|---|
-| Identity, Commands | SessionStart hook | first session — auto-detected |
+| Identity, Commands | SessionStart hook, or `/m-skills:onboard` | first session — auto-detected |
 | Conventions | `implementing-architect` / `testing-architect` | first code or tests |
 | Design | `design-architect` | first UI work |
 | Security | `security-architect` | first untrusted input, authorization, or secret |
@@ -412,7 +416,7 @@ So each section is owned by the skill that needs it, and gets filled the first t
 | Guardrails, Propagation Sites | any skill — chiefly `debugging-architect` | whenever something is learned the hard way |
 | Packages *(monorepos)* | whichever skill first works in a package | resolved from the paths being touched |
 
-A skill fills **only its own** section, in at most 3–4 questions, and never front-loads questions for work that isn't happening yet. An unknown row is `n-a`, `TODO`, `pending: <when>`, or `assumed: <value>` — never blank and never invented.
+A skill fills **only its own** section, in at most 3–4 questions, and never front-loads questions for work that isn't happening yet. The one exception is `/m-skills:onboard`, which you run to record every row the repo answers at once. An unknown row is `n-a`, `TODO`, `pending: <when>`, or `assumed: <value>` — never blank and never invented.
 
 **On a brand-new project** the hook detects that there's nothing to detect (fewer than three source files) and offers a conversation rather than a form:
 
@@ -428,6 +432,8 @@ Declining is a first-class outcome. If you'd rather just start coding, the ownin
 
 Only what the repo genuinely cannot say gets asked, and it's a short list: intent, who's allowed to fire a production deploy, where production secrets live, the coverage bar the team wants, the rollback they'd actually perform. **Asking about something the repo already answers is treated as a defect** — as is writing `pending` on a row whose answer was sitting in an unopened file.
 
+**To do it in one sitting, run `/m-skills:onboard`.** It is the same investigate-then-ask pass across every section, plus the docs. The docs already there are mapped as the targets `rolling-history` and `documentation-architect` read. The commit convention comes from config or `git log`. The questions only you can answer come as one batch of at most five. With no changelog, it offers one with a current-state baseline — past history stays in git, nothing is rebuilt from commit subjects. It edits no existing doc; drift it notices goes in the report.
+
 | Situation | Behavior |
 |---|---|
 | Profile already exists **and still true** | **Silent.** No output, no cost. |
@@ -435,7 +441,7 @@ Only what the repo genuinely cannot say gets asked, and it's a short list: inten
 | Not a project directory | **Silent.** Never nags in scratch folders. |
 | `.claude/.m-skills-no-bootstrap` present | **Silent** forever. |
 | Brand-new project | Says what little is knowable, then offers `brainstorming-planner kickoff` — never a questionnaire |
-| Established project, no profile | Sweeps for structural evidence (~0.5s), Claude reads the files it points at, then asks only the residue |
+| Established project, no profile | Sweeps for structural evidence (~0.5s), Claude reads the files it points at, then asks only the residue — or names `/m-skills:onboard` to do that and adopt the docs in one run |
 
 **It does not write files by default** — it proposes, you decide. `M_SKILLS_AUTOPROFILE=1` writes a draft instead; detected rows filled, everything else marked.
 

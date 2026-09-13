@@ -123,7 +123,7 @@ Shared blocks, addressed by name, loaded by an architect when a run reaches them
 
 ## 🎯 Route Commands
 
-An architect that branches opens by picking a route — right when the direction is undecided, friction when it isn't. These 15 commands pre-select one and start there.
+An architect that branches opens by picking a route — right when the direction is undecided, friction when it isn't. These 16 commands pre-select one and start there.
 
 | Command | Architect | Route it enters |
 |---|---|---|
@@ -136,6 +136,7 @@ An architect that branches opens by picking a route — right when the direction
 | **`/m-skills:ui-audit`** | [design-architect](skills/design-architect/SKILL.md) | Audit — brief or stamp present, craft floor + refuse list, writes nothing |
 | **`/m-skills:redesign`** | [design-architect](skills/design-architect/SKILL.md) | Redesign — replace the look, keep the product truth |
 | **`/m-skills:code-review-architect-uncommitted`** | [code-review-architect](skills/code-review-architect/SKILL.md) | Working tree — `git diff HEAD`, staged + unstaged, gates opt-in |
+| **`/m-skills:onboard`** | [documentation-architect](skills/documentation-architect/SKILL.md) | Onboard — first run in an existing project: profile from the repo, docs adopted |
 | **`/m-skills:docs-audit`** | [documentation-architect](skills/documentation-architect/SKILL.md) | Audit — friction log, `path:line`, read-only |
 | **`/m-skills:release-notes`** | [documentation-architect](skills/documentation-architect/SKILL.md) | Release notes — from the changelog, never invented |
 | **`/m-skills:seo-audit`** | [search-optimization-architect](skills/search-optimization-architect/SKILL.md) | Audit — tier-ordered, verified against fetched bytes |

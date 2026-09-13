@@ -53,6 +53,12 @@ grep -qE '^1\. \*\*Document what exists, not what is planned' "$ROOT/skills/docu
   && ok "docs keep the document-what-exists rule" || bad "docs keep the document-what-exists rule"
 grep -qE '^5\. \*\*Never create a doc the project doesn' "$ROOT/skills/documentation-architect/SKILL.md" \
   && ok "docs keep the ask-before-creating rule" || bad "docs keep the ask-before-creating rule"
+# a bare docs run in a project the pack has never seen used to ask what to build.
+# Onboard is the answer to that run, and it must not rebuild history from commit subjects.
+grep -q 'A bare run in a project the pack has never seen is Onboard' "$ROOT/skills/documentation-architect/SKILL.md" \
+  && ok "docs route a first bare run to Onboard" || bad "docs route a first bare run to Onboard"
+grep -q 'No backfilled releases' "$ROOT/skills/documentation-architect/references/onboard.md" \
+  && ok "onboard refuses backfilled changelog history" || bad "onboard refuses backfilled changelog history"
 grep -qE '^4\. \*\*Slices are vertical' "$ROOT/skills/product-architect/SKILL.md" \
   && ok "product keeps the vertical-slice rule" || bad "product keeps the vertical-slice rule"
 grep -qE '^1\. \*\*Every number is sourced or labelled' "$ROOT/skills/product-architect/SKILL.md" \
@@ -618,6 +624,7 @@ mkdir -p "$TMP/green"; printf '{"scripts":{}}' > "$TMP/green/package.json"
 out="$(run_bs "$TMP/green")"
 assert_contains "greenfield recognised"        "$out" "has not really started yet"
 assert_contains "greenfield offers kickoff"    "$out" "brainstorming-planner kickoff"
+assert_missing  "greenfield does not offer onboard" "$out" "/m-skills:onboard"
 assert_missing  "greenfield does not demand a profile" "$out" "want me to write one?"
 
 # the 3-file boundary
@@ -677,6 +684,7 @@ assert_contains "finds design tokens"         "$out" "tokens.css"
 assert_contains "detects monorepo shape"      "$out" "monorepo (turbo)"
 assert_contains "detects framework"           "$out" "React"
 assert_contains "instructs investigate-first" "$out" "investigate before you ask"
+assert_contains "brownfield offers onboard"   "$out" "/m-skills:onboard"
 assert_missing  "no contradictory pending advice" "$out" "Leave §Design, §Deployment"
 
 # never writes without the opt-in env var
@@ -684,6 +692,14 @@ assert_missing  "no contradictory pending advice" "$out" "Leave §Design, §Depl
 out="$(CLAUDE_PROJECT_DIR="$BR" CLAUDE_PLUGIN_ROOT="$ROOT" M_SKILLS_AUTOPROFILE=1 bash "$BS" 2>/dev/null)"
 [ -f "$BR/.claude/PROJECT-PROFILE.md" ] && ok "M_SKILLS_AUTOPROFILE=1 writes a draft" || bad "M_SKILLS_AUTOPROFILE=1 writes a draft"
 assert_contains "the draft write is announced" "$out" "DRAFT has been written"
+
+# /m-skills:onboard writes the profile by hand and stamps --fingerprint. If that value
+# differed from what the drift check computes, every onboarded profile would report
+# drift in its first session.
+fp="$(CLAUDE_PROJECT_DIR="$BR" bash "$BS" --fingerprint 2>/dev/null)"
+stamped="$(grep -oE 'm-skills-fingerprint: [0-9]+' "$BR/.claude/PROJECT-PROFILE.md" | grep -oE '[0-9]+')"
+assert_eq "--fingerprint matches the marker the drift check reads" "$fp" "$stamped"
+assert_empty "a freshly stamped profile reports no drift" "$(run_bs "$BR")"
 
 # ...on the greenfield path too. $WROTE was interpolated only into the brownfield
 # heredoc, so a file appeared in the user's repo and the session never said so.

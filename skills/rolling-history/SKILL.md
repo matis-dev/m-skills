@@ -19,7 +19,9 @@ disable-model-invocation: true
 
 From the profile's **Documentation Targets** table, note the changelog path and which other docs exist. From **Commit Convention**, note the allowed types, subject case, and header limit — and the config file that enforces them.
 
-If the profile is absent: find the changelog by looking (`CHANGELOG.md`, `docs/`, `Documentation/`), read the commit convention from the repo's own commitlint/husky config or from `git log --oneline -20`, and **match what the repo already does**. If there is genuinely no changelog, ask before creating one — an unrequested new file at the repo root is scope creep.
+If the profile is absent: find the changelog by looking (`CHANGELOG.md`, `docs/`, `Documentation/`), read the commit convention from the repo's own commitlint/husky config or from `git log --oneline -20`, and **match what the repo already does**. If there is genuinely no changelog, ask before creating one — an unrequested new file at the repo root is scope creep. A changelog row marked `n-a — declined` was already asked: skip Step 2 and don't ask again.
+
+No profile in a project that already has docs → say in one line that `/m-skills:onboard` adopts them once, so this step stops rediscovering them every session.
 
 > **One changelog.** Whatever the project's canonical file is, that is the only one. Never create a second at a different path because it was easier to find.
 

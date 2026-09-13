@@ -34,6 +34,8 @@ Every row carries one of five states. **Never leave a row blank and never guess 
 | Deployment | `deployment-architect` | first deploy or first "is this ready to ship?" |
 | Guardrails, Propagation Sites | any skill — chiefly `debugging-architect` | whenever something is learned the hard way |
 
+**Existing projects:** `/m-skills:onboard` fills every row the repo answers, in every section, in one run. The owners above still fill whatever it leaves `TODO` or `pending`.
+
 **Greenfield projects:** a project that doesn't exist yet has nothing to detect. Its rows are `pending`, and
 they get **decided** rather than discovered — the first skill to need a decision proposes one, and records
 it here once the user agrees. Never write `assumed:` values into a greenfield profile silently.
