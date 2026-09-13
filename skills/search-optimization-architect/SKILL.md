@@ -1,6 +1,6 @@
 ---
 name: search-optimization-architect
-description: Use for GEO, AEO, and AI-search work — an AI-visibility audit, retrieval-shaped content, llms.txt or schema decisions, crawl and rendering diagnosis, a citation dashboard. Sorts every tactic by evidence tier (load-bearing, plausible, theater), verifies against fetched bytes, measures with repeated runs. Never promises a ranking, citation, or lift.
+description: Use for GEO, AEO, and AI-search work — an AI-visibility audit, retrieval-shaped content, llms.txt or schema decisions, crawl and rendering diagnosis, Open Graph share previews, a citation dashboard. Sorts every tactic by evidence tier (load-bearing, plausible, theater), verifies against fetched bytes, measures with repeated runs. Never promises a ranking, citation, or lift.
 argument-hint: "[URL, page, site, or topic] [+ mode: audit | brief | technical | entity | measure]"
 disable-model-invocation: true
 ---
@@ -23,7 +23,7 @@ disable-model-invocation: true
 ## Operational Constraints
 
 1. **Never promise a citation, a ranking, or a lift** (`module-evidence` §3). No projected percentage, no "you'll appear in ChatGPT within N weeks", no traffic model. Generative engines are stochastic and change without notice; the published causal evidence for organic discoverability is thin (`references/evidence-base.md`). State the mechanism you are improving and the metric that would show it moved. A forecast you cannot source is a fabrication under **Guidelines §15**, and this domain is where that rule is most often broken.
-2. **Every tactic carries its evidence tier** from §2 — `load-bearing`, `plausible`, or `theater` — stated inline whenever you recommend it. A recommendation without a tier is not finished work. When a user asks for a tactic sitting in `theater`, say so in one line, price it honestly (usually: cheap, do it if it's free), and do it anyway if they still want it.
+2. **Every tactic carries its evidence tier** from §2 — `load-bearing`, `plausible`, or `theater` — stated inline whenever you recommend it. A recommendation without a tier is not finished work. When a user asks for a tactic sitting in `theater`, say so in one line, price it honestly (usually: cheap, do it if it's free), and do it anyway if they still want it. Share-preview findings (Open Graph, card tags) carry `share-surface` instead: they are judged on whether the link card renders, not on AI visibility, and are never skipped for moving no citation (`references/technical-readiness.md` §6).
 3. **Measure the fetched bytes, not the rendered page.** Every technical finding is verified against what a non-JavaScript client receives — `curl` the URL, read the raw HTML, check the status code. DevTools shows you the browser's page, which is not the crawler's page. A finding based on the rendered DOM is unverified.
 4. **Never cite a number from this file without re-checking it** — `module-evidence` §4. The evidence base is dated evidence about a market that moves quarterly. Re-verify before repeating any figure to the user, and attribute it to its study, not to "research shows".
 5. **The human reader outranks the retriever.** No keyword stuffing, no answer blocks that read as filler, no page rebuilt into a FAQ dump. Content engineered past the point of being worth reading loses the thing that earns citations in the first place, and keyword stuffing measured negative in the source literature (`references/evidence-base.md`).
@@ -78,6 +78,7 @@ Do them only when free, and never bill them as levers.
 
 - **`llms.txt` as a ranking or citation signal.** No major provider has committed to using it; measured crawler interest is negligible (`references/evidence-base.md`). It has a real, narrower use — see `references/technical-readiness.md` §5.
 - **JSON-LD as a citation lever.** The best controlled study to date found no statistically significant citation uplift from adding it (`references/evidence-base.md`). Ship schema for Tier-2 reasons, not this one.
+- **Open Graph and card tags as a ranking or citation signal.** They build the link card, not retrieval. Ship them for that, under `share-surface` (Constraint 2).
 - **Keyword stuffing, "AI-friendly" keyword density, entity-count targets.** Measured null-to-negative.
 - **One-size "AI SEO" packages** applied across engines whose citation logic barely overlaps (§1).
 - **Prompt-injection text, hidden instructions to models, invisible text.** Ineffective, and a trust and policy risk. Refuse it.
@@ -92,7 +93,7 @@ Everything below §2 is a reference file — read the one this run needs, not al
 
 | Read | When |
 |---|---|
-| `${CLAUDE_SKILL_DIR}/references/technical-readiness.md` | `technical`, `audit`, or any "why aren't we cited" diagnosis. Rendering, crawl policy, sitemaps, schema, `llms.txt` — verified against fetched bytes. |
+| `${CLAUDE_SKILL_DIR}/references/technical-readiness.md` | `technical`, `audit`, or any "why aren't we cited" diagnosis. Rendering, crawl policy, sitemaps, schema, `llms.txt`, share previews — verified against fetched bytes. |
 | `${CLAUDE_SKILL_DIR}/references/retrieval-content.md` | `brief`, or restructuring a page. The island test, the atomic answer, chunk discipline, comparison formats. |
 | `${CLAUDE_SKILL_DIR}/references/entity-authority.md` | `entity`, or prioritising a content plan. Fan-out mapping, off-site presence, original data, E-E-A-T as evidence. |
 | `${CLAUDE_SKILL_DIR}/references/measurement.md` | `measure`, or before any number reaches a dashboard. Prompt sets, run counts, the four metrics, instrumentation. |
@@ -121,7 +122,7 @@ A Tier-1 failure stops the run: if the content is not in the fetched bytes, noth
 
 | Ask | What this skill does |
 |---|---|
-| **Audit** a page or site | Fetch as a non-JS client (`technical-readiness.md` §1) → Tier-1 checks first, and stop the report there if one fails → then the island test on real chunks (`retrieval-content.md`) → the rest of `technical-readiness.md` → coverage gaps (`entity-authority.md`). Findings per `module-findings`, with `url:element` and its tier. Read-only. |
+| **Audit** a page or site | Fetch as a non-JS client (`technical-readiness.md` §1), reading the head for share tags in the same pass (§6) → Tier-1 checks first, and stop the report there if one fails — the share-preview result still ships → then the island test on real chunks (`retrieval-content.md`) → the rest of `technical-readiness.md` → coverage gaps (`entity-authority.md`). Findings per `module-findings`, with `url:element` and its tier. Read-only. |
 | **Brief** — content written to be retrieved | Fan-out map (`entity-authority.md` §1) → target sub-questions → atomic answer draft → heading structure as questions → the specifics and sources the page must carry. Sweep `module-writing-floor` before emitting. |
 | **Technical** pass only | `technical-readiness.md` end to end, verified against fetched bytes, output as a ranked fix list with the failing evidence for each. |
 | **Entity** / authority | `entity-authority.md`: fan-out coverage, off-site surfaces, entity consistency audit, original-data proposal. |
@@ -140,10 +141,11 @@ Run the six-axis pre-emit self-critique (Guidelines §18) first; anything under 
 - [ ] No projected lift, no invented score, no fabricated credential or metric (§15, §Constraints 1).
 - [ ] Any figure quoted from `references/evidence-base.md` was re-verified and attributed to its study, not to "research shows" (§Constraints 4).
 - [ ] Content recommendations still produce something a human would read (§Constraints 5).
+- [ ] Public web property: `og:title`, `og:description`, `og:image`, `og:url`, and `twitter:card` checked in the scraper-fetched head of each audited route type, and the `og:image` URL itself fetched (`references/technical-readiness.md` §6).
 - [ ] Measurement plan specifies runs per prompt and reports a spread, not a single number (`references/measurement.md` §1).
 - [ ] Findings ranked by tier and severity; the report leads with any Tier-1 failure.
 - [ ] Verification stayed within two rounds (Guidelines §16).
 
 ---
 
-_v1.0 — version history in CHANGELOG.md_
+_v1.1 — version history in CHANGELOG.md_

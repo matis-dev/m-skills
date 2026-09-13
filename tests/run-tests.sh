@@ -69,6 +69,12 @@ grep -q 'llms.txt` as a ranking or citation signal' "$ROOT/skills/search-optimiz
   && ok "search keeps llms.txt in tier 3" || bad "search keeps llms.txt in tier 3"
 grep -q 'JSON-LD as a citation lever' "$ROOT/skills/search-optimization-architect/SKILL.md" \
   && ok "search keeps JSON-LD out of tier 1" || bad "search keeps JSON-LD out of tier 1"
+# share tags move no citation, so an audit sorted by the ladder dropped them — and the
+# link card a shared URL unfurls into went unchecked. keep the check and its own label.
+grep -q 'og:image' "$ROOT/skills/search-optimization-architect/references/technical-readiness.md" \
+  && ok "search keeps the share-preview check" || bad "search keeps the share-preview check"
+grep -q 'share-surface' "$ROOT/skills/search-optimization-architect/SKILL.md" \
+  && ok "search labels share previews off the ladder" || bad "search labels share previews off the ladder"
 # a fabricated OWASP category or CWE gets quoted into a ticket by a human who trusts it;
 # a fabricated SC number ends up in a VPAT. these two rules are why either is refused.
 grep -qE '^1\. \*\*Never invent an OWASP category or a CWE number' "$ROOT/skills/security-architect/SKILL.md" \

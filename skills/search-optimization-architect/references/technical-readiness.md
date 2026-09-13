@@ -53,4 +53,31 @@ It is genuinely useful for a narrower audience: **IDE agents, MCP servers, and i
 
 If shipping it: a curated Markdown index of the canonical pages with one-line descriptions, and `llms-full.txt` only if the corpus genuinely fits in a context window. Generate it from the same source as the sitemap so it cannot drift — a stale index is worse than none. Time-box it to an hour, and say out loud that it is speculative.
 
+### 6. Share Previews — Open Graph and card tags
+
+Tier label `share-surface` (`SKILL.md` Constraint 2). Not a retrieval or citation lever — sold as one it is Tier 3. Ship it for what it does: the card a link unfurls into in Slack, iMessage, WhatsApp, LinkedIn, X, Discord, and Facebook. Without the tags a shared link renders as a bare URL or a scraper's guess. The check is binary and costs nothing extra, so **it runs on every audit of a public web property, from the same fetch as §1 — and is reported even when a Tier-1 failure stops the rest.**
+
+Unfurl scrapers behave like AI crawlers: one request, no JavaScript. Tags injected client-side — a head manager in an SPA or PWA shell — are absent from what they read, while DevTools shows them present. That is the most common failure.
+
+```bash
+# The head a link scraper sees. Once per route type; repeat with -A 'Twitterbot/1.0' and -A 'LinkedInBot/1.0'.
+curl -sSL -A 'facebookexternalhit/1.1' '<url>' | grep -oiE '<title>[^<]*</title>|<(meta|link)[^>]*(og:|twitter:|name="description"|rel="canonical")[^>]*>'
+# The image itself, as the scraper fetches it: expect 200 and an image/* Content-Type.
+curl -sSIL -A 'facebookexternalhit/1.1' '<og:image url>' | grep -iE '^(HTTP|content-type|content-length)'
+```
+
+Floor per route — each gap is a finding with `url:element`:
+
+| Tag | Passes when |
+|---|---|
+| `og:title`, `og:description` | Present and page-specific — agrees with `<title>` and the meta description, not the site name repeated on every route. |
+| `og:image` | Absolute `https` URL that returns 200 with `image/*` to the scraper UA — not relative, not on a preview host, not behind auth, `robots.txt`, or a bot challenge. 1200×630 is the widely supported landscape size; resolve current size and weight limits from each platform's docs, not memory (Guidelines §15). |
+| `og:image:width`, `og:image:height`, `og:image:alt` | Dimensions let the first share render before the scraper has the image; alt is the card's text alternative. |
+| `og:url`, `og:type`, `og:site_name` | `og:url` equals the canonical from §1. `website` for the home page, `article` for dated content. |
+| `twitter:card` | `summary_large_image` when there is an image. X falls back to `og:*` for title, description, and image; set the card type explicitly. |
+
+Also flag: one site-wide image on every route (a fine default for a small site, a weak card for articles and products — say which applies), and a title or description truncated mid-word in the card.
+
+**Fix** server-side, from the same source as the page's title and description, through the framework's own metadata API (Profile §Stack) — never a second head library (Guidelines §2, rung 3). The image is a designed asset: legible at thumbnail size, text inside a centered safe area — build per-route templates through `design-architect`. **Confirm** by re-running the fetch above, then hand the user each platform's share debugger or post inspector to force a re-scrape: platforms cache cards, so a fixed tag keeps showing the old card until then. Report what the card now shows; never a projected click-through gain (Constraint 1).
+
 ---

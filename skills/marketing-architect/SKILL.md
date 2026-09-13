@@ -54,7 +54,7 @@ Two rules for this table. **It is a starting map, not the answer** — the actua
 The spine of this skill. Five links, in order. **A failure at any link cannot be compensated by more volume at a later one** — it can only be fixed at the link where it happened.
 
 1. **Positioning** — a stranger can say what this is, who it is for, and what it replaces, in one sentence, without your help. Fails silently: everyone who already knows the project thinks it is obvious.
-2. **The artifact** — the page, repo, or store listing they land on carries that sentence on the first screen, and the fastest possible path to seeing it work. Traffic multiplies whatever this converts at, including zero.
+2. **The artifact** — the page, repo, or store listing they land on carries that sentence on the first screen, and the fastest possible path to seeing it work. Traffic multiplies whatever this converts at, including zero. A web link also unfurls into a card — title, description, image — wherever it is posted; a link that renders as a bare URL fails here, and the share-preview check in `search-optimization-architect` finds it.
 3. **Placement** — the thing is in front of the right people, in a place that permits it, in the form that place accepts.
 4. **Response** — someone is present and answering in the hours after it lands. This is one of the few widely-attested levers and one of the cheapest, and it is the link most often left unstaffed.
 5. **Retention** — the people who arrived have a reason to come back: it works, it is maintained, and there is somewhere to go with a question.
