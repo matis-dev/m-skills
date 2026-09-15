@@ -558,7 +558,7 @@ There is no `/i-have-adhd` command, deliberately: an output style is influence, 
 
 ### Suggesting a skill
 
-The eleven gated skills are invisible to Claude — absent from its roster, unreachable on its own. Without help that means *"please implement the plan"* quietly gets ordinary behaviour: no gate battery, no propagation sweep, and no hint that `implementing-architect` was ever an option. A third `SessionStart` hook (`scripts/suggest-skills.sh`) injects the roster and one instruction: when a message clearly matches one of them, **ask** — never assume, never stay silent.
+The eleven gated skills are invisible to Claude — absent from its roster, unreachable on its own. Without help that means *"please implement the plan"* quietly gets ordinary behaviour: no gate battery, no propagation sweep, and no hint that `implementing-architect` was ever an option. A third `SessionStart` hook (`scripts/suggest-skills.sh`) injects the roster and two instructions: when you name a skill or a message clearly matches one, Claude hands you the `/m-skills:<name>` line to paste at once, with no confirmation round trip; when two or more skills plausibly compete, it **asks** which one. It never stays silent. The gate still holds: only a slash command you type starts a gated skill.
 
 Unlike the reply protocol this is **on by default**, because the people it helps are the ones who have not read this file. Switching it off uses the same convention as the guards:
 

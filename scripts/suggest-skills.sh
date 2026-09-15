@@ -5,9 +5,10 @@
 # model's skill roster. "Please implement the plan" therefore gets ordinary default
 # behaviour — no gate battery, no propagation sweep — and nothing tells the user that
 # implementing-architect existed. The flag is right: a casual remark must never start
-# a code-writing process. The silence is not. This hook injects the roster plus the
-# instruction to *ask*, so the gate stays exactly as strict and only the recall
-# burden goes away.
+# a code-writing process. The silence is not. This hook injects the roster: a clear
+# match gets the paste line at once, a real choice between skills gets a question. The
+# gate stays exactly as strict — only a slash command the user types starts a skill —
+# and only the recall burden goes away.
 #
 # On by default — the people this serves are the ones who never read the README.
 # Opt out with a flag file, the same convention the PreToolUse guards use:
@@ -70,17 +71,17 @@ printf 'SKILL SUGGESTIONS ACTIVE. The m-skills pipeline skills below are gated w
 printf 'disable-model-invocation, so they are absent from your skill roster and you cannot\n'
 printf 'start one on your own:\n\n'
 printf '%s\n' "$ROSTER"
-printf '\nWhen a message clearly matches one and does not name it, ASK. Do not silently fall\n'
-printf 'back to default behaviour, and do not invoke anything unasked.\n\n'
-printf 'Obvious single match — confirm, three options:\n'
-printf '  "This looks like a <skill> job — <what it would do>. Run it?"\n'
-printf '  [Yes — run <skill>] [No — a different skill] [No — just continue]\n\n'
-printf 'Genuinely ambiguous — one option per candidate plus the decline, four max:\n'
-printf '  [<skill-a> — <the angle it takes>] [<skill-b> — <its angle>] [No — just continue]\n\n'
-printf 'On "yes": invoke the skill if the runtime allows it. If the gate refuses a model-side\n'
-printf 'invocation, hand over the exact line to paste — /m-skills:<name> — and say that is why.\n'
-printf 'The flow never dead-ends on a yes.\n\n'
-printf 'Do not ask on small talk, a one-line tweak, or a turn where a skill is already running.\n'
+printf '\nNamed or clearly matched — do not ask. The user naming a skill ("use planning\n'
+printf 'architect") or a message with one obvious fit is a decision already made. In one\n'
+printf 'line say which skill fits and what it will do, then give the exact line to paste —\n'
+printf '/m-skills:<name> — noting the gate stops you starting it yourself. If the runtime\n'
+printf 'does allow a model-side invocation, just invoke it.\n\n'
+printf 'Genuinely ambiguous — two or more skills plausibly compete: ASK, one option per\n'
+printf 'candidate plus the decline, four max:\n'
+printf '  [<skill-a> — <the angle it takes>] [<skill-b> — <its angle>] [No — just continue]\n'
+printf 'On a pick, hand over the paste line for it the same way.\n\n'
+printf 'Never silently fall back to default behaviour on a match.\n'
+printf 'Do not suggest on small talk, a one-line tweak, or a turn where a skill is already running.\n'
 printf 'Never re-ask a match the user already declined this session.\n\n'
 printf 'Turning it off: the user saying "stop suggesting" ends it for this session; the file\n'
 printf '.claude/.m-skills-no-suggest ends it for this project, and the same name in\n'
