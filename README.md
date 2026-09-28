@@ -356,10 +356,11 @@ These hold in every skill, in every project:
 | [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md) | License notices for the absorbed sources | stays put |
 | `.claude-plugin/plugin.json` | Plugin manifest | stays put — read on install |
 | `.claude-plugin/marketplace.json` | Single-plugin marketplace catalog | stays put — read by `/plugin marketplace add` |
-| `hooks/hooks.json` | Wires all eight hooks | stays put |
+| `hooks/hooks.json` | Wires all nine hooks | stays put |
 | `scripts/lib/hook-json.sh` | Shared hook plumbing — payload parsing, decision emitters, the opt-out check | stays put |
 | `scripts/profile-bootstrap.sh` | Every session: flags env files git tracks, once committed, or doesn't ignore. Without a profile: detects the stack | stays put |
 | `scripts/adhd-always-on.sh` | Applies the reply protocol session-wide when its flag is set | stays put |
+| `scripts/resume-progress.sh` | Points a new or compacted context at `.claude/PROGRESS.md` when an implementing run didn't finish | stays put |
 | `scripts/guard-mutations.sh` | **Denies** git mutations, golden-file updates, catastrophic `rm`/`dd` | stays put |
 | `scripts/guard-outward.sh` | **Denies** a deploy, publish, migration, infra apply, or `gh` write — you get a runbook instead | stays put |
 | `scripts/guard-secrets.sh` | **Denies** reading or writing secret-bearing files; `.env.example` variants untouched | stays put |

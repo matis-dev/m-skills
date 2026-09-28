@@ -18,6 +18,11 @@ Lead with status, not narration (Guidelines §17).
 
 <the gate result table — shape in `module-gate-battery` §2, one row per gate this project has>
 
+**Could not check:** <check — what it needed (access, credentials, a device) — or "none">  ← read this first
+**Verified by running:** <Done When behaviors confirmed in the app, tests, or commands>
+**Inferred from reading only:** <behavior concluded from code, not exercised — or "none">
+**Blocked:** <step — blocker — what it needs from the user — or "none">
+
 **Propagation protocols run:** <A shared-shape / B public-API / C external-origin / none applied>
 **Known gaps:** <uncovered branches, deferred items — or "none">
 ```

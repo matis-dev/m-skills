@@ -12,6 +12,13 @@
 - <goal 1>
 - <goal 2>
 
+## Done When (observable — each one checked in the running app, not read off the code)
+- <behavior, e.g. "search matches a word from the middle of a note">
+- <edge, e.g. "editing a note updates results without reload; empty query lists all notes">
+
+## Ask Before (decisions reserved to the user — the only mid-run stops)
+- <e.g. changing how notes are stored · deleting existing data · adding a dependency>
+
 ## Files to Modify
 - `<path>` — <what changes here, one line>
 
@@ -48,14 +55,14 @@
 - Verification: <re-grep the old identifier | semantic sites listed by name | confirm via `<build>`>
 
 ## Model Routing Summary
-| Step | Tier | Thinking? | One-line reason |
+| Step | Tier | Effort | One-line reason |
 |---|---|---|---|
-| 1 | Light | no | <mechanical rename> |
-| 2 | Light | no | <continuation, no switch> |
-| 3 | Standard | no | <multi-file scaffold from known pattern> |
-| 4 | Standard | yes | <subtle async coordination> |
-| 5 | Heavy | yes | <cross-cutting design call> |
-| 6 | Light | no | <verification commands> |
+| 1 | Light | medium | <mechanical rename> |
+| 2 | Light | medium | <continuation, no switch> |
+| 3 | Standard | medium | <multi-file scaffold from known pattern> |
+| 4 | Standard | high | <subtle async coordination> |
+| 5 | Heavy | high | <cross-cutting design call> |
+| 6 | Light | low | <verification commands> |
 
 Group adjacent same-tier rows so the user switches only when the tier changes.
 

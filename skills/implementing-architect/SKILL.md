@@ -35,6 +35,8 @@ If invoked without one:
 5. **`[A11Y]` steps follow Accessibility Architect** (the `accessibility-architect` skill, `build` mode) and `module-operability-floor` — native element first, and every overlay moves focus in, traps it, closes on Escape, and **returns focus to the trigger**. A green `<a11y>` gate does not cover any of that.
 6. **Every gate in the profile must pass** — lint, types, tests + coverage, build, e2e, visual, a11y, audit, whichever exist. A gate that doesn't exist is `n-a`; a gate that fails is reported, never skipped.
 7. **Bounded passes** (Guidelines §16) — implement fully, run the gates once as a batch, fix in one batch, re-run once. Not an open loop.
+8. **Finish the plan, not the first step** (Guidelines §12). A blocked step is named and skipped past; the run continues on everything independent of it. The only mid-run stops are the plan's *Ask Before* items and tier switches.
+9. **Progress lives in a file on any plan of three or more steps.** Context gets summarized mid-run; a file does not. Keep `.claude/PROGRESS.md` — one line per step (`done` · `blocked: <why>` · `todo`), each check with its result — updated after every step. On any stop, end it with a handoff: what changed, what failed, the step to resume at. The plugin's SessionStart hook points every new or compacted context at it. Delete it once the summary is emitted — the summary supersedes it.
 
 > Constraint 1 is absolute and now mechanical. Even when the user says "ship it" or "looks good", they still drive `git add`, `git commit`, and `git push` themselves — and the hook denies the call if you reach for it anyway.
 
@@ -58,8 +60,9 @@ If the change fits none of the three shapes, say so in one line and move on.
 6. **Apply Security Architect to every `[SEC]` step and Accessibility Architect to every `[A11Y]` step** — while writing, not after. If the plan carries no such tags but the change turns out to cross a trust boundary or add an interactive control, apply them anyway and say the plan missed it.
 7. **Run the gates** per the `module-gate-battery` skill — its order, its one-batch rule, its reporting shape.
 8. **Run the propagation protocols** that apply, from the `module-propagation` skill. This is the step the gates can't do for you.
-9. **Manual visual review** — if a visual or golden gate reports diffs, stop and hand it over (`module-gate-battery` §4). Never run the update command.
-10. **Summarize** — using the template at `${CLAUDE_SKILL_DIR}/references/summary-template.md`. Leave files **unstaged**; no commits; no pushes.
+9. **Check every *Done When* behavior in the running app** — each one is verified or reported as not checked, with why (Guidelines §15, *ran is not read*).
+10. **Manual visual review** — if a visual or golden gate reports diffs, stop and hand it over (`module-gate-battery` §4). Never run the update command.
+11. **Summarize** — using the template at `${CLAUDE_SKILL_DIR}/references/summary-template.md`. Leave files **unstaged**; no commits; no pushes.
 
 **One-shot alternative:** `bash ${CLAUDE_SKILL_DIR}/check-quality.sh` runs the same gates in the same order and prints a pass/fail report. The variable resolves to this skill's own directory in both plugin and copied installs, so the command is identical either way. Add `--list` to print which gates it resolved **without running any of them** — use that first when you're unsure the profile is right.
 
@@ -80,7 +83,8 @@ If the change fits none of the three shapes, say so in one line and move on.
 - [ ] Every gate in the profile run and recorded per `module-gate-battery`; no gate skipped, no failure hidden.
 - [ ] Green-but-lying traps checked by name before trusting the run (`module-gate-battery` §3).
 - [ ] Visual diffs surfaced for manual review — **not** auto-updated (`module-gate-battery` §4).
-- [ ] Verified in the running app across the viewports/platforms the project ships, if user-visible.
+- [ ] Every *Done When* behavior checked in the running app across the viewports/platforms the project ships — or listed under *Could not check* with what it needed.
+- [ ] No stop outside the plan's *Ask Before* list; blocked steps named, independent steps finished; `.claude/PROGRESS.md` removed once summarized.
 - [ ] Verification stayed within two rounds (Guidelines §16).
 - [ ] **No `git add`, no `git commit`, no `git push`** — files unstaged, no branches switched, no hooks skipped.
 

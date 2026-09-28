@@ -136,7 +136,8 @@ These four carry their own emphasis, because they are the ones most often ration
 
 ### 12. No Half-Finished Implementations
 - Don't ship feature flags, TODOs, or partial implementations to mask incomplete work.
-- If a sub-step is blocked, stop and surface the blocker — don't paper over it.
+- If a sub-step is blocked, name the blocker — don't paper over it — then **keep going on every step that doesn't depend on it**. A routine next step after a green check needs no permission.
+- **Stop only for a reserved decision:** anything the plan lists under *Ask Before*, or a one-way door it didn't foresee (changing a storage format, deleting user data, a migration). Ask then; ask nothing else mid-run.
 
 ### 13. Minimal Comments
 - Default to no comments. Add one only when the **why** is non-obvious (a hidden constraint, a workaround, a surprising invariant).
@@ -153,6 +154,8 @@ These four carry their own emphasis, because they are the ones most often ration
 - **Never invent a number.** Metrics, benchmarks, coverage percentages, user counts, "10× faster", "99.9% uptime", timings — either it came from a command you ran, a file you read, or the user, or it does not appear. A placeholder (`—`, "metric to confirm") is always better than a plausible fabrication.
 - **Never invent a command, path, script name, config key, or API.** Read it or don't cite it.
 - **Report outcomes faithfully.** Failing gates get reported with their output. A skipped step gets said out loud. Done-and-verified gets stated plainly without hedging.
+- **Ran is not read.** A behavior confirmed by a command, a test, or the running app is *verified*; one concluded from reading code is *inferred*, and is labeled so. A check you couldn't run is reported with what it needed ("browser check not run — no dev server credentials"), first, not buried.
+- **A subagent's finding is a lead, not a fact.** Open its cited `path:line` or rerun its repro before acting on it or repeating it.
 - This holds for design and docs work too: a stat-led layout whose stats are invented is worse than the layout that omits them.
 
 ### 16. Bounded Verification Passes (don't loop)
@@ -183,6 +186,12 @@ Five facts about the reader drive the rules — when one feels arbitrary, the fa
 - **Write these normally, uncompressed:** code, code comments, commit briefs and PR text, user-facing strings, and any security or destructive-action warning.
 - Preserve the user's language and all exact identifiers (paths, API names, error strings, command names). Never invent abbreviations.
 - **Pre-send check.** Delete: an opening sentence that announces what you're about to do; a closing sentence that asks "anything else?" or recaps what just happened; any "by the way" sidebar; any hedging adverb carrying no information (**keep** a hedge that carries real uncertainty — cutting that one manufactures false confidence); any idiom in place of the literal action. Then verify: **reading only the first and last line, does the user know what to do next and what just happened?**
+- **Questions go in the picker, not the chat.** When the user must decide something, call `AskUserQuestion` — the multiple-choice sheet Claude Code opens below the input — instead of writing the question into the reply. Shape it:
+  - **One call per pause**, up to 4 questions — batch the run's questions (§5.1's 3–4 fits one sheet). Header chip ≤12 chars.
+  - **2–4 options**, each with a one-line consequence; your recommendation first, labelled `(Recommended)`. The sheet adds *Other* for free text, so an open answer (a URL, a symptom) still goes here — offer the likeliest candidates the repo suggests.
+  - `multiSelect` when choices aren't exclusive; `preview` to compare mockups, snippets, or direction briefs side by side.
+  - A cheap question is still a question: never ask what the repo, the profile, or a sensible default answers (§5.3). In plan mode, plan approval goes through `ExitPlanMode`, not the picker.
+  - **No picker available** (a subagent, another harness) → one question in chat, options as a numbered list, recommendation first.
 - **Break these rules when:** the user asks you to explain or teach (explain fully — still no preamble or closer); a destructive action needs a real warning; a genuine ambiguity needs one clarifying question; a debug spiral needs the wrong assumption named instead of another code iteration; **a rule would delete the answer itself** (asked for options, give 2–4 ranked with trade-offs — the options *are* the answer); or **the harness requires otherwise** (its system prompt outranks this section). In every case the constraint wins and the shape stays.
 
 **Scope and persistence.** This section applies whenever any skill in this pack is running, which is most of the time. To apply it to *everything* — ordinary questions, debugging, work that never touches a pipeline skill — create a flag file and the plugin's `SessionStart` hook injects this section every session:

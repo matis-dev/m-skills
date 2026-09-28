@@ -786,6 +786,20 @@ touch "$TMP/home/.claude/.m-skills-adhd-always"
 assert_contains "global flag activates" "$(run_ad)" "all projects"
 rm "$TMP/home/.claude/.m-skills-adhd-always"
 
+# resume-progress.sh — the file existing means an implementing run never reached its summary.
+RP="$ROOT/scripts/resume-progress.sh"
+mkdir -p "$TMP/rpproj/.claude"
+run_rp() { CLAUDE_PROJECT_DIR="$TMP/rpproj" bash "$RP" 2>/dev/null; }
+assert_empty    "resume: silent without PROGRESS.md"  "$(run_rp)"
+: > "$TMP/rpproj/.claude/PROGRESS.md"
+assert_empty    "resume: silent on an empty file"     "$(run_rp)"
+printf '1. done\n2. todo\n' > "$TMP/rpproj/.claude/PROGRESS.md"
+out="$(run_rp)"
+assert_contains "resume: names the file"              "$out" ".claude/PROGRESS.md"
+assert_contains "resume: says to read it first"       "$out" "Read the file before anything"
+assert_contains "resume: asks via the picker"         "$out" "AskUserQuestion"
+[ "${out:0:1}" != "{" ] && ok "resume: output not parsed as JSON" || bad "resume: output not parsed as JSON"
+
 # ─────────────────────────────────────────────────────────────────────────────
 section "5. Behaviour — suggest-skills.sh"
 
@@ -804,6 +818,7 @@ out="$(run_sg)"
 assert_contains "active without any flag"        "$out" "SKILL SUGGESTIONS ACTIVE"
 assert_contains "names the gating mechanism"     "$out" "disable-model-invocation"
 assert_contains "asks when skills compete"       "$out" "ASK"
+assert_contains "asks through the picker"        "$out" "AskUserQuestion"
 assert_contains "clear match skips the confirm"  "$out" "do not ask"
 assert_contains "carries the decline option"     "$out" "No — just continue"
 assert_contains "carries the paste fallback"     "$out" "/m-skills:<name>"

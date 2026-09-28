@@ -57,7 +57,7 @@ The part only this skill can do.
 
 ### 4. Ask the residue — once, together
 
-Gather every row only a person can answer into **one batch of at most five questions**, each naming the row it fills. Anything past five, or not needed before the next skill runs, stays `TODO`. Write the answers back before reporting.
+Gather every row only a person can answer into **one picker call of at most four questions** (Guidelines §17), each naming the row it fills. Anything past four, or not needed before the next skill runs, stays `TODO`. Write the answers back before reporting.
 
 ### 5. Report
 

@@ -80,6 +80,9 @@ Skills live in `.claude/skills/`. The pipeline:
 ```
 
 - Non-trivial change → plan first, get it approved, then implement.
+- Finish what you can. A blocker gets named, then you continue on everything independent of it; stop
+  only for a decision the plan reserves under *Ask Before*. Your report says what you **ran** apart from
+  what you **inferred** from reading, and leads with any check you couldn't run.
 - UI-visible change → `/design-architect` before calling it done.
 - Untrusted input, an auth change, a secret, or an advisory → `/security-architect`. At plan time it maps the
   trust boundary; on a finding it writes the fix *and* the regression test that fails without it.
@@ -95,7 +98,7 @@ Skills live in `.claude/skills/`. The pipeline:
 - Work too big for one sitting → `/product-architect`. Cuts it into vertical slices that each ship alone.
 - A doc to write, audit, or repair → `/documentation-architect`. Traces every command and path to a real file.
 
-**If I describe something that matches one of these and don't name it, ask — don't guess.** One question:
+**If I describe something that matches one of these and don't name it, ask — don't guess.** One picker question:
 the matching skill as an option, or two or three of them when it genuinely could go either way, plus a
 plain "no, just continue". My pick is what runs it; asking is not starting it. Skip the question for small
 talk, a one-line tweak, or when a skill is already running, and never re-ask something I already declined.
@@ -105,7 +108,8 @@ dropping the thread. Say "stop suggesting" to mute it for the session, or `touch
 
 ## Reply style
 
-Lead with the action or the answer. Numbered steps for sequences. Cap lists at five. End with one concrete
+Questions to me go through the `AskUserQuestion` picker, not the chat: up to four per call, 2–4 options each,
+your recommendation first. Lead with the action or the answer. Numbered steps for sequences. Cap lists at five. End with one concrete
 next step. No preamble, no recap of what I just said, no closing pleasantries. Code, commit briefs, and
 security warnings are written normally — don't compress those.
 

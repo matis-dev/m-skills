@@ -82,7 +82,7 @@ A plan that touches shared shape and lists one file is the most common way a pla
 - **One credible alternative** — one paragraph.
 - **Tradeoff** — one paragraph. Why the recommendation wins *for this case*.
 - If the recommendation departs from a project convention, justify it in writing.
-- **Model routing pass** — pre-assign the cheapest viable tier to each anticipated step; note any step genuinely needing thinking mode and why.
+- **Model routing pass** — pre-assign the cheapest viable tier to each anticipated step; raise effort above medium only where a step names why (`references/model-routing.md` §Effort).
 
 ### Phase 3 — Plan Document
 
@@ -95,7 +95,7 @@ End the plan with the literal line:
 
 > **Awaiting approval before implementation. Do not proceed until the user confirms.**
 
-Do **not** invoke the Implementing Skill. Do **not** start writing code. Wait.
+Then put the decision in the picker (Guidelines §17) — `Approve` · `Revise <what>` · `Stop here` — unless plan mode is active, where `ExitPlanMode` carries it. Do **not** invoke the Implementing Skill. Do **not** start writing code. Wait.
 
 ---
 
@@ -114,6 +114,7 @@ Do **not** invoke the Implementing Skill. Do **not** start writing code. Wait.
 - [ ] Manual Final Stage present and explicit about no auto-updates.
 - [ ] Inherited guards restated.
 - [ ] Goal trace verifiable — each step maps to an objective.
+- [ ] *Done When* lists observable behaviors a person can check in the running app; *Ask Before* lists the reserved decisions, or says `none`.
 - [ ] Out of Scope section non-empty (forces explicit boundary-setting).
 - [ ] If anything shared changes: every propagation category walked, mirror sites enumerated, verification line stated (re-grep for identifiers; semantic sites for bounds/enums; `<build>` for templates).
 - [ ] Confirmation gate line present verbatim.
