@@ -350,7 +350,7 @@ These hold in every skill, in every project:
 
 ## 🪐 Antigravity
 
-**The same pack runs in Google Antigravity, built from this tree.** Nothing is forked: a build script writes an Antigravity plugin from `skills/`, `commands/`, and the three guards, so a rule changed here reaches both hosts. Commands keep their names — `/m-skills:planning-architect`, `/m-skills:decompose`.
+**The same pack runs in Google Antigravity, built from this tree.** Nothing is forked: a build script writes an Antigravity plugin from `skills/`, `commands/`, and the three guards, so a rule changed here reaches every host. Commands keep their names — `/m-skills:planning-architect`, `/m-skills:decompose`.
 
 ```bash
 bash scripts/build-antigravity.sh                # writes dist/antigravity/m-skills/
@@ -382,6 +382,43 @@ The IDE runs no hooks at all ([reproduced on IDE 2.1.1, August 2026](https://dis
 
 ---
 
+## 🤖 Codex
+
+**The same pack runs in OpenAI Codex, built from this tree.** A build script writes a Codex plugin from `skills/`, `commands/`, and the three guards. Skills keep their names but start with `$` instead of `/`: `$m-skills:planning-architect`, `$m-skills:decompose`.
+
+```bash
+bash scripts/build-codex.sh                        # writes dist/codex/m-skills/ and a one-entry marketplace beside it
+codex plugin marketplace add "$PWD/dist/codex"     # once
+codex plugin add m-skills@m-skills-local           # installs the plugin
+```
+
+**Then trust the hooks: start `codex`, type `/hooks`, and trust the m-skills entries.** Until you do, none of the guards runs, and Codex does not say so.
+
+**After a rebuild, run `codex plugin add m-skills@m-skills-local` again.** Codex runs its own copy of the plugin, and the add command replaces it. It also trusts each hook by hash, so if the rebuild changed `hooks/hooks.json`, trust the hooks again in `/hooks`.
+
+**What is enforced where:**
+
+| Rule | Hooks trusted in `/hooks` | Not trusted yet |
+|---|---|---|
+| No git writes, no snapshot updates (§9, §10) | denied by a hook | text in guidelines-meta only |
+| No reading or writing secret files | denied by a hook: shell reads by `guard-secrets.sh`, edits by `codex-adapt.sh` | text only |
+| No publishing or deploying | denied by a hook | text only |
+| Pipeline skills start only when you type them | enforced: `allow_implicit_invocation: false` hides them from the model | enforced, since this is not a hook |
+
+**A hook that fails to start does not block the call.** Codex ran the tool anyway when a test hook exited 127. That is why every guard writes a deny for each failure it can detect, and every hook command runs from `$PLUGIN_ROOT`.
+
+**What is different from Claude Code:**
+
+- **Route commands ship as skills.** Codex plugins have no commands, so the build turns each one into a user-only skill of the same name.
+- **No question picker outside Plan mode.** Skills ask in chat instead, with numbered options and the recommendation first.
+- **Nothing runs at session start.** No profile bootstrap, no pointer to an unfinished run, no skill suggestions, no adhd flag. In a new project, run `$m-skills:onboard` yourself.
+- **No advisories and no gate preamble.** The skip-marker and shared-shape nudges, and the resolved gate table injected when a skill starts, are Claude Code only.
+- **Opt-outs are unchanged.** `.claude/.m-skills-no-guards` in the project, or the same file in `~/.claude/`, still switches the guards off.
+
+**When Codex changes.** The payload shapes were captured from codex-cli 0.159.0. Shell calls arrive in Claude Code's own shape, so the guards read them directly. `scripts/codex-adapt.sh` reads only `apply_patch`. If Codex renames that argument or adds a patch header, the adapter denies the edit rather than letting it through unchecked. Update the adapter and the `cx_*` payload builders in `tests/run-tests.sh` section 8 together.
+
+---
+
 ## 📦 What's in here
 
 | Path | What it is | Goes where |
@@ -403,7 +440,9 @@ The IDE runs no hooks at all ([reproduced on IDE 2.1.1, August 2026](https://dis
 | `scripts/advise-propagation.sh` | Prompts the Protocol A sweep when a shared-shape file is edited | stays put |
 | `scripts/build-antigravity.sh` | Builds the Antigravity plugin into `dist/antigravity/m-skills/` — see [§ Antigravity](#-antigravity) | stays put |
 | `scripts/antigravity-adapt.sh` | Runs the three guards under Antigravity's hooks; ships only in the Antigravity build | stays put |
-| `tests/run-tests.sh` | The pack's own test suite — 558 assertions, no dependencies | stays put |
+| `scripts/build-codex.sh` | Builds the Codex plugin into `dist/codex/m-skills/` — see [§ Codex](#-codex) | stays put |
+| `scripts/codex-adapt.sh` | Runs the secret-file guard over each path a Codex `apply_patch` touches; ships only in the Codex build | stays put |
+| `tests/run-tests.sh` | The pack's own test suite — 790 assertions, no dependencies | stays put |
 | `commands/*.md` | The 16 route commands — thin pre-routed entries into one architect's mode | plugin: stays put · copy-mode: → `<project>/.claude/commands/`, paths rewritten |
 | `skills/<architect>/SKILL.md` | An architect's spine — constraints, modes, procedure | plugin: stays put · copy-mode: → `<project>/.claude/skills/` |
 | `skills/module-*/` | The 9 shared modules, addressed by name | same |
@@ -724,7 +763,7 @@ Do not run any git command that mutates state. Leave everything unstaged.
 ## 🧪 Testing the pack itself
 
 ```
-bash tests/run-tests.sh        # 558 assertions, ~10s, no dependencies
+bash tests/run-tests.sh        # 790 assertions, ~10s, no dependencies
 bash tests/run-tests.sh -v     # show every passing assertion
 RUN_EVALS=1 bash tests/run-tests.sh   # adds model-in-the-loop checks (costs tokens)
 ```

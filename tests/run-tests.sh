@@ -1383,7 +1383,176 @@ else
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
-section "8. Eval — model in the loop (opt-in)"
+section "8. Codex — adapter and build"
+
+# Codex sends shell calls in Claude Code's own shape, so section 6 already covers the
+# guards on them; these rows pin that shape as captured from codex-cli 0.159.0, and
+# cover the one translation Codex needs — apply_patch, which names its files inside
+# the patch text. If Codex changes either, update these builders and the adapter.
+if ! command -v jq >/dev/null 2>&1 && ! command -v python3 >/dev/null 2>&1; then
+  skip "codex adapter" "neither jq nor python3 available"
+else
+
+export CLAUDE_CONFIG_DIR="$TMP/cxconfig"
+CXWS="$TMP/cxws"; CXSESS="cx-test-$$"
+mkdir -p "$CXWS/.claude" "$CLAUDE_CONFIG_DIR"
+
+cx_payload() { # <tool> <command-text>
+  printf '{"session_id":"%s","cwd":%s,"hook_event_name":"PreToolUse","model":"m","permission_mode":"default","tool_name":"%s","tool_input":{"command":%s},"tool_use_id":"exec-1"}' \
+    "$CXSESS" "$(esc "$CXWS")" "$1" "$(esc "$2")"
+}
+cx_shell() { cx_payload Bash "$1"; }
+cx_patch() { cx_payload apply_patch "*** Begin Patch"$'\n'"$1"$'\n'"*** End Patch"; }
+cx_decision() { # <script> <payload> → "deny" | "ask" | "allow"; runs from the workspace, as Codex does
+  local out; out="$(cd "$CXWS" && printf '%s' "$2" | bash "$ROOT/scripts/$1" 2>/dev/null)"
+  [ -z "$out" ] && { echo allow; return; }
+  printf '%s' "$out" | verdict
+}
+
+expect "cx deny: git commit"                deny  "$(cx_decision guard-mutations.sh "$(cx_shell 'git commit -m x')")"
+expect "cx deny: git push behind &&"        deny  "$(cx_decision guard-mutations.sh "$(cx_shell 'cd a && git push')")"
+expect "cx allow: git status"               allow "$(cx_decision guard-mutations.sh "$(cx_shell 'git status')")"
+expect "cx deny: gh pr create"              deny  "$(cx_decision guard-outward.sh "$(cx_shell 'gh pr create --fill')")"
+expect "cx deny: cat .env (reads are shell)" deny "$(cx_decision guard-secrets.sh "$(cx_shell 'cat .env')")"
+
+expect "cx allow: patch updating src/app.ts" allow \
+  "$(cx_decision codex-adapt.sh "$(cx_patch $'*** Update File: src/app.ts\n@@\n-a\n+b')")"
+expect "cx allow: patch adding .env.example" allow \
+  "$(cx_decision codex-adapt.sh "$(cx_patch $'*** Add File: .env.example\n+KEY=')")"
+expect "cx allow: observed delete + two adds" allow \
+  "$(cx_decision codex-adapt.sh "$(cx_patch $'*** Delete File: src/new.txt\n*** Add File: src/renamed.txt\n+hi\n*** Add File: src/second.txt\n+x')")"
+# the observed rename shape; without it, dropping Move to from the parser would still
+# pass every deny row below, caught by the unknown-header rule instead
+expect "cx allow: observed rename via Move to" allow \
+  "$(cx_decision codex-adapt.sh "$(cx_patch $'*** Update File: src/new.txt\n*** Move to: src/renamed.txt')")"
+expect "cx deny: patch adding id_rsa"        deny \
+  "$(cx_decision codex-adapt.sh "$(cx_patch $'*** Add File: id_rsa\n+x')")"
+expect "cx deny: patch deleting .env"        deny \
+  "$(cx_decision codex-adapt.sh "$(cx_patch '*** Delete File: .env')")"
+
+# Named by the attack. Each one passes a secret file through a patch the way a check of
+# only the first header, or of only Add/Update, would miss.
+expect "cx deny: apply_patch hides .env as its second file" deny \
+  "$(cx_decision codex-adapt.sh "$(cx_patch $'*** Add File: src/a.txt\n+a\n*** Add File: .env\n+KEY=v')")"
+expect "cx deny: apply_patch renames into .env via Move to" deny \
+  "$(cx_decision codex-adapt.sh "$(cx_patch $'*** Update File: notes.txt\n*** Move to: config/.env\n@@\n-a\n+b')")"
+expect "cx deny: apply_patch with CRLF line ends still sees .env" deny \
+  "$(cx_decision codex-adapt.sh "$(cx_payload apply_patch $'*** Begin Patch\r\n*** Add File: .env\r\n+x\r\n*** End Patch\r\n')")"
+# The guard reads an empty path as "nothing to check", and Codex runs the tool when a
+# hook fails — so an edit the adapter cannot read must be denied, never waved through.
+expect "cx deny: apply_patch with no file header fails closed" deny \
+  "$(cx_decision codex-adapt.sh "$(cx_patch '+x')")"
+expect "cx deny: apply_patch with an unknown header fails closed" deny \
+  "$(cx_decision codex-adapt.sh "$(cx_patch '*** Copy File: .env')")"
+expect "cx deny: apply_patch without its patch text fails closed" deny \
+  "$(cx_decision codex-adapt.sh "{\"session_id\":\"$CXSESS\",\"tool_name\":\"apply_patch\",\"tool_input\":{}}")"
+expect "cx allow: the adapter leaves shell calls to the guards" allow \
+  "$(cx_decision codex-adapt.sh "$(cx_shell 'cat .env')")"
+
+out="$(cd "$CXWS" && cx_patch '*** Add File: id_rsa' | bash "$ROOT/scripts/codex-adapt.sh" 2>/dev/null)"
+assert_contains "cx deny carries the guard's own reason" "$out" "Blocked by m-skills (security-architect constraint 5)"
+
+# Codex runs hooks in the session's cwd, so the project opt-out resolves from there
+touch "$CXWS/.claude/.m-skills-no-guards"
+expect "cx opt-out in the workspace releases the patch guard" allow \
+  "$(cx_decision codex-adapt.sh "$(cx_patch '*** Add File: .env')")"
+rm -f "$CXWS/.claude/.m-skills-no-guards"
+
+rm -rf "${TMPDIR:-/tmp}/m-skills-$(id -u 2>/dev/null || echo 0)/$CXSESS"
+unset CLAUDE_CONFIG_DIR
+fi
+
+# ── the build. Coreutils only, so it runs even where the adapter rows skip.
+CXOUT="$TMP/dist/codex/m-skills"
+CX_SKILLS=$(( $(ls -d "$ROOT"/skills/*/ | wc -l) + $(ls "$ROOT"/commands/*.md | wc -l) ))
+if bash "$ROOT/scripts/build-codex.sh" "$CXOUT" >/dev/null 2>&1; then
+  ok "build-codex.sh builds"
+
+  cxv="$(grep -o '"version": *"[^"]*"' "$CXOUT/.codex-plugin/plugin.json" | head -1 | sed 's/.*"\([^"]*\)"$/\1/')"
+  assert_eq "cx plugin.json carries the pack version" "$cxv" "$pv"
+  for f in .codex-plugin/plugin.json hooks/hooks.json ../.agents/plugins/marketplace.json; do
+    if command -v jq >/dev/null 2>&1; then
+      jq empty "$CXOUT/$f" 2>/dev/null && ok "cx $f is valid JSON" || bad "cx $f is valid JSON"
+    elif command -v python3 >/dev/null 2>&1; then
+      python3 -m json.tool "$CXOUT/$f" >/dev/null 2>&1 && ok "cx $f is valid JSON" || bad "cx $f is valid JSON"
+    else
+      skip "cx $f is valid JSON" "neither jq nor python3 available"
+    fi
+  done
+  # Codex runs hooks in the session's cwd: a relative script path exits 127, and Codex
+  # then runs the tool anyway. Every hook command must go through $PLUGIN_ROOT.
+  hooks_json="$(cat "$CXOUT/hooks/hooks.json" 2>/dev/null)"
+  assert_contains "cx hooks guard Bash"        "$hooks_json" '"matcher": "^Bash$"'
+  assert_contains "cx hooks guard apply_patch" "$hooks_json" '"matcher": "^apply_patch$"'
+  assert_eq "cx every hook command runs from \$PLUGIN_ROOT" \
+    "$(grep -c '"command": "bash \\"\$PLUGIN_ROOT/scripts/' "$CXOUT/hooks/hooks.json")" \
+    "$(grep -c '"command":' "$CXOUT/hooks/hooks.json")"
+
+  assert_eq "cx ships every skill and every route command as a skill" \
+    "$(ls -d "$CXOUT"/skills/*/ | wc -l | tr -d ' ')" "$CX_SKILLS"
+  # Codex ignores disable-model-invocation; allow_implicit_invocation: false is what
+  # keeps a pipeline skill out of the model's list
+  ungated=""
+  for f in "$CXOUT"/skills/*/SKILL.md; do
+    d="$(dirname "$f")"
+    grep -q '^disable-model-invocation: true' "$f" || continue
+    grep -qx '  allow_implicit_invocation: false' "$d/agents/openai.yaml" 2>/dev/null || ungated="$ungated $(basename "$d")"
+  done
+  assert_empty "cx every gated skill carries allow_implicit_invocation: false" "$ungated"
+  [ -f "$CXOUT/skills/decompose/agents/openai.yaml" ] && ok "cx a route command is gated" || bad "cx a route command is gated"
+  [ ! -e "$CXOUT/skills/testing-architect/agents/openai.yaml" ] \
+    && ok "cx a knowledge skill stays model-invocable" || bad "cx a knowledge skill stays model-invocable"
+  [ ! -e "$CXOUT/commands" ] && ok "cx ships no commands/ directory" || bad "cx ships no commands/ directory"
+
+  assert_empty "cx: no \${CLAUDE_*} path survives" "$(grep -rl '\${CLAUDE_' "$CXOUT/skills" --include='*.md' 2>/dev/null)"
+  assert_empty "cx: no \$ARGUMENTS survives" "$(grep -rl '\$ARGUMENTS' "$CXOUT/skills" --include='*.md' 2>/dev/null)"
+  assert_empty "cx: no Claude-only tool name survives" "$(grep -rl 'AskUserQuestion' "$CXOUT/skills" 2>/dev/null)"
+  assert_empty "cx: no /m-skills: paste line survives" "$(grep -rl '/m-skills:' "$CXOUT/skills" 2>/dev/null)"
+
+  missing_ref=""
+  while read -r r; do
+    [ -z "$r" ] && continue
+    found=0
+    for d in "$CXOUT"/skills/*/; do [ -f "$d$r" ] && found=1; done
+    [ $found -eq 1 ] || missing_ref="$missing_ref $r"
+  done < <(grep -rhoE 'references/[a-z0-9-]+\.md' "$CXOUT"/skills/*/SKILL.md | sort -u)
+  assert_empty "cx: every cited reference file exists" "$missing_ref"
+  for s in codex-adapt.sh guard-mutations.sh guard-outward.sh guard-secrets.sh profile-bootstrap.sh lib/hook-json.sh; do
+    [ -f "$CXOUT/scripts/$s" ] && ok "cx ships scripts/$s" || bad "cx ships scripts/$s"
+  done
+
+  # Codex plugins ship no always-on rule, so guidelines-meta — which every architect
+  # loads first — carries what the model needs when the hooks are not trusted yet
+  gm="$(sed -n '/^## Running under Codex/,$p' "$CXOUT/skills/guidelines-meta/SKILL.md" 2>/dev/null)"
+  assert_contains "cx guidelines-meta gains a Codex section"      "$gm" "## Running under Codex"
+  assert_contains "cx Codex section gates the pipeline skills"    "$gm" '`$m-skills:planning-architect`'
+  assert_contains "cx Codex section gates the route commands"     "$gm" '`$m-skills:decompose`'
+  assert_contains "cx Codex section names the /hooks trust step"  "$gm" '`/hooks`'
+  assert_contains "cx Codex section quotes the secrets constraint" "$gm" "Never write a real secret into a tracked file"
+  assert_contains "cx Codex section defines <this-skill>"         "$gm" '`<this-skill>` is'
+
+  touch "$CXOUT/stale-from-last-build"
+  bash "$ROOT/scripts/build-codex.sh" "$CXOUT" >/dev/null 2>&1
+  [ ! -e "$CXOUT/stale-from-last-build" ] && ok "cx rebuild leaves nothing stale" || bad "cx rebuild leaves nothing stale"
+else
+  bad "build-codex.sh builds" "$(bash "$ROOT/scripts/build-codex.sh" "$CXOUT" 2>&1 | tail -3)"
+fi
+
+# the build clears its output with rm -rf, so any other path must be refused untouched
+mkdir -p "$TMP/not-a-cx-build" && touch "$TMP/not-a-cx-build/keep"
+if bash "$ROOT/scripts/build-codex.sh" "$TMP/not-a-cx-build" >/dev/null 2>&1; then
+  bad "cx build refuses an output path that is not dist/codex/m-skills"
+else
+  [ -f "$TMP/not-a-cx-build/keep" ] && ok "cx build refuses an output path that is not dist/codex/m-skills" \
+    || bad "cx build refuses an output path that is not dist/codex/m-skills" "it deleted the directory"
+fi
+
+# Codex lists a plugin's skills only inside a model turn, and loads its hooks only after
+# the user trusts them in /hooks — so registration and enforcement are checked by hand
+# (README § Codex), not here.
+
+# ─────────────────────────────────────────────────────────────────────────────
+section "9. Eval — model in the loop (opt-in)"
 
 if [ "${RUN_EVALS:-0}" != "1" ]; then
   skip "behavioural evals" "set RUN_EVALS=1 to run; costs tokens"

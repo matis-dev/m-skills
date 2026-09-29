@@ -5,7 +5,7 @@ settings.local.json
 .claude/PROJECT-PROFILE.md
 .claude/.m-skills-*
 
-# Build output — scripts/build-antigravity.sh regenerates it from this tree.
+# Build output — scripts/build-antigravity.sh and scripts/build-codex.sh regenerate it from this tree.
 dist/
 
 # OS
