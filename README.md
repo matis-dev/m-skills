@@ -348,6 +348,40 @@ These hold in every skill, in every project:
 
 ---
 
+## 🪐 Antigravity
+
+**The same pack runs in Google Antigravity, built from this tree.** Nothing is forked: a build script writes an Antigravity plugin from `skills/`, `commands/`, and the three guards, so a rule changed here reaches both hosts. Commands keep their names — `/m-skills:planning-architect`, `/m-skills:decompose`.
+
+```bash
+bash scripts/build-antigravity.sh                # writes dist/antigravity/m-skills/
+agy plugin validate dist/antigravity/m-skills    # expect skills and hooks processed
+cp -R dist/antigravity/m-skills <your-project>/.agents/plugins/
+```
+
+That installs it for one project. For every project, the same folder goes in `~/.gemini/config/plugins/` — replace any older m-skills copy there first. A copy made before this script has its hooks in `hooks/hooks.json`, where agy never looks, so none of its guards ever ran.
+
+**What is enforced where:**
+
+| Rule | `agy` CLI | Antigravity IDE |
+|---|---|---|
+| No git writes, no snapshot updates (§9, §10) | denied by a hook | rule text only |
+| No reading or writing secret files | denied by a hook | rule text only |
+| No publishing or deploying | denied by a hook | rule text only |
+| Pipeline skills start only when you type them | enforced — agy honours `disable-model-invocation` | not checked |
+
+The IDE runs no hooks at all ([reproduced on IDE 2.1.1, August 2026](https://discuss.ai.google.dev/t/do-antigravity-ide-2-0-actually-execute-plugin-hooks-pretooluse-posttooluse-or-is-that-cli-only-right-now/176814)), so there the guards are an always-on rule the model follows, not a check. **Use the CLI when the guards matter.**
+
+**What is different from Claude Code:**
+
+- **Route commands ship as skills.** agy's validator accepts a `commands/` folder but never registers it, so the build turns each one into a user-only skill of the same name.
+- **Nothing runs at session start.** No profile bootstrap, no pointer to an unfinished run, no skill suggestions, no adhd flag. In a new project, run `/onboard` yourself.
+- **No advisories and no gate preamble.** The skip-marker and shared-shape nudges, and the resolved gate table injected when a skill starts, are Claude Code only.
+- **Headless `agy -p` refuses any shell command it would normally ask about**, so check the guards in an interactive session.
+
+**When agy changes.** The adapter (`scripts/antigravity-adapt.sh`) translates agy's hook payload using argument names captured from agy 1.2.2. If agy renames one, the adapter denies the call rather than letting it through unchecked. Update the adapter and the `ag_*` payload builders in `tests/run-tests.sh` section 7 together.
+
+---
+
 ## 📦 What's in here
 
 | Path | What it is | Goes where |
@@ -367,6 +401,8 @@ These hold in every skill, in every project:
 | `scripts/skill-preamble.sh` | Injects the resolved gates, §9/§10/§15/§19, and the skill's composition map when a pack skill starts; resolves a route command to the architect it routes into, so the map is right and the preamble lands once | stays put |
 | `scripts/warn-test-weakening.sh` | Flags a newly added `.skip` / `.only` in a test file | stays put |
 | `scripts/advise-propagation.sh` | Prompts the Protocol A sweep when a shared-shape file is edited | stays put |
+| `scripts/build-antigravity.sh` | Builds the Antigravity plugin into `dist/antigravity/m-skills/` — see [§ Antigravity](#-antigravity) | stays put |
+| `scripts/antigravity-adapt.sh` | Runs the three guards under Antigravity's hooks; ships only in the Antigravity build | stays put |
 | `tests/run-tests.sh` | The pack's own test suite — 558 assertions, no dependencies | stays put |
 | `commands/*.md` | The 16 route commands — thin pre-routed entries into one architect's mode | plugin: stays put · copy-mode: → `<project>/.claude/commands/`, paths rewritten |
 | `skills/<architect>/SKILL.md` | An architect's spine — constraints, modes, procedure | plugin: stays put · copy-mode: → `<project>/.claude/skills/` |

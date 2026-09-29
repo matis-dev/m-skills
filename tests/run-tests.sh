@@ -962,6 +962,16 @@ expect "allow: git describe"           allow "$(decision guard-mutations.sh "$(b
 expect "deny: rm -rf ~"                deny  "$(decision guard-mutations.sh "$(bash_payload 'rm -rf ~')")"
 expect "deny: dd of=/dev/sda"          deny  "$(decision guard-mutations.sh "$(bash_payload 'dd if=/dev/zero of=/dev/sda')")"
 expect "allow: scoped rm -rf"          allow "$(decision guard-mutations.sh "$(bash_payload 'rm -rf ./node_modules')")"
+# home itself, its top-level glob, and its parent are catastrophic; a directory named
+# under home is not. `~/` used to count as "home" whatever followed it.
+expect "deny: rm -rf ~/"               deny  "$(decision guard-mutations.sh "$(bash_payload 'rm -rf ~/')")"
+expect "deny: rm -rf ~/*"              deny  "$(decision guard-mutations.sh "$(bash_payload 'rm -rf ~/*')")"
+expect "deny: rm -rf ~/.*"             deny  "$(decision guard-mutations.sh "$(bash_payload 'rm -rf ~/.*')")"
+expect "deny: rm -rf ~/.."             deny  "$(decision guard-mutations.sh "$(bash_payload 'rm -rf ~/..')")"
+expect "deny: rm -rf \$HOME"           deny  "$(decision guard-mutations.sh "$(bash_payload 'rm -rf $HOME')")"
+expect "deny: rm -rf ~; before a ;"    deny  "$(decision guard-mutations.sh "$(bash_payload 'rm -rf ~; ls')")"
+expect "allow: rm -rf a dir under ~"   allow "$(decision guard-mutations.sh "$(bash_payload 'rm -rf ~/.gemini/config/plugins/m-skills')")"
+expect "allow: rm -rf a dir under \$HOME" allow "$(decision guard-mutations.sh "$(bash_payload 'rm -rf $HOME/projects/old-build')")"
 
 # ── H2 outward-facing actions are handed over, not fired. deployment-architect
 #    constraint 2: the runbook is the deliverable, the button is the user's.
@@ -1202,7 +1212,178 @@ unset CLAUDE_SESSION_ID CLAUDE_PROJECT_DIR CLAUDE_CONFIG_DIR
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
-section "7. Eval — model in the loop (opt-in)"
+section "7. Antigravity — adapter and build"
+
+# The adapter runs the unchanged guards under agy. Its payload shapes were captured
+# from agy 1.2.2 — not the docs, whose hooks.json example did not even load — so these
+# builders are the contract; if agy renames an argument, update them and the adapter.
+if ! command -v jq >/dev/null 2>&1 && ! command -v python3 >/dev/null 2>&1; then
+  skip "antigravity adapter" "neither jq nor python3 available"
+else
+
+export CLAUDE_CONFIG_DIR="$TMP/agconfig"
+AGWS="$TMP/agws"; AGSESS="ag-test-$$"
+mkdir -p "$AGWS/.claude" "$CLAUDE_CONFIG_DIR"
+
+ag_payload() { # <tool> <args-json>
+  printf '{"toolCall":{"name":"%s","args":%s},"conversationId":"%s","workspacePaths":[%s]}' \
+    "$1" "$2" "$AGSESS" "$(esc "$AGWS")"
+}
+ag_run()  { ag_payload run_command "{\"CommandLine\":$(esc "$1"),\"Cwd\":$(esc "$AGWS")}"; }
+ag_file() { ag_payload "$1" "{\"$2\":$(esc "$3")}"; } # <tool> <arg-name> <path>
+ag_decision() { # <guard> <payload> → "deny" | "ask" | "allow"
+  local out; out="$(printf '%s' "$2" | bash "$ROOT/scripts/antigravity-adapt.sh" "$1" 2>/dev/null)"
+  [ -z "$out" ] && { echo allow; return; }
+  printf '%s' "$out" | verdict
+}
+
+expect "ag deny: git commit"                 deny  "$(ag_decision guard-mutations.sh "$(ag_run 'git commit -m x')")"
+expect "ag deny: git push behind &&"         deny  "$(ag_decision guard-mutations.sh "$(ag_run 'cd a && git push')")"
+expect "ag allow: git status"                allow "$(ag_decision guard-mutations.sh "$(ag_run 'git status')")"
+expect "ag deny: gh pr create"               deny  "$(ag_decision guard-outward.sh "$(ag_run 'gh pr create --fill')")"
+expect "ag deny: view_file .env"             deny  "$(ag_decision guard-secrets.sh "$(ag_file view_file AbsolutePath "$AGWS/.env")")"
+expect "ag allow: view_file .env.example"    allow "$(ag_decision guard-secrets.sh "$(ag_file view_file AbsolutePath "$AGWS/.env.example")")"
+expect "ag allow: view_file src/app.ts"      allow "$(ag_decision guard-secrets.sh "$(ag_file view_file AbsolutePath "$AGWS/src/app.ts")")"
+expect "ag deny: write_to_file id_rsa"       deny  "$(ag_decision guard-secrets.sh "$(ag_file write_to_file TargetFile "$AGWS/id_rsa")")"
+expect "ag deny: replace_file_content .env"  deny  "$(ag_decision guard-secrets.sh "$(ag_file replace_file_content TargetFile "$AGWS/.env")")"
+expect "ag allow: a tool no guard covers"    allow "$(ag_decision guard-secrets.sh "$(ag_payload list_dir '{"DirectoryPath":"/"}')")"
+
+out="$(printf '%s' "$(ag_run 'git commit -m x')" | bash "$ROOT/scripts/antigravity-adapt.sh" guard-mutations.sh 2>/dev/null)"
+assert_contains "ag deny carries the guard's own reason" "$out" "Blocked by m-skills (Guidelines §9)"
+
+# The guards read an empty command as "nothing to check". A payload whose argument
+# the adapter cannot find must be denied, not handed over empty.
+expect "ag deny: run_command with unrecognised args fails closed" deny \
+  "$(ag_decision guard-mutations.sh "$(ag_payload run_command '{"Command":"git push"}')")"
+expect "ag deny: an unknown guard name in hooks.json" deny \
+  "$(ag_decision guard-nonexistent.sh "$(ag_run 'git status')")"
+
+# workspacePaths[0] stands in for CLAUDE_PROJECT_DIR, so the project opt-out resolves there
+touch "$AGWS/.claude/.m-skills-no-guards"
+expect "ag opt-out in the workspace releases the git guard" allow \
+  "$(ag_decision guard-mutations.sh "$(ag_run 'git commit -m x')")"
+rm -f "$AGWS/.claude/.m-skills-no-guards"
+
+rm -rf "${TMPDIR:-/tmp}/m-skills-$(id -u 2>/dev/null || echo 0)/$AGSESS"
+unset CLAUDE_CONFIG_DIR
+fi
+
+# ── the build. Coreutils only, so it runs even where the adapter rows skip.
+AGOUT="$TMP/dist/antigravity/m-skills"
+AG_SKILLS=$(( $(ls -d "$ROOT"/skills/*/ | wc -l) + $(ls "$ROOT"/commands/*.md | wc -l) ))
+if bash "$ROOT/scripts/build-antigravity.sh" "$AGOUT" >/dev/null 2>&1; then
+  ok "build-antigravity.sh builds"
+
+  agv="$(grep -o '"version": *"[^"]*"' "$AGOUT/plugin.json" | head -1 | sed 's/.*"\([^"]*\)"$/\1/')"
+  assert_eq "ag plugin.json carries the pack version" "$agv" "$pv"
+  # agy 1.2.2 reads hooks.json at the plugin root only, and fires tool events only in
+  # the grouped {matcher, hooks:[…]} form — the flat form loads and silently never runs
+  [ -f "$AGOUT/hooks.json" ] && ok "ag hooks.json sits at the plugin root" || bad "ag hooks.json sits at the plugin root"
+  assert_contains "ag tool hooks use the grouped shape" "$(cat "$AGOUT/hooks.json" 2>/dev/null)" '"hooks": ['
+  for f in plugin.json hooks.json; do
+    if command -v jq >/dev/null 2>&1; then
+      jq empty "$AGOUT/$f" 2>/dev/null && ok "ag $f is valid JSON" || bad "ag $f is valid JSON"
+    elif command -v python3 >/dev/null 2>&1; then
+      python3 -m json.tool "$AGOUT/$f" >/dev/null 2>&1 && ok "ag $f is valid JSON" || bad "ag $f is valid JSON"
+    else
+      skip "ag $f is valid JSON" "neither jq nor python3 available"
+    fi
+  done
+
+  # agy's validator reports commands/ "converted to skills", yet none registers at
+  # runtime — so every route command ships as a gated skill of its own name instead
+  assert_eq "ag ships every skill and every route command as a skill" \
+    "$(ls -d "$AGOUT"/skills/*/ | wc -l | tr -d ' ')" "$AG_SKILLS"
+  ungated=""
+  for c in "$ROOT"/commands/*.md; do
+    n="$(basename "$c" .md)"
+    head -4 "$AGOUT/skills/$n/SKILL.md" 2>/dev/null | grep -qx "name: $n" \
+      && head -4 "$AGOUT/skills/$n/SKILL.md" | grep -qx 'disable-model-invocation: true' \
+      || ungated="$ungated $n"
+  done
+  assert_empty "ag route-command skills are named and user-only" "$ungated"
+  [ ! -e "$AGOUT/commands" ] && ok "ag ships no commands/ directory" || bad "ag ships no commands/ directory"
+  assert_empty "ag: no \${CLAUDE_*} path survives" "$(grep -rl '\${CLAUDE_' "$AGOUT/skills" --include='*.md' 2>/dev/null)"
+  assert_empty "ag: no \$ARGUMENTS survives" "$(grep -rl '\$ARGUMENTS' "$AGOUT/skills" --include='*.md' 2>/dev/null)"
+  assert_empty "ag: no Claude-only tool name survives" "$(grep -rl 'AskUserQuestion' "$AGOUT/skills" 2>/dev/null)"
+
+  missing_ref=""
+  while read -r r; do
+    [ -z "$r" ] && continue
+    found=0
+    for d in "$AGOUT"/skills/*/; do [ -f "$d$r" ] && found=1; done
+    [ $found -eq 1 ] || missing_ref="$missing_ref $r"
+  done < <(grep -rhoE 'references/[a-z0-9-]+\.md' "$AGOUT"/skills/*/SKILL.md | sort -u)
+  assert_empty "ag: every cited reference file exists" "$missing_ref"
+  for s in antigravity-adapt.sh guard-mutations.sh guard-outward.sh guard-secrets.sh profile-bootstrap.sh lib/hook-json.sh; do
+    [ -f "$AGOUT/scripts/$s" ] && ok "ag ships scripts/$s" || bad "ag ships scripts/$s"
+  done
+
+  RULE="$AGOUT/rules/m-skills-guards.md"
+  rule="$(cat "$RULE" 2>/dev/null)"
+  assert_contains "ag rule is always on"                 "$rule" "trigger: always_on"
+  assert_contains "ag rule quotes §9 live"               "$rule" "**No staging.**"
+  assert_contains "ag rule quotes §10 live"              "$rule" "Never auto-accept a golden-file"
+  assert_contains "ag rule quotes the secrets constraint" "$rule" "Never write a real secret into a tracked file"
+  assert_contains "ag rule gates the pipeline skills"    "$rule" '`/m-skills:planning-architect`'
+  assert_contains "ag rule gates the route commands"     "$rule" '`/m-skills:decompose`'
+  assert_contains "ag rule defines <this-skill>"         "$rule" '`<this-skill>` is'
+  # agy demotes a rule over 24,000 bytes to an on-demand pointer, which an always-on
+  # guard cannot afford
+  rule_bytes="$(wc -c < "$RULE" | tr -d ' ')"
+  [ "$rule_bytes" -lt 24000 ] && ok "ag rule stays under agy's 24 KB limit" || bad "ag rule stays under agy's 24 KB limit" "$rule_bytes bytes"
+
+  touch "$AGOUT/stale-from-last-build"
+  bash "$ROOT/scripts/build-antigravity.sh" "$AGOUT" >/dev/null 2>&1
+  [ ! -e "$AGOUT/stale-from-last-build" ] && ok "ag rebuild leaves nothing stale" || bad "ag rebuild leaves nothing stale"
+else
+  bad "build-antigravity.sh builds" "$(bash "$ROOT/scripts/build-antigravity.sh" "$AGOUT" 2>&1 | tail -3)"
+fi
+
+# the build clears its output with rm -rf, so any other path must be refused untouched
+mkdir -p "$TMP/not-a-build" && touch "$TMP/not-a-build/keep"
+if bash "$ROOT/scripts/build-antigravity.sh" "$TMP/not-a-build" >/dev/null 2>&1; then
+  bad "ag build refuses an output path that is not dist/antigravity/m-skills"
+else
+  [ -f "$TMP/not-a-build/keep" ] && ok "ag build refuses an output path that is not dist/antigravity/m-skills" \
+    || bad "ag build refuses an output path that is not dist/antigravity/m-skills" "it deleted the directory"
+fi
+
+# agy's own validator, when installed. It is lenient — an unconverted Claude hooks file
+# also passes, and commands/ "converted to skills" never registered — so it proves the
+# layout parses. What agy actually registers is read from its /skills listing below,
+# which answers without a model turn and spends no quota.
+if command -v agy >/dev/null 2>&1 && [ -d "$AGOUT" ]; then
+  out="$(agy plugin validate "$AGOUT" 2>&1 | sed 's/\x1b\[[0-9;]*m//g')"
+  printf '%s' "$out" | grep -Eq "skills +: $AG_SKILLS processed" \
+    && ok "agy validate: every skill processed" || bad "agy validate: every skill processed" "$(printf '%s' "$out" | tr '\n' ' ' | head -c 240)"
+  printf '%s' "$out" | grep -Eq "hooks +: 1 processed" \
+    && ok "agy validate: hooks processed" || bad "agy validate: hooks processed"
+
+  if command -v python3 >/dev/null 2>&1; then
+    AGRT="$TMP/agrt"; mkdir -p "$AGRT/.agents/plugins" && cp -R "$AGOUT" "$AGRT/.agents/plugins/"
+    reg="$(cd "$AGRT" && timeout 60 agy -p /skills --output-format json 2>/dev/null | python3 -c '
+import json, sys
+root = sys.argv[1]
+try: skills = json.load(sys.stdin)["command"]["data"]["skills"]
+except Exception: sys.exit()
+for s in skills:
+    if s.get("path", "").startswith(root):
+        print(s["name"], s.get("model_invocable"))
+' "$AGRT")"
+    assert_eq "agy registers every m-skills skill" "$(printf '%s\n' "$reg" | grep -c '^m-skills:')" "$AG_SKILLS"
+    assert_contains "agy: a route command registers, user-only"  "$reg" "m-skills:decompose False"
+    assert_contains "agy: a pipeline skill stays user-only"      "$reg" "m-skills:implementing-architect False"
+    assert_contains "agy: a knowledge skill stays model-invocable" "$reg" "m-skills:testing-architect True"
+  else
+    skip "agy skill registration" "python3 not available"
+  fi
+else
+  skip "agy plugin validate and registration" "agy not on PATH"
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────
+section "8. Eval — model in the loop (opt-in)"
 
 if [ "${RUN_EVALS:-0}" != "1" ]; then
   skip "behavioural evals" "set RUN_EVALS=1 to run; costs tokens"

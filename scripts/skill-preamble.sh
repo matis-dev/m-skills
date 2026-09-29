@@ -101,17 +101,6 @@ MARK="$(m_skills_state_dir "$SESSION")/preamble/$SKILL"
 mkdir -p "$(dirname "$MARK")" 2>/dev/null || exit 0
 : > "$MARK" 2>/dev/null || exit 0
 
-# Extract one numbered section: its heading through to the next heading or rule.
-section() {
-  awk -v n="$1" '
-    $0 ~ "^### " n "\\." { grabbing = 1 }
-    grabbing && NR > start && (/^### /  && $0 !~ "^### " n "\\.") { exit }
-    grabbing && /^## / { exit }
-    grabbing && /^---$/ { exit }
-    grabbing { print; start = NR }
-  ' "$GUIDELINES"
-}
-
 # The resolved gates, cached per session — the resolution spawns node.
 gates() {
   local state cache root
@@ -199,13 +188,13 @@ A role showing \`n-a\` has no gate in this project — say so and move on (Guide
 snapshot-update command will be **denied by the runtime**, not merely discouraged.
 They are restated here so you know why before you reach for one.
 
-$(section 9)
-$(section 10)
+$(m_skills_section "$GUIDELINES" 9)
+$(m_skills_section "$GUIDELINES" 10)
 
 ## Still on you — no hook can check these
 
-$(section 15)
-$(section 19)
+$(m_skills_section "$GUIDELINES" 15)
+$(m_skills_section "$GUIDELINES" 19)
 ${COMPOSITION}
 EOF
 )"

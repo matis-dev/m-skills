@@ -120,7 +120,9 @@ if [ -n "$UPDATE_CMD" ] && printf '%s' "$CMD" | grep -qF -- "$UPDATE_CMD"; then
 fi
 
 # ── Catastrophic filesystem operations (additive scope) ──────────────────────
-if printf '%s' "$CMD" | grep -Eq '(^|[^[:alnum:]_./-])rm[[:space:]]+(-[a-zA-Z]*[rR][a-zA-Z]*f|-[a-zA-Z]*f[a-zA-Z]*[rR])[a-zA-Z]*[[:space:]]+(/|~|\$HOME|\.\.|\*)([[:space:]]|/|$)'; then
+# Home counts only as itself, its top-level globs, or its parent: `~/.cache/x` names one
+# directory and passes, while `~/`, `~/*`, `~/.*`, and `~/..` are denied.
+if printf '%s' "$CMD" | grep -Eq '(^|[^[:alnum:]_./-])rm[[:space:]]+(-[a-zA-Z]*[rR][a-zA-Z]*f|-[a-zA-Z]*f[a-zA-Z]*[rR])[a-zA-Z]*[[:space:]]+((/|\.\.|\*)([[:space:]]|/|$)|(~|\$HOME)(/(\*|\.\*|\.\.?)?)?([[:space:];&|]|$))'; then
   emit_deny "Blocked by m-skills: recursive force-delete of a root, home, parent, or bare glob path is unrecoverable. Name the specific directory instead. ${OPTOUT_LINE}"
 fi
 

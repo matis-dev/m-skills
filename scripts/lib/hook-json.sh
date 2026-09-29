@@ -102,6 +102,19 @@ M_SKILLS_ENV_RE='(^|/)\.env(\.[A-Za-z0-9_-]+)?$|(^|/)\.envrc$'
 # Every secret-bearing path — what the guard denies.
 M_SKILLS_SECRET_RE="$M_SKILLS_ENV_RE"'|\.(pem|key|p12|pfx|jks|keystore)$|(^|/)id_(rsa|dsa|ecdsa|ed25519)$|(^|/)(credentials|service-account|serviceAccountKey|gha-creds.*)\.json$|(^|/)\.npmrc$|(^|/)\.pypirc$|(^|/)\.netrc$'
 
+# m_skills_section <file> <n> — one numbered `### n.` section of a skill file, heading
+# through to the next heading or rule. The preamble and the Antigravity rule both quote
+# guidelines-meta this way; one extractor keeps the two quotations identical.
+m_skills_section() {
+  awk -v n="$2" '
+    $0 ~ "^### " n "\\." { grabbing = 1 }
+    grabbing && NR > start && (/^### /  && $0 !~ "^### " n "\\.") { exit }
+    grabbing && /^## / { exit }
+    grabbing && /^---$/ { exit }
+    grabbing { print; start = NR }
+  ' "$1"
+}
+
 # ── Shared conditions ────────────────────────────────────────────────────────
 
 # The user's opt-out from the enforcement hooks, project or global. Same flag-file
