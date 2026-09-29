@@ -7,8 +7,8 @@
 # implementing-architect existed. The flag is right: a casual remark must never start
 # a code-writing process. The silence is not. This hook injects the roster: a clear
 # match gets the paste line at once, a real choice between skills gets a question. The
-# gate stays exactly as strict — only a slash command the user types starts a skill —
-# and only the recall burden goes away.
+# gate stays exactly as strict — only the user starts a skill, by typing its slash
+# command or by picking it in the picker — and only the recall burden goes away.
 #
 # On by default — the people this serves are the ones who never read the README.
 # Opt out with a flag file, the same convention the PreToolUse guards use:
@@ -79,7 +79,12 @@ printf 'does allow a model-side invocation, just invoke it.\n\n'
 printf 'Genuinely ambiguous — two or more skills plausibly compete: ASK with the\n'
 printf 'AskUserQuestion tool, never in chat — one option per candidate plus the decline, four max:\n'
 printf '  [<skill-a> — <the angle it takes>] [<skill-b> — <its angle>] [No — just continue]\n'
-printf 'On a pick, hand over the paste line for it the same way.\n\n'
+printf '\nA pick is the user starting it. When the user selects an option naming one of these\n'
+printf 'skills — from the question above, or from a stage'"'"'s own next-step sheet such as\n'
+printf 'planning-architect'"'"'s approval — do not hand back a paste line and do not confirm again.\n'
+printf 'Read %s/<name>/SKILL.md and follow it in full, exactly as its\n' "$SKILLS"
+printf 'slash command would, on the work under discussion. Only a pick counts: a remark in\n'
+printf 'chat ("yeah, ship it") still gets the paste line.\n\n'
 printf 'Never silently fall back to default behaviour on a match.\n'
 printf 'Do not suggest on small talk, a one-line tweak, or a turn where a skill is already running.\n'
 printf 'Never re-ask a match the user already declined this session.\n\n'

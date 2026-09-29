@@ -95,7 +95,7 @@ End the plan with the literal line:
 
 > **Awaiting approval before implementation. Do not proceed until the user confirms.**
 
-Then put the decision in the picker (Guidelines §17) — `Approve` · `Revise <what>` · `Stop here` — unless plan mode is active, where `ExitPlanMode` carries it. Do **not** invoke the Implementing Skill. Do **not** start writing code. Wait.
+Then put the decision in the picker (Guidelines §17) — `Approve → implement` · `Revise <what>` · `Stop here` — unless plan mode is active, where `ExitPlanMode` carries it. Picking `Approve → implement` starts `implementing-architect` on this plan (§17: a pick is the user starting it). Until a pick, do **not** invoke it and do **not** write code. Wait.
 
 ---
 
