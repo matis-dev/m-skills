@@ -40,6 +40,10 @@ SECRET="$M_SKILLS_SECRET_RE"
 # `process.env` would match.
 FILE_SECRET="$SECRET|(^|/)[^/]+\\.env\$"
 
+# A shell word that is only an extension (`.key`, `.pem`) is a property path — jq's
+# `.key`, JS's `obj.key` split at the dot — not a file with a name.
+BARE_EXT='^\.(pem|key|p12|pfx|jks|keystore)$'
+
 # is_secret <path> <regex>
 is_secret() {
   printf '%s' "$1" | grep -Eq "$EXAMPLE" && return 1
@@ -47,12 +51,13 @@ is_secret() {
 }
 
 # glob_hits_secret <pattern> [shell] — whether a glob would match a secret file:
-# `.env*`, `.e?v`, `*.pem`. A pattern with no literal character (`*`, `*.*`) names
-# nothing. With `shell`, a dotfile only matches a pattern that starts with a dot,
+# `.env*`, `.e?v`, `*.pem`. A pattern with no literal character (`*`, `*.*`, `[a-z]*` —
+# a bracket expression is a set, not literal text) names nothing. With `shell`, a dotfile only matches a pattern that starts with a dot,
 # which is how bash expands it.
 glob_hits_secret() {
-  local pat="${1##*/}" name
-  case "$pat" in *[A-Za-z0-9]*) ;; *) return 1 ;; esac
+  local pat="${1##*/}" name lit
+  lit="$(printf '%s' "$pat" | sed 's/\[[^]]*\]//g')"
+  case "$lit" in *[A-Za-z0-9]*) ;; *) return 1 ;; esac
   for name in .env .env.local .env.production .env.development .envrc \
               _.pem _.key _.p12 id_rsa id_ed25519 .npmrc .pypirc .netrc; do
     if [ "${2:-}" = shell ]; then
@@ -136,7 +141,7 @@ case "$TOOL" in
     CMD="$(json_field "$INPUT" "tool_input.command")"
     [ -z "$CMD" ] && exit 0
     # One pass over the whole command; almost every command ends here.
-    HITS="$(words "$CMD" | grep -Ev "$EXAMPLE" | grep -E "$SECRET")"
+    HITS="$(words "$CMD" | grep -Ev "$EXAMPLE" | grep -Ev "$BARE_EXT" | grep -E "$SECRET")"
     while IFS= read -r w; do
       [ -n "$w" ] && glob_hits_secret "$w" shell && HITS="$HITS"$'\n'"$w"
     done <<< "$(words "$CMD" | grep -E '[][*?]')"

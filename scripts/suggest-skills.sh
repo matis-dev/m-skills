@@ -84,7 +84,8 @@ printf 'skills — from the question above, or from a stage'"'"'s own next-step 
 printf 'planning-architect'"'"'s approval — do not hand back a paste line and do not confirm again.\n'
 printf 'Read %s/<name>/SKILL.md and follow it in full, exactly as its\n' "$SKILLS"
 printf 'slash command would, on the work under discussion. Only a pick counts: a remark in\n'
-printf 'chat ("yeah, ship it") still gets the paste line.\n\n'
+printf 'chat ("yeah, ship it") still gets the paste line. An option that starts a skill carries\n'
+printf 'its exact name ("Approve → implementing-architect"): the pick check keys on it.\n\n'
 printf 'Never silently fall back to default behaviour on a match.\n'
 printf 'Do not suggest on small talk, a one-line tweak, or a turn where a skill is already running.\n'
 printf 'Never re-ask a match the user already declined this session.\n\n'

@@ -1,5 +1,5 @@
 {
-  "description": "m-skills lifecycle hooks. Four SessionStart context hooks, three PreToolUse guards enforcing the rules the skills previously only stated, and three advisories. Guards honour .claude/.m-skills-no-guards (project) or the same file in $CLAUDE_CONFIG_DIR (global); the skill-suggestion hook honours .m-skills-no-suggest at either scope, and the adhd hook is opt-in rather than opt-out.",
+  "description": "m-skills lifecycle hooks. Four SessionStart context hooks, three PreToolUse guards enforcing the rules the skills previously only stated, three advisories, and a pick check that holds the turn open until a skill picked in the picker has its SKILL.md loaded. Guards honour .claude/.m-skills-no-guards (project) or the same file in $CLAUDE_CONFIG_DIR (global); the skill-suggestion hook honours .m-skills-no-suggest at either scope, and the adhd hook is opt-in rather than opt-out.",
   "hooks": {
     "SessionStart": [
       {
@@ -110,6 +110,30 @@
         ]
       },
       {
+        "matcher": "AskUserQuestion",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/enforce-picks.sh"],
+            "timeout": 10,
+            "statusMessage": "m-skills: checking the pick for a skill to start..."
+          }
+        ]
+      },
+      {
+        "matcher": "Read|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/enforce-picks.sh"],
+            "timeout": 15,
+            "statusMessage": "m-skills: checking for a picked skill being loaded..."
+          }
+        ]
+      },
+      {
         "matcher": "Write|Edit",
         "hooks": [
           {
@@ -125,6 +149,19 @@
             "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/advise-propagation.sh"],
             "timeout": 5,
             "statusMessage": "m-skills: checking for shared-shape edits..."
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/enforce-picks.sh"],
+            "timeout": 10,
+            "statusMessage": "m-skills: checking for a picked skill never loaded..."
           }
         ]
       }

@@ -375,7 +375,7 @@ The IDE runs no hooks at all ([reproduced on IDE 2.1.1, August 2026](https://dis
 
 - **Route commands ship as skills.** agy's validator accepts a `commands/` folder but never registers it, so the build turns each one into a user-only skill of the same name.
 - **Nothing runs at session start.** No profile bootstrap, no pointer to an unfinished run, no skill suggestions, no adhd flag. In a new project, run `/onboard` yourself.
-- **No advisories and no gate preamble.** The skip-marker and shared-shape nudges, and the resolved gate table injected when a skill starts, are Claude Code only.
+- **No advisories, no gate preamble, no pick check.** The skip-marker and shared-shape nudges, the resolved gate table injected when a skill starts, and the check that a picked skill was loaded are Claude Code only.
 - **Headless `agy -p` refuses any shell command it would normally ask about**, so check the guards in an interactive session.
 
 **When agy changes.** The adapter (`scripts/antigravity-adapt.sh`) translates agy's hook payload using argument names captured from agy 1.2.2. If agy renames one, the adapter denies the call rather than letting it through unchecked. Update the adapter and the `ag_*` payload builders in `tests/run-tests.sh` section 7 together.
@@ -412,7 +412,7 @@ codex plugin add m-skills@m-skills-local           # installs the plugin
 - **Route commands ship as skills.** Codex plugins have no commands, so the build turns each one into a user-only skill of the same name.
 - **No question picker outside Plan mode.** Skills ask in chat instead, with numbered options and the recommendation first.
 - **Nothing runs at session start.** No profile bootstrap, no pointer to an unfinished run, no skill suggestions, no adhd flag. In a new project, run `$m-skills:onboard` yourself.
-- **No advisories and no gate preamble.** The skip-marker and shared-shape nudges, and the resolved gate table injected when a skill starts, are Claude Code only.
+- **No advisories, no gate preamble, no pick check.** The skip-marker and shared-shape nudges, the resolved gate table injected when a skill starts, and the check that a picked skill was loaded are Claude Code only.
 - **Opt-outs are unchanged.** `.claude/.m-skills-no-guards` in the project, or the same file in `~/.claude/`, still switches the guards off.
 
 **When Codex changes.** The payload shapes were captured from codex-cli 0.159.0. Shell calls arrive in Claude Code's own shape, so the guards read them directly. `scripts/codex-adapt.sh` reads only `apply_patch`. If Codex renames that argument or adds a patch header, the adapter denies the edit rather than letting it through unchecked. Update the adapter and the `cx_*` payload builders in `tests/run-tests.sh` section 8 together.
@@ -427,17 +427,19 @@ codex plugin add m-skills@m-skills-local           # installs the plugin
 | [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md) | License notices for the absorbed sources | stays put |
 | `.claude-plugin/plugin.json` | Plugin manifest | stays put — read on install |
 | `.claude-plugin/marketplace.json` | Single-plugin marketplace catalog | stays put — read by `/plugin marketplace add` |
-| `hooks/hooks.json` | Wires all nine hooks | stays put |
+| `hooks/hooks.json` | Wires all eleven hooks | stays put |
 | `scripts/lib/hook-json.sh` | Shared hook plumbing — payload parsing, decision emitters, the opt-out check | stays put |
 | `scripts/profile-bootstrap.sh` | Every session: flags env files git tracks, once committed, or doesn't ignore. Without a profile: detects the stack | stays put |
 | `scripts/adhd-always-on.sh` | Applies the reply protocol session-wide when its flag is set | stays put |
 | `scripts/resume-progress.sh` | Points a new or compacted context at `.claude/PROGRESS.md` when an implementing run didn't finish | stays put |
+| `scripts/suggest-skills.sh` | Offers the gated pipeline skills: a paste line on a clear match, the picker when several compete | stays put |
 | `scripts/guard-mutations.sh` | **Denies** git mutations, golden-file updates, catastrophic `rm`/`dd` | stays put |
 | `scripts/guard-outward.sh` | **Denies** a deploy, publish, migration, infra apply, or `gh` write — you get a runbook instead | stays put |
 | `scripts/guard-secrets.sh` | **Denies** reading or writing secret-bearing files; `.env.example` variants untouched | stays put |
 | `scripts/skill-preamble.sh` | Injects the resolved gates, §9/§10/§15/§19, and the skill's composition map when a pack skill starts; resolves a route command to the architect it routes into, so the map is right and the preamble lands once | stays put |
 | `scripts/warn-test-weakening.sh` | Flags a newly added `.skip` / `.only` in a test file | stays put |
 | `scripts/advise-propagation.sh` | Prompts the Protocol A sweep when a shared-shape file is edited | stays put |
+| `scripts/enforce-picks.sh` | Holds the turn open until a skill picked in the picker has its `SKILL.md` loaded; logs each pick to `~/.claude/m-skills/picks.log` | stays put |
 | `scripts/build-antigravity.sh` | Builds the Antigravity plugin into `dist/antigravity/m-skills/` — see [§ Antigravity](#-antigravity) | stays put |
 | `scripts/antigravity-adapt.sh` | Runs the three guards under Antigravity's hooks; ships only in the Antigravity build | stays put |
 | `scripts/build-codex.sh` | Builds the Codex plugin into `dist/codex/m-skills/` — see [§ Codex](#-codex) | stays put |
@@ -541,7 +543,7 @@ command that writes) and §10 (never auto-accept a golden update) were restated 
 you copy by hand, and its prefix matching cannot see inside `cd x && git commit`, `git -C .
 push`, or `bash -c "git add ."` anyway.
 
-Six hooks close that gap. Three **guards** decide, three **advisories** inform.
+Seven hooks close that gap. Three **guards** decide, three **advisories** inform, and one **check** holds the turn open.
 
 | Hook | Event | Decision | Converts |
 |---|---|---|---|
@@ -551,6 +553,7 @@ Six hooks close that gap. Three **guards** decide, three **advisories** inform.
 | `skill-preamble.sh` | `UserPromptExpansion` + `PostToolUse` · Skill | inject | the resolved gate table and §9/§10/§15/§19, so 17 skills stop re-deriving them |
 | `warn-test-weakening.sh` | `PostToolUse` · Write/Edit | advise | the never-weaken rule — a **newly added** `.skip` / `.only` in a test file |
 | `advise-propagation.sh` | `PostToolUse` · Write/Edit | advise | `implementing-architect` Protocol A, once per shared-shape file per session |
+| `enforce-picks.sh` | `PostToolUse` · AskUserQuestion, Read/Bash + `Stop` | **hold once** | §17 — a skill picked in the sheet has its `SKILL.md` loaded before the turn ends; each pick logged `loaded` or `NOT loaded` |
 
 Three properties are deliberate and worth knowing before you rely on them:
 
@@ -634,7 +637,9 @@ There is no `/i-have-adhd` command, deliberately: an output style is influence, 
 
 ### Suggesting a skill
 
-The eleven gated skills are invisible to Claude — absent from its roster, unreachable on its own. Without help that means *"please implement the plan"* quietly gets ordinary behaviour: no gate battery, no propagation sweep, and no hint that `implementing-architect` was ever an option. A third `SessionStart` hook (`scripts/suggest-skills.sh`) injects the roster and two instructions: when you name a skill or a message clearly matches one, Claude hands you the `/m-skills:<name>` line to paste at once, with no confirmation round trip; when two or more skills plausibly compete, it **asks** which one. It never stays silent. A skill you **pick** in the sheet — from that question, or from a stage's own next step such as `Approve → implement` after a plan — starts straight away, with no paste round trip. The gate still holds: only you start a gated skill, by typing its slash command or picking it; a passing remark in chat never does.
+The eleven gated skills are invisible to Claude — absent from its roster, unreachable on its own. Without help that means *"please implement the plan"* quietly gets ordinary behaviour: no gate battery, no propagation sweep, and no hint that `implementing-architect` was ever an option. A third `SessionStart` hook (`scripts/suggest-skills.sh`) injects the roster and two instructions: when you name a skill or a message clearly matches one, Claude hands you the `/m-skills:<name>` line to paste at once, with no confirmation round trip; when two or more skills plausibly compete, it **asks** which one. It never stays silent. A skill you **pick** in the sheet — from that question, or from a stage's own next step such as `Approve → implementing-architect` after a plan, or `Plan it → planning-architect` after brainstorming — starts straight away, with no paste round trip. The gate still holds: only you start a gated skill, by typing its slash command or picking it; a passing remark in chat never does.
+
+**A pick is checked, not trusted.** `scripts/enforce-picks.sh` reads which option you chose. When its label names a gated skill, the turn cannot end until Claude has loaded that skill's `SKILL.md`; loading it injects the same gate preamble a slash command gets. If Claude tries to stop without it, the turn is held once, then let go. Every pick lands in `~/.claude/m-skills/picks.log` as `loaded` or `NOT loaded`, so you can see afterwards whether a pick ran. Only an offered option counts — text typed into *Other* never does — and `.claude/.m-skills-no-guards` switches it off with the guards.
 
 Unlike the reply protocol this is **on by default**, because the people it helps are the ones who have not read this file. Switching it off uses the same convention as the guards:
 

@@ -130,6 +130,13 @@ grep -q '`\[SEC\]`' "$ROOT/skills/planning-architect/SKILL.md" \
 grep -q '`\[A11Y\]`' "$ROOT/skills/planning-architect/SKILL.md" \
   && ok "plans carry [A11Y] tags" || bad "plans carry [A11Y] tags"
 
+# enforce-picks.sh only sees a pick whose label names the skill, so each stage's
+# next-step option must carry the exact name or its approval goes unenforced
+grep -q '`Approve → implementing-architect`' "$ROOT/skills/planning-architect/SKILL.md" \
+  && ok "planning's approval names implementing-architect" || bad "planning's approval names implementing-architect"
+grep -q '`Plan it → planning-architect`' "$ROOT/skills/brainstorming-planner/SKILL.md" \
+  && ok "brainstorming's close names planning-architect" || bad "brainstorming's close names planning-architect"
+
 # rolling-history must hand doc prose to documentation-architect, not improvise it
 grep -q "documentation-architect" "$ROOT/skills/rolling-history/SKILL.md" \
   && ok "rolling-history defers doc writing" || bad "rolling-history defers doc writing"
@@ -390,6 +397,9 @@ if command -v jq >/dev/null 2>&1; then
   # the enforcement claim the skills now make must be wired to a real event
   assert_contains "git guard wired to PreToolUse" "$(jq -r '.hooks.PreToolUse[].hooks[].args[0]' "$HOOKS_JSON")" "guard-mutations.sh"
   assert_contains "preamble wired to UserPromptExpansion" "$(jq -r '.hooks.UserPromptExpansion[].hooks[].args[0]' "$HOOKS_JSON")" "skill-preamble.sh"
+  assert_contains "pick check wired to AskUserQuestion" "$(jq -r '.hooks.PostToolUse[] | select(.matcher == "AskUserQuestion") | .hooks[].args[0]' "$HOOKS_JSON")" "enforce-picks.sh"
+  assert_contains "pick check wired to Read and Bash"   "$(jq -r '.hooks.PostToolUse[] | select(.matcher == "Read|Bash") | .hooks[].args[0]' "$HOOKS_JSON")" "enforce-picks.sh"
+  assert_contains "pick check wired to Stop"            "$(jq -r '.hooks.Stop[].hooks[].args[0]' "$HOOKS_JSON")" "enforce-picks.sh"
 else
   skip "hooks.json wiring" "jq not installed"
 fi
@@ -436,7 +446,7 @@ for g in guard-mutations guard-outward guard-secrets; do
   grep -q 'guard_require_json_engine' "$ROOT/scripts/$g.sh" \
     && ok "$g fails closed without a JSON engine" || bad "$g fails closed without a JSON engine"
 done
-for a in skill-preamble warn-test-weakening advise-propagation; do
+for a in skill-preamble warn-test-weakening advise-propagation enforce-picks; do
   grep -q 'advisory_require_json_engine' "$ROOT/scripts/$a.sh" \
     && ok "$a fails open without a JSON engine" || bad "$a fails open without a JSON engine"
 done
@@ -823,6 +833,7 @@ assert_contains "clear match skips the confirm"  "$out" "do not ask"
 assert_contains "carries the decline option"     "$out" "No — just continue"
 assert_contains "carries the paste fallback"     "$out" "/m-skills:<name>"
 assert_contains "a pick starts the skill"        "$out" "A pick is the user starting it"
+assert_contains "a pick label names the skill"   "$out" "the pick check keys on it"
 assert_contains "carries the anti-pester rule"   "$out" "already declined"
 assert_contains "states the session off-switch"  "$out" "stop suggesting"
 assert_contains "states the flag-file off-switch" "$out" ".m-skills-no-suggest"
@@ -1049,6 +1060,17 @@ expect "allow: git check-ignore .env"      allow "$(sec 'git check-ignore -q .en
 expect "allow: grep code for var names"    allow "$(sec 'grep -rn process.env src')"
 expect "allow: escaped .env in a regex"    allow "$(sec "grep -n '\\.env' README.md")"
 expect "allow: a glob that names nothing"  allow "$(sec 'cat *.log')"
+# a bracket expression is a set, not literal text: `[a-z-]*` names nothing, like `*`,
+# and letters inside it made quoted grep and sed patterns read as globs onto id_rsa
+expect "allow: grep pattern with a bracket glob" allow "$(sec "grep -o -- 'preamble for \`[a-z-]*\`' t.jsonl")"
+expect "allow: bracket-only glob names nothing"  allow "$(sec 'cat [a-z-]*')"
+expect "deny: bracket glob with literal onto id_rsa" deny "$(sec 'cat [a-z]*_rsa')"
+expect "deny: glob inside bash -c"               deny  "$(sec "bash -c 'cat .e*'")"
+# a word that is only an extension is a property path (jq .key), not a key file
+expect "allow: jq .key property"           allow "$(sec "jq -r '.hooks|to_entries[]|.key as \$k' hooks.json")"
+expect "allow: bare .pem word"             allow "$(sec 'echo .pem')"
+expect "deny: cat server.key"              deny  "$(sec 'cat server.key')"
+expect "deny: cat quoted server.key"       deny  "$(sec "cat 'server.key'")"
 expect "allow: git log lists commits"      allow "$(sec 'git log --all --oneline -- .env')"
 expect "deny: git log -p prints the file"  deny  "$(sec 'git log -p -- .env')"
 
@@ -1196,6 +1218,82 @@ expect "deny: NotebookEdit into a secret path" deny \
   "$(decision guard-secrets.sh "$(printf '{"tool_name":"NotebookEdit","tool_input":{"notebook_path":%s}}' "$(esc '/p/.env')")")"
 expect "allow: NotebookEdit into a notebook"   allow \
   "$(decision guard-secrets.sh "$(printf '{"tool_name":"NotebookEdit","tool_input":{"notebook_path":%s}}' "$(esc '/p/analysis.ipynb')")")"
+
+# ── A pick must provably start the skill it names (§17). It was prose only, and a
+#    session picked "Yes — run debugging-architect" and got a grep instead. The sequence
+#    under test: pick → marker; stop with it pending → held once; load → preamble + log.
+EP="$ROOT/scripts/enforce-picks.sh"
+PICKS_BASE="${TMPDIR:-/tmp}/m-skills-$(id -u 2>/dev/null || echo 0)"
+PICK_LOG="$CLAUDE_CONFIG_DIR/m-skills/picks.log"
+ask_payload() { # <session> <answer-json-value> [labels…] — tool_response as {answers}
+  local s="$1" a="$2" opts="" l; shift 2
+  for l in "$@"; do opts="$opts${opts:+,}{\"label\":$(esc "$l")}"; done
+  printf '{"hook_event_name":"PostToolUse","tool_name":"AskUserQuestion","session_id":"%s","tool_input":{"questions":[{"question":"Next?","options":[%s]}]},"tool_response":{"questions":[],"answers":{"Next?":%s}}}' "$s" "$opts" "$a"
+}
+stop_payload() { printf '{"hook_event_name":"Stop","session_id":"%s","stop_hook_active":%s}' "$1" "$2"; }
+read_payload() { printf '{"hook_event_name":"PostToolUse","tool_name":"Read","session_id":"%s","tool_input":{"file_path":%s}}' "$1" "$(esc "$2")"; }
+pending() { [ -f "$PICKS_BASE/$1/pick/$2" ] && echo yes || echo no; }
+
+out="$(ask_payload "pick-$$-a" "$(esc 'Approve → implementing-architect')" 'Approve → implementing-architect' 'Revise the plan' 'Stop here' | bash "$EP" 2>/dev/null)"
+assert_contains "pick: names the SKILL.md to read"   "$out" "$ROOT/skills/implementing-architect/SKILL.md"
+assert_contains "pick: resolves CLAUDE_SKILL_DIR"    "$out" "means $ROOT/skills/implementing-architect"
+assert_eq       "pick: leaves a pending marker"      "$(pending "pick-$$-a" implementing-architect)" yes
+expect "stop: held while the pick is unloaded" block "$(decision enforce-picks.sh "$(stop_payload "pick-$$-a" false)")"
+assert_contains "stop: reason names the skill" "$(stop_payload "pick-$$-a" false | bash "$EP" 2>/dev/null)" "implementing-architect"
+out="$(read_payload "pick-$$-a" "$ROOT/skills/implementing-architect/SKILL.md" | bash "$EP" 2>/dev/null)"
+assert_contains "load: injects the preamble"         "$out" 'm-skills preamble for `implementing-architect`'
+assert_eq       "load: clears the marker"            "$(pending "pick-$$-a" implementing-architect)" no
+assert_contains "load: logged as loaded"             "$(grep "pick-$$-a" "$PICK_LOG" 2>/dev/null)" "implementing-architect	loaded"
+expect "stop: released once loaded" allow "$(decision enforce-picks.sh "$(stop_payload "pick-$$-a" false)")"
+
+# the second stop means the reminder failed; holding again would loop a model that cannot comply
+ask_payload "pick-$$-b" "$(esc 'Plan it → planning-architect')" 'Plan it → planning-architect' 'Keep refining' | bash "$EP" >/dev/null 2>&1
+expect "stop: let go on the second stop" allow "$(decision enforce-picks.sh "$(stop_payload "pick-$$-b" true)")"
+assert_contains "stop: logged as NOT loaded" "$(grep "pick-$$-b" "$PICK_LOG" 2>/dev/null)" "planning-architect	NOT loaded"
+assert_eq       "stop: marker gone after letting go" "$(pending "pick-$$-b" planning-architect)" no
+
+# only an offered label is a pick — the decline, and free text naming a skill, are not
+assert_empty "no pick: Stop here"  "$(ask_payload "pick-$$-c" "$(esc 'Stop here')" 'Approve → implementing-architect' 'Stop here' | bash "$EP" 2>/dev/null)"
+assert_empty "no pick: free text naming a skill" \
+  "$(ask_payload "pick-$$-c" "$(esc 'maybe planning-architect later')" 'Approve → implementing-architect' 'Stop here' | bash "$EP" 2>/dev/null)"
+assert_eq    "no pick: no marker" "$([ -d "$PICKS_BASE/pick-$$-c/pick" ] && ls "$PICKS_BASE/pick-$$-c/pick" | wc -l | tr -d ' ' || echo 0)" 0
+
+# the payload shape was inferred from transcripts, so the string form must work too
+printf '{"hook_event_name":"PostToolUse","tool_name":"AskUserQuestion","session_id":"pick-%s-d","tool_input":{"questions":[{"question":"Q","options":[{"label":"Plan it → planning-architect"}]}]},"tool_response":%s}' \
+  "$$" "$(esc 'User has answered your questions: "Q"="Plan it → planning-architect". You can now continue.')" | bash "$EP" >/dev/null 2>&1
+assert_eq "pick: string-shaped response" "$(pending "pick-$$-d" planning-architect)" yes
+
+# multiSelect joins its labels into one answer; each chosen skill is pending
+ask_payload "pick-$$-e" "$(esc 'debugging-architect — find the cause, code-review-architect — review first')" \
+  'debugging-architect — find the cause' 'code-review-architect — review first' 'No — just continue' | bash "$EP" >/dev/null 2>&1
+assert_eq "pick: multiSelect marks the first" "$(pending "pick-$$-e" debugging-architect)" yes
+assert_eq "pick: multiSelect marks the second" "$(pending "pick-$$-e" code-review-architect)" yes
+
+# a Bash cat of the file loads it as well as a Read does
+printf '{"hook_event_name":"PostToolUse","tool_name":"Bash","session_id":"pick-%s-e","tool_input":{"command":%s}}' \
+  "$$" "$(esc "cat $ROOT/skills/debugging-architect/SKILL.md")" | bash "$EP" >/dev/null 2>&1
+assert_eq "load: Bash cat clears the marker" "$(pending "pick-$$-e" debugging-architect)" no
+printf '{"hook_event_name":"PostToolUse","tool_name":"Bash","session_id":"pick-%s-e","tool_input":{"command":%s}}' \
+  "$$" "$(esc "D=$ROOT/skills/code-review-architect; cat \$D/SKILL.md")" | bash "$EP" >/dev/null 2>&1
+assert_eq "load: cat through a variable clears it" "$(pending "pick-$$-e" code-review-architect)" no
+
+# editing the pack reads SKILL.md files all day; with no pick pending that is silence
+assert_empty "load: silent with no pick pending" \
+  "$(read_payload "pick-$$-f" "$ROOT/skills/planning-architect/SKILL.md" | bash "$EP" 2>/dev/null)"
+
+# the answer is untrusted text: never executed, never a path, never logged
+ask_payload "pick-$$-g" "$(esc 'Approve → implementing-architect $(touch '"$TMP"'/pwned) ../../x')" \
+  'Approve → implementing-architect' | bash "$EP" >/dev/null 2>&1
+assert_eq      "pick: answer text is not executed" "$([ -e "$TMP/pwned" ] && echo yes || echo no)" no
+assert_eq      "pick: skill name comes from the roster" "$(ls "$PICKS_BASE/pick-$$-g/pick" 2>/dev/null)" implementing-architect
+stop_payload "pick-$$-g" true | bash "$EP" >/dev/null 2>&1
+assert_missing "pick: answer text never reaches the log" "$(cat "$PICK_LOG" 2>/dev/null)" "pwned"
+
+touch "$CLAUDE_PROJECT_DIR/.claude/.m-skills-no-guards"
+assert_empty "opt-out releases the pick check" \
+  "$(ask_payload "pick-$$-h" "$(esc 'Approve → implementing-architect')" 'Approve → implementing-architect' | bash "$EP" 2>/dev/null)"
+rm -f "$CLAUDE_PROJECT_DIR/.claude/.m-skills-no-guards"
+rm -rf "$PICKS_BASE"/pick-$$-*
 
 # ── the opt-out must release every guard, or the pack is unusable for anyone who
 #    wants Claude to touch git at all

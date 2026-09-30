@@ -84,6 +84,8 @@ After the session, provide — five bullets maximum per section (Guidelines §17
 - **🚫 Explicit Non-Goals** — what was ruled out, and why. (This is the section that saves the most time later.)
 - **🔭 Future Coordinates** — how the feature is positioned for evolution, *without* building for it now.
 
+Then put the next step in the picker (Guidelines §17) — `Plan it → planning-architect` · `Keep refining` · `Stop here`. Picking `Plan it → planning-architect` starts it on the Deep-Dive Execution Prompt in this session; pasting the prompt into a fresh or stronger-model session stays open to the user.
+
 ---
 
 _v2.0 — version history in CHANGELOG.md_
