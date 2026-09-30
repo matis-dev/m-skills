@@ -66,6 +66,8 @@ Plus 16 **route commands** — `/m-skills:decompose`, `/m-skills:rollback`, `/m-
 
 They install at user scope, so they're in every project you open — no per-project copying.
 
+**The guards need Claude Code or Cowork.** In claude.ai chat the skills load but no hook runs, so nothing denies a git write there. What the hooks read and write: [§ What runs on your machine](#-what-runs-on-your-machine).
+
 **Check that it actually landed there.** The CLI prints the scope it *intended*; the record on disk is what the runtime uses, and the two can disagree if a previous install left stale state behind:
 
 ```bash
@@ -345,6 +347,28 @@ These hold in every skill, in every project:
 4. **Honest output.** Every number, path, and command is one that was read or run. A placeholder beats a plausible invention.
 5. **Bounded verification.** Build → one batched inspection → one fix batch → at most one confirm round → stop.
 6. **Never weaken a test to get it green.**
+
+---
+
+## 💻 What runs on your machine
+
+**Every hook is a bash script in `scripts/`, run from `${CLAUDE_PLUGIN_ROOT}`.** None of them makes a network call, downloads a package, or sends data anywhere.
+
+**What the hooks read:** the tool call they are checking; your project's manifests, lockfiles, CI config, and `.claude/` folder, to resolve commands; `.claude/settings.json` and your user `settings.json`, to see whether the Bash sandbox is on; and the *names* git reports for `.env` files — never their contents — to find a committed secret.
+
+**What the hooks write:**
+
+| Path | Written by | When |
+|---|---|---|
+| `~/.claude/m-skills/picks.log` | `enforce-picks.sh` | each time you pick a gated skill in the picker — time, session, project path, skill, `loaded` or `NOT loaded` |
+| `$TMPDIR/m-skills-<uid>/<session>/` (`/tmp` when `TMPDIR` is unset) | several hooks | once-per-session markers, so an advisory or the gate preamble fires once |
+| `.claude/PROJECT-PROFILE.md` | `profile-bootstrap.sh` | only with `M_SKILLS_AUTOPROFILE=1`; otherwise Claude offers the profile and writes it only when you say yes |
+
+`~/.claude` is `$CLAUDE_CONFIG_DIR` when that is set.
+
+**What they never change: your settings.** When real `.env` files sit in an ignored path and the Bash sandbox is off, the bootstrap has Claude *offer* a `permissions.deny` and sandbox block, once. Nothing is merged into `.claude/settings.json` unless you agree. → [§ Enforcement](#enforcement-the-rules-that-are-no-longer-advice)
+
+**Where the hooks run: Claude Code and Cowork.** claude.ai chat loads the skills and route commands but runs no hook, so there the guards above are rules the model follows, not checks that deny the call. Use Claude Code when the guards matter.
 
 ---
 
