@@ -58,6 +58,8 @@ Every hook is a bash script inside the plugin. None of them makes a network call
 - Once-per-session markers in an `m-skills` folder under your system temp directory, so an advisory or the gate preamble fires once.
 - `.claude/PROJECT-PROFILE.md`, only when you say yes to writing it, or when the `M_SKILLS_AUTOPROFILE` environment variable is set to 1.
 
+**What the skills fetch:** two skills have Claude request a web page, and only one you point them at. `search-optimization-architect` fetches the pages it audits, the way a crawler sees them; `deployment-architect` checks your deployed app's health endpoint after you report that a deploy landed. Both are read-only requests that send none of your code or project data.
+
 **What they never change: your settings.** When real `.env` files sit on disk and the Bash sandbox is off, Claude offers a deny rule and a sandbox block once, and merges nothing unless you agree.
 
 **Where the hooks run:** Claude Code and Cowork. claude.ai chat loads the skills and commands but runs no hooks, so there the rules above are followed by the model rather than enforced.
