@@ -451,7 +451,7 @@ codex plugin add m-skills@m-skills-local           # installs the plugin
 bash scripts/build-claude.sh   # writes dist/claude/m-skills/; refuses to finish if a hook script would hold the plugin
 ```
 
-**What changes on the way out.** The library is pasted in where it was loaded. The `check-quality.sh --list` and `skill-preamble.sh` calls become the subshell functions `m_skills_gate_table` and `m_skills_preamble`. Comment lines that name a `.sh` file are dropped. `README.release.md` ships as the listing's `README.md`. Tests, the changelog, the templates, the library, and the build and adapter scripts stay on `main`.
+**What changes on the way out.** The library is pasted in where it was loaded. The `check-quality.sh --list` and `skill-preamble.sh` calls become the subshell functions `m_skills_gate_table` and `m_skills_preamble`; the resolver is inlined only up to its `--list` branch, because the part that runs gates executes a computed command and the validator blocks that as an unpinned launcher. Comment lines that name a `.sh` file are dropped. `README.release.md` ships as the listing's `README.md`. Tests, the changelog, the templates, the library, and the build and adapter scripts stay on `main`.
 
 **Proof it is the same plugin.** Section 10 of `tests/run-tests.sh` runs the hook behaviour sections against the sources and against the build, and requires the same pass count from both.
 
@@ -508,7 +508,7 @@ git -C ../m-skills-release push
 | `scripts/codex-adapt.sh` | Runs the secret-file guard over each path a Codex `apply_patch` touches; ships only in the Codex build | stays put |
 | `scripts/build-claude.sh` | Builds the self-contained tree the Claude plugin directory follows into `dist/claude/m-skills/` — see [§ Claude directory release](#-claude-directory-release) | stays put |
 | `README.release.md` | The short listing README; ships as `README.md` in the directory release | stays put |
-| `tests/run-tests.sh` | The pack's own test suite — 892 assertions, no dependencies | stays put |
+| `tests/run-tests.sh` | The pack's own test suite — 896 assertions, no dependencies | stays put |
 | `commands/*.md` | The 16 route commands — thin pre-routed entries into one architect's mode | plugin: stays put · copy-mode: → `<project>/.claude/commands/`, paths rewritten |
 | `skills/<architect>/SKILL.md` | An architect's spine — constraints, modes, procedure | plugin: stays put · copy-mode: → `<project>/.claude/skills/` |
 | `skills/module-*/` | The 9 shared modules, addressed by name | same |

@@ -56,6 +56,10 @@ case "$NAME" in
   m-skills:*) SKILL="${NAME#m-skills:}" ;;
   *) exit 0 ;;
 esac
+# The name becomes a path segment below (skills/<name>/, commands/<name>.md, the
+# marker). Every skill and command name is [a-z0-9-]; anything else, ../ included,
+# is not one of ours.
+case "$SKILL" in ''|*[!a-z0-9-]*) exit 0 ;; esac
 
 # A route command (commands/<name>.md) is a thin pre-routed entry into one architect —
 # /m-skills:decompose is product-architect in decompose mode. Left unresolved, SKILL would

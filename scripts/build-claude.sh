@@ -71,14 +71,20 @@ tail -n +2 "$LIB" | drop_script_comments > "$PART/lib"
 # The gate resolver reads its gates from the environment first. A child process sees
 # only exported variables; a subshell function sees the caller's own as well, so the
 # function starts by unsetting any copy the caller did not export.
+# Hooks only ever ask it for --list, so it is inlined up to the end of that branch.
+# The part after it RUNS each gate, a command computed at run time, which the
+# validator blocks as an unpinned launcher when `uv run` sits beside it.
 {
   echo 'm_skills_gate_table() ('
   echo '  for v in LINT TYPECHECK TEST BUILD E2E VISUAL A11Y AUDIT VISUAL_REPORT UPDATE_CMD; do'
   echo '    [[ "$(declare -p "$v" 2>/dev/null)" =~ ^declare\ -[a-zA-Z]*x ]] || unset "$v"'
   echo '  done'
-  tail -n +2 "$CQ" | drop_script_comments
+  tail -n +2 "$CQ" | drop_script_comments \
+    | awk '{ print } /^if \[ "\$\{1:-\}" = "--list" \]; then$/ { list = 1 } list && /^fi$/ { exit }'
   echo ')'
 } > "$PART/gate"
+grep -q '^if \[ "${1:-}" = "--list" \]; then$' "$PART/gate" \
+  || { echo "build-claude: check-quality.sh has no --list branch to stop at" >&2; exit 1; }
 
 # The preamble runs inside enforce-picks.sh, which has already loaded the library.
 {
@@ -114,6 +120,8 @@ for f in "$OUT"/scripts/*.sh; do
   grep -nE '<<[^<]|<<$' "$f" | grep -v '<<<' | sed "s|^|  $rel: here-document at |" >> "$PART/bad" || true
   grep -nE '^[[:space:]]*(\.|source)[[:space:]]' "$f" | sed "s|^|  $rel: loads a file at |" >> "$PART/bad" || true
   grep -nE '(^|[^A-Za-z0-9_])(ba)?sh[[:space:]]+"\$' "$f" | sed "s|^|  $rel: runs a script at |" >> "$PART/bad" || true
+  grep -nE '(^|[^A-Za-z0-9_])(ba)?sh([[:space:]]+-[a-z]+([[:space:]]+[a-z]+)?)*[[:space:]]+-c[[:space:]]+"\$' "$f" \
+    | sed "s|^|  $rel: runs a computed command at |" >> "$PART/bad" || true
   grep -nE '[A-Za-z0-9_-]\.sh([^A-Za-z0-9_]|$)' "$f" | sed "s|^|  $rel: names a script at |" >> "$PART/bad" || true
 done
 if [ -n "$fail" ] || [ -s "$PART/bad" ]; then

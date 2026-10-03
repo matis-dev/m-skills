@@ -47,21 +47,21 @@ env_pinned() { case " $ENV_PINNED " in *" $1 "*) return 0 ;; *) return 1 ;; esac
 #   · sourcing blindly assigns, which silently clobbered a value passed on the
 #     invocation. Skipping pinned keys here keeps precedence as anyone would read it:
 #     env > profile > conf > detection.
-# Accepts KEY="v" / KEY='v' / KEY=v, leading indentation, # comments, and a trailing
+# Accepts NAME="v" / NAME='v' / NAME=v, leading indentation, # comments, and a trailing
 # comment after a quoted value — every shape the template at the end of this file uses.
 read_conf() {
-  local line key val
+  local line gate val
   while IFS= read -r line || [ -n "$line" ]; do
     line="${line#"${line%%[![:space:]]*}"}"
     case "$line" in ''|'#'*) continue ;; esac
     case "$line" in *=*) ;; *) continue ;; esac
-    key="${line%%=*}"; val="${line#*=}"
-    key="${key%"${key##*[![:space:]]}"}"
-    case "$key" in
+    gate="${line%%=*}"; val="${line#*=}"
+    gate="${gate%"${gate##*[![:space:]]}"}"
+    case "$gate" in
       LINT|TYPECHECK|TEST|BUILD|E2E|VISUAL|A11Y|AUDIT|UPDATE_CMD|VISUAL_REPORT) ;;
       *) continue ;;
     esac
-    env_pinned "$key" && continue
+    env_pinned "$gate" && continue
     val="${val#"${val%%[![:space:]]*}"}"
     case "$val" in
       \"*)  val="${val#\"}";  val="${val%%\"*}" ;;
@@ -69,7 +69,7 @@ read_conf() {
       *)    val="${val%%[[:space:]]#*}" ;;
     esac
     val="${val%"${val##*[![:space:]]}"}"
-    printf -v "$key" '%s' "$val"
+    printf -v "$gate" '%s' "$val"
   done < "$1"
 }
 
@@ -86,7 +86,7 @@ fi
 # A cell that is empty, `n-a`, or still a `<placeholder>` is treated as unset and
 # falls through to the conf / detection below — so a half-filled profile is safe,
 # which is the normal state (§5 "progressive, not a questionnaire").
-# Nothing is executed: awk emits KEY<TAB>VALUE and the loop assigns by an explicit case.
+# Nothing is executed: awk emits NAME<TAB>VALUE and the loop assigns by an explicit case.
 if [ -f "$PROFILE" ]; then
   PROFILE_SET=0
   while IFS="$(printf '\t')" read -r pkey pval; do

@@ -1119,6 +1119,14 @@ out="$(printf '{"hook_event_name":"UserPromptExpansion","command_name":"some-oth
 assert_empty "preamble silent for other plugins" "$out"
 out="$(printf '{"hook_event_name":"UserPromptExpansion","command_name":"m-skills:guidelines-meta"}' | bash "$PLUGIN_UT/scripts/skill-preamble.sh" 2>/dev/null)"
 assert_empty "preamble silent for guidelines-meta itself" "$out"
+# The skill name comes from the payload and becomes a path segment: skills/<name>/,
+# commands/<name>.md, and the once-per-session marker. A name that climbs out with
+# ../ must not resolve to a real skill, inject, or write a marker outside its folder.
+TRAV_STATE="$TMP/trav-state"
+out="$(printf '{"hook_event_name":"UserPromptExpansion","command_name":"m-skills:../skills/planning-architect","session_id":"trav-%s"}' "$$" \
+  | TMPDIR="$TRAV_STATE" bash "$PLUGIN_UT/scripts/skill-preamble.sh" 2>/dev/null)"
+assert_empty "preamble refuses a skill name that climbs out with ../" "$out"
+assert_empty "  ...and writes no marker for it" "$(find "$TRAV_STATE" -type f 2>/dev/null)"
 
 # It is registered with no matcher, so it runs on EVERY user prompt: it must decide
 # "not mine" with a shell builtin, before spending a jq/python3 spawn on it.
@@ -1768,6 +1776,9 @@ plant "a here-document"          "$(printf 'cat <<EOF\nx\nEOF')" "here-document"
 plant "a file loaded with ."     '. "$PLUGIN/extra"'             "loads a file"
 plant "a call to another script" 'bash "$PLUGIN/extra"'          "runs a script"
 plant "a script named in text"   'echo "see other.sh"'           "names a script"
+plant "a computed command"       'bash -o pipefail -c "$cmd"'    "runs a computed command"
+# Hooks only list the gates; the inlined resolver must not carry the part that runs them.
+assert_empty "release hooks carry no gate runner" "$(grep -l 'Quality Check Results' "$REL"/scripts/*.sh)"
 
 # The release README is the listing page: 40+ words outside code (the directory's floor),
 # and none of the text the validator reads as reading a credential or sending data.
