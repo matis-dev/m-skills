@@ -4,7 +4,7 @@ Release history for the m-skills pack. The per-skill version notes used to sit a
 
 ## Pack releases
 
-### Unreleased
+### V4.4 — 2026-10-03
 
 **Two comment examples blocked the directory listing.** The validator blocked every release build as an unpinned package launcher on the four hooks that inline the gate resolver. A bisect over nine probe branches on 2026-10-03 found the cause: two example rows in the resolver's comments, `| <lint> | pnpm run lint |` and `` `pnpm run e2e:update` ``, read as `pnpm` beside the profile reader's code. Every probe that kept them was blocked, whatever else it removed; every probe without them passed, the full resolver with auto-detection included. The examples are now placeholders, and the release build refuses a hook script whose comment names pnpm, yarn, bun, bunx, npx, uvx, or dlx. Affected: `skills/implementing-architect/check-quality.sh`, `scripts/build-claude.sh`, `tests/run-tests.sh` (one planted case in section 10).
 
