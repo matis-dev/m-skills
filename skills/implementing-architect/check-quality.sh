@@ -24,10 +24,10 @@ cd "$ROOT" || exit 1
 
 CONF=".claude/quality-gates.conf"
 PROFILE=".claude/PROJECT-PROFILE.md"
-GATE_KEYS=(LINT TYPECHECK TEST BUILD E2E VISUAL A11Y AUDIT)
+GATE_NAMES=(LINT TYPECHECK TEST BUILD E2E VISUAL A11Y AUDIT)
 GATE_LABELS=("Lint" "Type-check" "Tests + Coverage" "Build" "E2E" "Visual regression" "Accessibility" "Dependency audit")
 
-for k in "${GATE_KEYS[@]}"; do printf -v "$k" '%s' "${!k:-}"; done
+for k in "${GATE_NAMES[@]}"; do printf -v "$k" '%s' "${!k:-}"; done
 VISUAL_REPORT="${VISUAL_REPORT:-}"
 UPDATE_CMD="${UPDATE_CMD:-}"
 
@@ -35,7 +35,7 @@ UPDATE_CMD="${UPDATE_CMD:-}"
 # is the most explicit signal available, so it outranks the profile too. Everything
 # not marked here is fair game for the profile to override.
 ENV_PINNED=""
-for k in "${GATE_KEYS[@]}" VISUAL_REPORT UPDATE_CMD; do
+for k in "${GATE_NAMES[@]}" VISUAL_REPORT UPDATE_CMD; do
   [ -n "${!k}" ] && ENV_PINNED="$ENV_PINNED $k"
 done
 env_pinned() { case " $ENV_PINNED " in *" $1 "*) return 0 ;; *) return 1 ;; esac; }
@@ -209,8 +209,8 @@ fi
 # Every assignment is already conditional on the role still being empty, so the
 # manifest order below is the precedence order.
 if [ -f Makefile ]; then
-  for i in "${!GATE_KEYS[@]}"; do
-    k="${GATE_KEYS[$i]}"; t="$(echo "$k" | tr '[:upper:]' '[:lower:]')"
+  for i in "${!GATE_NAMES[@]}"; do
+    k="${GATE_NAMES[$i]}"; t="$(echo "$k" | tr '[:upper:]' '[:lower:]')"
     [ -z "${!k}" ] && has_make_target "$t" && printf -v "$k" '%s' "make $t"
   done
 fi
@@ -240,8 +240,8 @@ fi
 # ── --list: show resolution and exit ──────────────────────────────────────────
 if [ "${1:-}" = "--list" ]; then
   echo "Gate resolution ($SOURCE):"
-  for i in "${!GATE_KEYS[@]}"; do
-    k="${GATE_KEYS[$i]}"
+  for i in "${!GATE_NAMES[@]}"; do
+    k="${GATE_NAMES[$i]}"
     printf '  %-18s %s\n' "${GATE_LABELS[$i]}" "${!k:-n-a}"
   done
   printf '  %-18s %s\n' "Update (user-only)" "${UPDATE_CMD:-n-a}"
@@ -249,7 +249,7 @@ if [ "${1:-}" = "--list" ]; then
 fi
 
 RESOLVED=0
-for k in "${GATE_KEYS[@]}"; do [ -n "${!k}" ] && RESOLVED=$((RESOLVED + 1)); done
+for k in "${GATE_NAMES[@]}"; do [ -n "${!k}" ] && RESOLVED=$((RESOLVED + 1)); done
 if [ "$RESOLVED" -eq 0 ]; then
   echo "❌ No quality gates resolved. Create $CONF (see the template at the end of this script)."
   exit 1
@@ -261,8 +261,8 @@ echo
 
 declare -a RESULTS=()
 STEP=0
-for i in "${!GATE_KEYS[@]}"; do
-  k="${GATE_KEYS[$i]}"; cmd="${!k}"
+for i in "${!GATE_NAMES[@]}"; do
+  k="${GATE_NAMES[$i]}"; cmd="${!k}"
   [ -z "$cmd" ] && continue
   STEP=$((STEP + 1))
   echo "▶ [$STEP/$RESOLVED] ${GATE_LABELS[$i]} — $cmd"
@@ -281,7 +281,7 @@ FAILED=0
 VISUAL_FAILED=0
 for r in "${RESULTS[@]}"; do
   k="${r%%:*}"; code="${r##*:}"
-  for i in "${!GATE_KEYS[@]}"; do [ "${GATE_KEYS[$i]}" = "$k" ] && label="${GATE_LABELS[$i]}"; done
+  for i in "${!GATE_NAMES[@]}"; do [ "${GATE_NAMES[$i]}" = "$k" ] && label="${GATE_LABELS[$i]}"; done
   if [ "$code" -eq 0 ]; then
     echo "  ✅ $label"
   else

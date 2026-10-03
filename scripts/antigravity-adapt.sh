@@ -57,11 +57,11 @@ print(w[0] if isinstance(w[0], str) else "")' 2>/dev/null ;;
 
 TOOL="$(json_field "$INPUT" "toolCall.name")"
 case "$TOOL" in
-  run_command)                  AS=Bash;  KEY=command;   ARG="$(json_field "$INPUT" "toolCall.args.CommandLine")" ;;
-  view_file)                    AS=Read;  KEY=file_path; ARG="$(json_field "$INPUT" "toolCall.args.AbsolutePath")" ;;
-  write_to_file)                AS=Write; KEY=file_path; ARG="$(json_field "$INPUT" "toolCall.args.TargetFile")" ;;
+  run_command)                  AS=Bash;  FIELD=command;   ARG="$(json_field "$INPUT" "toolCall.args.CommandLine")" ;;
+  view_file)                    AS=Read;  FIELD=file_path; ARG="$(json_field "$INPUT" "toolCall.args.AbsolutePath")" ;;
+  write_to_file)                AS=Write; FIELD=file_path; ARG="$(json_field "$INPUT" "toolCall.args.TargetFile")" ;;
   replace_file_content|multi_replace_file_content)
-                                AS=Edit;  KEY=file_path; ARG="$(json_field "$INPUT" "toolCall.args.TargetFile")" ;;
+                                AS=Edit;  FIELD=file_path; ARG="$(json_field "$INPUT" "toolCall.args.TargetFile")" ;;
   *) exit 0 ;;
 esac
 
@@ -71,7 +71,7 @@ WS="$(first_workspace "$INPUT")"
 [ -n "$WS" ] && export CLAUDE_PROJECT_DIR="$WS"
 
 PAYLOAD="$(printf '{"tool_name":"%s","tool_input":{"%s":%s},"session_id":%s}' \
-  "$AS" "$KEY" "$(json_string "$ARG")" "$(json_string "$(json_field "$INPUT" "conversationId")")")"
+  "$AS" "$FIELD" "$(json_string "$ARG")" "$(json_string "$(json_field "$INPUT" "conversationId")")")"
 
 OUT="$(printf '%s' "$PAYLOAD" | bash "$DIR/$GUARD" 2>/dev/null)"
 [ -z "$OUT" ] && exit 0

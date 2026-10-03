@@ -34,11 +34,11 @@ TOOL="$(json_field "$INPUT" "tool_name")"
 
 # Example files always pass; the lists are shared with profile-bootstrap.sh.
 EXAMPLE="$M_SKILLS_EXAMPLE_RE"
-SECRET="$M_SKILLS_SECRET_RE"
+GUARDED_RE="$M_SKILLS_GUARDED_RE"
 
 # File tools also get `docker.env`-style names. Shell words do not: there,
 # `process.env` would match.
-FILE_SECRET="$SECRET|(^|/)[^/]+\\.env\$"
+GUARDED_FILE_RE="$GUARDED_RE|(^|/)[^/]+\\.env\$"
 
 # A shell word that is only an extension (`.key`, `.pem`) is a property path — jq's
 # `.key`, JS's `obj.key` split at the dot — not a file with a name.
@@ -123,25 +123,25 @@ case "$TOOL" in
     FILE="$(json_field "$INPUT" "tool_input.file_path")"
     [ -z "$FILE" ] && FILE="$(json_field "$INPUT" "tool_input.notebook_path")"
     [ -z "$FILE" ] && exit 0
-    is_secret "$FILE" "$FILE_SECRET" && deny_write "$FILE"
+    is_secret "$FILE" "$GUARDED_FILE_RE" && deny_write "$FILE"
     ;;
   Read)
     FILE="$(json_field "$INPUT" "tool_input.file_path")"
-    [ -n "$FILE" ] && is_secret "$FILE" "$FILE_SECRET" && deny_read "$FILE"
+    [ -n "$FILE" ] && is_secret "$FILE" "$GUARDED_FILE_RE" && deny_read "$FILE"
     ;;
   Grep)
     # A search pointed at a secret file, or filtered down to one, reads it. A
     # directory-wide search is left to the runtime's own Read deny rules.
     P="$(json_field "$INPUT" "tool_input.path")"
     G="$(json_field "$INPUT" "tool_input.glob")"
-    [ -n "$P" ] && is_secret "$P" "$FILE_SECRET" && deny_read "$P"
-    [ -n "$G" ] && { is_secret "$G" "$FILE_SECRET" || glob_hits_secret "$G"; } && deny_read "$G"
+    [ -n "$P" ] && is_secret "$P" "$GUARDED_FILE_RE" && deny_read "$P"
+    [ -n "$G" ] && { is_secret "$G" "$GUARDED_FILE_RE" || glob_hits_secret "$G"; } && deny_read "$G"
     ;;
   Bash)
     CMD="$(json_field "$INPUT" "tool_input.command")"
     [ -z "$CMD" ] && exit 0
     # One pass over the whole command; almost every command ends here.
-    HITS="$(words "$CMD" | grep -Ev "$EXAMPLE" | grep -Ev "$BARE_EXT" | grep -E "$SECRET")"
+    HITS="$(words "$CMD" | grep -Ev "$EXAMPLE" | grep -Ev "$BARE_EXT" | grep -E "$GUARDED_RE")"
     while IFS= read -r w; do
       [ -n "$w" ] && glob_hits_secret "$w" shell && HITS="$HITS"$'\n'"$w"
     done <<< "$(words "$CMD" | grep -E '[][*?]')"

@@ -100,7 +100,7 @@ M_SKILLS_EXAMPLE_RE='\.(example|sample|template|dist|defaults?)$|(^|/)(env|\.env
 # The env-file family — what the bootstrap reports.
 M_SKILLS_ENV_RE='(^|/)\.env(\.[A-Za-z0-9_-]+)?$|(^|/)\.envrc$'
 # Every secret-bearing path — what the guard denies.
-M_SKILLS_SECRET_RE="$M_SKILLS_ENV_RE"'|\.(pem|key|p12|pfx|jks|keystore)$|(^|/)id_(rsa|dsa|ecdsa|ed25519)$|(^|/)(credentials|service-account|serviceAccountKey|gha-creds.*)\.json$|(^|/)\.npmrc$|(^|/)\.pypirc$|(^|/)\.netrc$'
+M_SKILLS_GUARDED_RE="$M_SKILLS_ENV_RE"'|\.(pem|key|p12|pfx|jks|keystore)$|(^|/)id_(rsa|dsa|ecdsa|ed25519)$|(^|/)(credentials|service-account|serviceAccountKey|gha-creds.*)\.json$|(^|/)\.npmrc$|(^|/)\.pypirc$|(^|/)\.netrc$'
 
 # m_skills_section <file> <n> — one numbered `### n.` section of a skill file, heading
 # through to the next heading or rule. The preamble and the Antigravity rule both quote
