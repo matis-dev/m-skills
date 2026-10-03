@@ -524,9 +524,8 @@ assert_contains "polyglot: make build is found"     "$out" "make build"
 assert_contains "polyglot: python typecheck found"  "$out" "mypy"
 assert_missing  "polyglot: nothing left falsely n-a" "$out" "Tests + Coverage   n-a"
 
-# Python gates are spelled in full. A runner held in a variable and expanded in front
-# of the tool reads to the Claude directory as an unpinned launcher, which blocks the
-# listing; uv runs against uv.lock as it is (--frozen), never re-resolving mid-gate.
+# Python gates are spelled in full; uv runs against uv.lock as it is (--frozen), never
+# re-resolving mid-gate.
 PY="$TMP/py"; mkdir -p "$PY/bin"; printf '[project]\nname="x"\n' > "$PY/pyproject.toml"
 printf '#!/bin/sh\nexit 0\n' > "$PY/bin/uv"; chmod +x "$PY/bin/uv"
 out="$(cd "$PY" && PATH="$PY/bin:$PATH" bash "$CQ" --list)"
@@ -1800,6 +1799,7 @@ plant "a call to another script" 'bash "$PLUGIN/extra"'          "runs a script"
 plant "a script named in text"   'echo "see other.sh"'           "names a script"
 plant "a computed command"       'bash -o pipefail -c "$cmd"'    "runs a computed command"
 plant "an unpinned launcher"     'RUNNER="uv run"'               "names an unpinned package launcher"
+plant "a launcher in a comment"  '#   | `<lint>` | pnpm run lint |' "names a package manager in a comment"
 # Hooks only list the gates; the inlined resolver must not carry the part that runs them.
 assert_empty "release hooks carry no gate runner" "$(grep -l 'Quality Check Results' "$REL"/scripts/*.sh)"
 

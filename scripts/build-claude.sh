@@ -72,8 +72,7 @@ tail -n +2 "$LIB" | drop_script_comments > "$PART/lib"
 # only exported variables; a subshell function sees the caller's own as well, so the
 # function starts by unsetting any copy the caller did not export.
 # Hooks only ever ask it for --list, so it is inlined up to the end of that branch.
-# The part after it RUNS each gate, a command computed at run time, which the
-# validator blocks as an unpinned launcher when `uv run` sits beside it.
+# The part after it RUNS each gate, a command computed at run time, which no hook needs.
 {
   echo 'm_skills_gate_table() ('
   echo '  for v in LINT TYPECHECK TEST BUILD E2E VISUAL A11Y AUDIT VISUAL_REPORT UPDATE_CMD; do'
@@ -124,6 +123,11 @@ for f in "$OUT"/scripts/*.sh; do
   grep -nE '(^|[^A-Za-z0-9_])(ba)?sh[[:space:]]+"\$' "$f" | sed "s|^|  $rel: runs a script at |" >> "$PART/bad" || true
   grep -nE '(^|[^A-Za-z0-9_])(ba)?sh([[:space:]]+-[a-z]+([[:space:]]+[a-z]+)?)*[[:space:]]+-c[[:space:]]+"\$' "$f" \
     | sed "s|^|  $rel: runs a computed command at |" >> "$PART/bad" || true
+  # A package-manager name in a COMMENT reads to the validator as a launcher beside the
+  # code around it: two example rows (`pnpm run lint`) in the gate resolver blocked the
+  # listing, measured by bisect on 2026-10-03. Example commands in hook comments stay generic.
+  grep -nE '^[[:space:]]*#.*(^|[^A-Za-z0-9_-])(pnpm|yarn|bunx?|npx|uvx|dlx)([^A-Za-z0-9_-]|$)' "$f" \
+    | sed "s|^|  $rel: names a package manager in a comment at |" >> "$PART/bad" || true
   # Package launchers block the listing unless pinned; uv run is pinned by --frozen or --locked.
   grep -nE '(^|[^A-Za-z0-9_-])(npx|bunx|uvx|pnpm dlx|yarn dlx|pipx run)([^A-Za-z0-9_-]|$)|uv run( |"|$)' "$f" \
     | grep -vE 'uv run --(frozen|locked)' | sed "s|^|  $rel: names an unpinned package launcher at |" >> "$PART/bad" || true
