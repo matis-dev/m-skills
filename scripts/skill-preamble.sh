@@ -1,0 +1,701 @@
+#!/usr/bin/env bash
+# m-skills — inject the shared preamble when a pack skill starts.
+#
+# Claude Code 2.1.158 has no skill-load event (InstructionsLoaded is for CLAUDE.md
+# memory files, memory_type User|Project|Local|Managed — not skills). This covers
+# both invocation paths instead:
+#
+#   UserPromptExpansion  → the user typed /m-skills:<name>. Covers the 11 skills
+#                          with disable-model-invocation: true. Emits additionalContext.
+#   PostToolUse (Skill)  → the model invoked an auto-loadable knowledge skill
+#                          (design, testing, security, accessibility, documentation).
+#                          Emits decision:block + reason, which the runtime feeds
+#                          back to Claude while the turn continues.
+#
+# What it injects, deterministically, so the skill files stop re-deriving it:
+#   1. the gate table, as implementing-architect's gate resolver lists it
+#   2. guidelines-meta §9, §10, §15, §19, read live from the skill file
+#   3. the composition map for this skill — which modules and reference files it
+#      names — derived by grepping the skill file rather than from a static table,
+#      so it cannot drift out of step with the file it describes.
+#
+# Silent for any skill outside this pack. Advisory: fails OPEN.
+
+set -uo pipefail
+m_skills_gate_table() (
+  for v in LINT TYPECHECK TEST BUILD E2E VISUAL A11Y AUDIT VISUAL_REPORT UPDATE_CMD; do
+    [[ "$(declare -p "$v" 2>/dev/null)" =~ ^declare\ -[a-zA-Z]*x ]] || unset "$v"
+  done
+# Quality Check — portable one-shot validation pipeline.
+#
+# Mirrors the Implementing Architect gate order:
+#   lint → typecheck → test → build → e2e → visual → a11y → audit
+#
+# Resolution order for each gate:
+#   1. .claude/PROJECT-PROFILE.md   (the authority — guidelines-meta §5 rule 1)
+#   2. .claude/quality-gates.conf   (explicit override for anything the profile leaves blank)
+#   3. auto-detection from the project's manifest (package.json / Makefile / pyproject.toml / Cargo.toml / go.mod)
+#   4. skipped as n-a — a gate that does not exist is never invented
+#
+# §5 rule 1 says the profile "is the authority; use it verbatim". This script is what
+# hook would hand Claude auto-detected commands under the profile's name.
+#
+# Snapshot policy: NEVER runs a golden/snapshot update command. Diffs are surfaced for manual review.
+
+set -uo pipefail
+
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+cd "$ROOT" || exit 1
+
+CONF=".claude/quality-gates.conf"
+PROFILE=".claude/PROJECT-PROFILE.md"
+GATE_NAMES=(LINT TYPECHECK TEST BUILD E2E VISUAL A11Y AUDIT)
+GATE_LABELS=("Lint" "Type-check" "Tests + Coverage" "Build" "E2E" "Visual regression" "Accessibility" "Dependency audit")
+
+for k in "${GATE_NAMES[@]}"; do printf -v "$k" '%s' "${!k:-}"; done
+VISUAL_REPORT="${VISUAL_REPORT:-}"
+UPDATE_CMD="${UPDATE_CMD:-}"
+
+# is the most explicit signal available, so it outranks the profile too. Everything
+# not marked here is fair game for the profile to override.
+ENV_PINNED=""
+for k in "${GATE_NAMES[@]}" VISUAL_REPORT UPDATE_CMD; do
+  [ -n "${!k}" ] && ENV_PINNED="$ENV_PINNED $k"
+done
+env_pinned() { case " $ENV_PINNED " in *" $1 "*) return 0 ;; *) return 1 ;; esac; }
+
+# ── 1. Explicit config ────────────────────────────────────────────────────────
+# The conf is DATA and is parsed, never sourced. Two reasons, both real:
+#   · `--list` is called by the SessionStart bootstrap and by the PreToolUse guard,
+#     so sourcing meant cloning a repo ran whatever its author put in this file.
+#   · sourcing blindly assigns, which silently clobbered a value passed on the
+#     invocation. Skipping pinned keys here keeps precedence as anyone would read it:
+#     env > profile > conf > detection.
+# Accepts KEY="v" / KEY='v' / KEY=v, leading indentation, # comments, and a trailing
+# comment after a quoted value — every shape the template at the end of this file uses.
+read_conf() {
+  local line key val
+  while IFS= read -r line || [ -n "$line" ]; do
+    line="${line#"${line%%[![:space:]]*}"}"
+    case "$line" in ''|'#'*) continue ;; esac
+    case "$line" in *=*) ;; *) continue ;; esac
+    key="${line%%=*}"; val="${line#*=}"
+    key="${key%"${key##*[![:space:]]}"}"
+    case "$key" in
+      LINT|TYPECHECK|TEST|BUILD|E2E|VISUAL|A11Y|AUDIT|UPDATE_CMD|VISUAL_REPORT) ;;
+      *) continue ;;
+    esac
+    env_pinned "$key" && continue
+    val="${val#"${val%%[![:space:]]*}"}"
+    case "$val" in
+      \"*)  val="${val#\"}";  val="${val%%\"*}" ;;
+      \'*)  val="${val#\'}";  val="${val%%\'*}" ;;
+      *)    val="${val%%[[:space:]]#*}" ;;
+    esac
+    val="${val%"${val##*[![:space:]]}"}"
+    printf -v "$key" '%s' "$val"
+  done < "$1"
+}
+
+if [ -f "$CONF" ]; then
+  read_conf "$CONF"
+  SOURCE="$CONF"
+else
+  SOURCE="auto-detected"
+fi
+
+# ── 1b. The Project Profile outranks it (guidelines-meta §5 rule 1) ───────────
+# Parses the §Commands table the profile template defines:
+#   | `<lint>` | pnpm run lint | notes |
+# A cell that is empty, `n-a`, or still a `<placeholder>` is treated as unset and
+# falls through to the conf / detection below — so a half-filled profile is safe,
+# which is the normal state (§5 "progressive, not a questionnaire").
+# Nothing is executed: awk emits KEY<TAB>VALUE and the loop assigns by an explicit case.
+if [ -f "$PROFILE" ]; then
+  PROFILE_SET=0
+  while IFS="$(printf '\t')" read -r pkey pval; do
+    [ -z "$pkey" ] && continue
+    env_pinned "$pkey" && continue
+    case "$pkey" in
+      LINT|TYPECHECK|TEST|BUILD|E2E|VISUAL|A11Y|AUDIT|UPDATE_CMD|VISUAL_REPORT)
+        printf -v "$pkey" '%s' "$pval"; PROFILE_SET=1 ;;
+    esac
+  done <<< "$(awk '
+  function clean(c) {
+    gsub(/^[ \t]+|[ \t]+$/, "", c); gsub(/`/, "", c)
+    gsub(/^[ \t]+|[ \t]+$/, "", c); return c
+  }
+  # unusable: empty, n-a, or a leftover <placeholder>
+  function unusable(v) { return (v == "" || v == "n-a" || v == "n/a" || v ~ /^</ || v ~ /…/) }
+  /^[ \t]*\|/ {
+    n = split($0, cell, "|")
+    if (n < 3) next
+    role = tolower(clean(cell[2])); cmd = clean(cell[3])
+    gsub(/^</, "", role); gsub(/>$/, "", role)
+    if (unusable(cmd)) next
+    if (role == "lint")            print "LINT\t"      cmd
+    else if (role ~ /^type-?check$/) print "TYPECHECK\t" cmd
+    else if (role == "test")       print "TEST\t"      cmd
+    else if (role == "build")      print "BUILD\t"     cmd
+    else if (role == "e2e")        print "E2E\t"       cmd
+    else if (role == "visual")     print "VISUAL\t"    cmd
+    else if (role == "a11y")       print "A11Y\t"      cmd
+    else if (role == "audit")      print "AUDIT\t"     cmd
+    next
+  }
+  # **Golden / snapshot update command (USER-ONLY …):** `pnpm run e2e:update`
+  /[Gg]olden.*update command|snapshot-update command/ {
+    if (match($0, /`[^`]+`[^`]*$/)) {
+      v = substr($0, RSTART + 1, RLENGTH - 2); sub(/`.*$/, "", v)
+      if (!unusable(v)) print "UPDATE_CMD\t" v
+    }
+    next
+  }
+  /[Rr]eport location for failed visual diffs/ {
+    if (match($0, /`[^`]+`/)) {
+      v = substr($0, RSTART + 1, RLENGTH - 2)
+      if (!unusable(v)) print "VISUAL_REPORT\t" v
+    }
+    next
+  }
+' "$PROFILE")"
+  if [ "$PROFILE_SET" -eq 1 ]; then
+    if [ -f "$CONF" ]; then SOURCE="$PROFILE, then $CONF, then auto-detection"
+    else SOURCE="$PROFILE, then auto-detection"; fi
+  fi
+fi
+
+# ── 2. Auto-detection ─────────────────────────────────────────────────────────
+detect_pm() {
+  [ -f pnpm-lock.yaml ] && { echo pnpm; return; }
+  [ -f yarn.lock ]      && { echo yarn; return; }
+  [ -f bun.lockb ] || [ -f bun.lock ] && { echo bun; return; }
+  echo npm
+}
+
+# read every script name once — SessionStart bootstrap calls --list, so keep spawns to one
+PKG_SCRIPTS=""
+if [ -f package.json ] && command -v node >/dev/null 2>&1; then
+  PKG_SCRIPTS="$(node -e "const s=require('./package.json').scripts||{};console.log(Object.keys(s).join('\n'))" 2>/dev/null)"
+fi
+
+has_script() {
+  printf '%s\n' "$PKG_SCRIPTS" | grep -qxF -- "$1"
+}
+
+# first matching script name wins
+pick_script() {
+  for name in "$@"; do
+    if has_script "$name"; then echo "$name"; return 0; fi
+  done
+  return 1
+}
+
+has_make_target() {
+  [ -f Makefile ] && grep -qE "^$1[[:space:]]*:" Makefile
+}
+
+if [ -f package.json ] && command -v node >/dev/null 2>&1; then
+  PM="$(detect_pm)"
+  RUN="$PM run"
+  [ "$PM" = "npm" ] && RUN="npm run"
+  set_gate() { # set_gate VAR script-name...
+    local var="$1"; shift
+    [ -n "${!var}" ] && return 0
+    local s; s="$(pick_script "$@")" && printf -v "$var" '%s' "$RUN $s"
+    return 0
+  }
+  set_gate LINT      lint
+  set_gate TYPECHECK type-check typecheck tsc types
+  set_gate TEST      test:ci test:coverage test
+  set_gate BUILD     build
+  set_gate E2E       e2e test:e2e
+  set_gate VISUAL    e2e:visual test:visual
+  set_gate A11Y      e2e:a11y test:a11y a11y
+  if [ -z "$AUDIT" ]; then
+    case "$PM" in
+      npm)  AUDIT="npm audit --omit=dev" ;;
+      pnpm) AUDIT="pnpm audit --prod" ;;
+      yarn) AUDIT="yarn npm audit --environment production" ;;
+      bun)  AUDIT="" ;;   # no audit subcommand — n-a
+    esac
+  fi
+  [ -z "$UPDATE_CMD" ] && { u="$(pick_script e2e:update test:update update-snapshots)" && UPDATE_CMD="$RUN $u"; }
+fi
+
+# Each ecosystem below runs as its own pass, not as an `elif`. A repo is allowed to
+# be more than one thing — a Python service with a package.json for frontend tooling,
+# a Go binary with a Makefile — and first-manifest-wins left every other ecosystem's
+# gates resolving to `n-a`. That is worse than a missing gate: §5 rule 3 then has the
+# model STATE that the gate does not exist while `make test` sits in the repo.
+# Every assignment is already conditional on the role still being empty, so the
+# manifest order below is the precedence order.
+if [ -f Makefile ]; then
+  for i in "${!GATE_NAMES[@]}"; do
+    k="${GATE_NAMES[$i]}"; t="$(echo "$k" | tr '[:upper:]' '[:lower:]')"
+    [ -z "${!k}" ] && has_make_target "$t" && printf -v "$k" '%s' "make $t"
+  done
+fi
+
+if [ -f pyproject.toml ]; then
+  RUNNER=""
+  command -v uv >/dev/null 2>&1 && RUNNER="uv run"
+  [ -z "$RUNNER" ] && [ -f poetry.lock ] && RUNNER="poetry run"
+  [ -z "$LINT" ]      && LINT="$RUNNER ruff check ."
+  [ -z "$TYPECHECK" ] && TYPECHECK="$RUNNER mypy ."
+  [ -z "$TEST" ]      && TEST="$RUNNER pytest"
+fi
+
+if [ -f Cargo.toml ]; then
+  [ -z "$LINT" ]  && LINT="cargo clippy -- -D warnings"
+  [ -z "$TEST" ]  && TEST="cargo test"
+  [ -z "$BUILD" ] && BUILD="cargo build --release"
+  [ -z "$AUDIT" ] && AUDIT="cargo audit"
+fi
+
+if [ -f go.mod ]; then
+  [ -z "$LINT" ]      && LINT="go vet ./..."
+  [ -z "$TYPECHECK" ] && TYPECHECK="go build ./..."
+  [ -z "$TEST" ]      && TEST="go test ./..."
+fi
+
+# ── --list: show resolution and exit ──────────────────────────────────────────
+if [ "${1:-}" = "--list" ]; then
+  echo "Gate resolution ($SOURCE):"
+  for i in "${!GATE_NAMES[@]}"; do
+    k="${GATE_NAMES[$i]}"
+    printf '  %-18s %s\n' "${GATE_LABELS[$i]}" "${!k:-n-a}"
+  done
+  printf '  %-18s %s\n' "Update (user-only)" "${UPDATE_CMD:-n-a}"
+  exit 0
+fi
+
+RESOLVED=0
+for k in "${GATE_NAMES[@]}"; do [ -n "${!k}" ] && RESOLVED=$((RESOLVED + 1)); done
+if [ "$RESOLVED" -eq 0 ]; then
+  echo "❌ No quality gates resolved. Create $CONF (see the template at the end of this script)."
+  exit 1
+fi
+
+# ── 3. Run ────────────────────────────────────────────────────────────────────
+echo "⚖️  Quality Check — $RESOLVED gate(s), $SOURCE"
+echo
+
+declare -a RESULTS=()
+STEP=0
+for i in "${!GATE_NAMES[@]}"; do
+  k="${GATE_NAMES[$i]}"; cmd="${!k}"
+  [ -z "$cmd" ] && continue
+  STEP=$((STEP + 1))
+  echo "▶ [$STEP/$RESOLVED] ${GATE_LABELS[$i]} — $cmd"
+  # A child shell, so a gate cannot reassign this loop's variables; pipefail kept
+  # so `cmd | tee log` still fails when cmd does.
+  bash -o pipefail -c "$cmd"
+  RESULTS+=("$k:$?")
+  echo
+done
+
+# ── 4. Summary ────────────────────────────────────────────────────────────────
+echo "═══════════════════════════════"
+echo "  Quality Check Results"
+echo "═══════════════════════════════"
+FAILED=0
+VISUAL_FAILED=0
+for r in "${RESULTS[@]}"; do
+  k="${r%%:*}"; code="${r##*:}"
+  for i in "${!GATE_NAMES[@]}"; do [ "${GATE_NAMES[$i]}" = "$k" ] && label="${GATE_LABELS[$i]}"; done
+  if [ "$code" -eq 0 ]; then
+    echo "  ✅ $label"
+  else
+    echo "  ❌ $label"
+    FAILED=$((FAILED + 1))
+    { [ "$k" = "VISUAL" ] || [ "$k" = "E2E" ]; } && VISUAL_FAILED=1
+  fi
+done
+echo "═══════════════════════════════"
+
+if [ "$FAILED" -eq 0 ]; then
+  echo "✅ Quality Check Passed."
+  exit 0
+fi
+
+echo "❌ Quality Check Failed ($FAILED gate(s)). Fix issues above."
+if [ "$VISUAL_FAILED" -eq 1 ]; then
+  echo
+  echo "ℹ️  Visual diffs may be intentional — review ${VISUAL_REPORT:-the test report}."
+  echo "   If intended, run '${UPDATE_CMD:-the snapshot update command}' manually (NEVER automated)."
+fi
+exit 1
+
+# ──────────────────────────────────────────────────────────────────────────────
+# .claude/quality-gates.conf template — copy the block below, drop the leading '# '
+#
+# LINT="pnpm run lint"
+# TYPECHECK="pnpm run type-check"
+# TEST="pnpm run test:ci"
+# BUILD="pnpm run build"
+# E2E="pnpm run e2e"
+# VISUAL=""                       # empty = n-a, gate skipped
+# A11Y="pnpm run e2e:a11y"
+# AUDIT="pnpm audit --omit=dev"
+# VISUAL_REPORT="playwright-report/"
+# UPDATE_CMD="pnpm run e2e:update"  # never executed by this script
+)
+
+DIR="$(cd "$(dirname -- "$0")" 2>/dev/null && pwd)" || exit 0
+# m-skills — shared hook plumbing. Sourced, never executed.
+#
+# Hook scripts receive a JSON payload on stdin and answer on stdout. This file
+# carries the three things all of them need: reading a field out of the payload,
+# escaping a string back into JSON, and the emit helpers for each decision shape.
+#
+# Dependency note: the pack's "bash + coreutils only" contract holds for
+# shell command out of JSON with sed is how a guard gets bypassed by a quoted
+# newline. Every dev machine that runs Claude Code has one of the two.
+#
+# Engine missing splits by hook class, deliberately:
+#   guards     → fail CLOSED (deny). An unverifiable guard that allows is the
+#                A10 fail-open pattern code-review-architect flags.
+#   advisories → fail OPEN (silent exit 0). A missed hint costs nothing.
+
+M_SKILLS_JSON_ENGINE=""
+if command -v jq >/dev/null 2>&1; then
+  M_SKILLS_JSON_ENGINE="jq"
+elif command -v python3 >/dev/null 2>&1; then
+  M_SKILLS_JSON_ENGINE="python3"
+fi
+
+# Read the entire stdin payload. Call once; stdin is not rewindable.
+hook_read_input() { cat; }
+
+# json_field <payload> <dotted.path> — prints the string value, empty if absent.
+json_field() {
+  local payload="$1" path="$2"
+  case "$M_SKILLS_JSON_ENGINE" in
+    jq)
+      printf '%s' "$payload" | jq -r --arg p "$path" '
+        reduce ($p | split(".")[]) as $k (.; if type == "object" then .[$k] else null end)
+        | if . == null then "" elif type == "string" then . else tojson end
+      ' 2>/dev/null
+      ;;
+    python3)
+      printf '%s' "$payload" | python3 -c '
+import json, sys
+try:
+    d = json.load(sys.stdin)
+except Exception:
+    print(""); sys.exit(0)
+for k in sys.argv[1].split("."):
+    if not isinstance(d, dict):
+        d = None
+        break
+    d = d.get(k)
+print(d if isinstance(d, str) else ("" if d is None else json.dumps(d)))
+' "$path" 2>/dev/null
+      ;;
+    *) return 1 ;;
+  esac
+}
+
+# json_string <text> — the text as a JSON string literal, quotes included.
+json_string() {
+  case "$M_SKILLS_JSON_ENGINE" in
+    jq)      printf '%s' "$1" | jq -Rs . 2>/dev/null ;;
+    python3) printf '%s' "$1" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))' 2>/dev/null ;;
+    *)       printf '"m-skills guard: cannot serialise reason"' ;;
+  esac
+}
+
+# ── Emitters. Each exits; a hook makes exactly one decision. ─────────────────
+
+emit_deny() {
+  printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":%s}}\n' \
+    "$(json_string "$1")"
+  exit 0
+}
+
+emit_ask() {
+  printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":%s}}\n' \
+    "$(json_string "$1")"
+  exit 0
+}
+
+# PostToolUse feedback. The runtime feeds `reason` back to Claude and the turn
+# continues — this is context injection, not a failure.
+emit_block() {
+  printf '{"decision":"block","reason":%s}\n' "$(json_string "$1")"
+  exit 0
+}
+
+# emit_context <hookEventName> <text>
+emit_context() {
+  printf '{"hookSpecificOutput":{"hookEventName":"%s","additionalContext":%s}}\n' \
+    "$1" "$(json_string "$2")"
+  exit 0
+}
+
+# ── Secret-bearing paths ─────────────────────────────────────────────────────
+
+# The documented, secret-free contract files. They always pass.
+M_SKILLS_EXAMPLE_RE='\.(example|sample|template|dist|defaults?)$|(^|/)\.?env\.(example|sample|template|dist)$'
+# The env-file family — what the bootstrap reports.
+M_SKILLS_ENV_RE='(^|/)\.env(\.[A-Za-z0-9_-]+)?$|(^|/)\.envrc$'
+# Every secret-bearing path — what the guard denies.
+M_SKILLS_GUARDED_RE="$M_SKILLS_ENV_RE"'|\.(pem|key|p12|pfx|jks|keystore)$|(^|/)id_(rsa|dsa|ecdsa|ed25519)$|(^|/)(credentials|service-account|serviceAccountKey|gha-creds.*)\.json$|(^|/)\.npmrc$|(^|/)\.pypirc$|(^|/)\.netrc$'
+
+# m_skills_section <file> <n> — one numbered `### n.` section of a skill file, heading
+# through to the next heading or rule. The preamble and the Antigravity rule both quote
+# guidelines-meta this way; one extractor keeps the two quotations identical.
+m_skills_section() {
+  awk -v n="$2" '
+    $0 ~ "^### " n "\\." { grabbing = 1 }
+    grabbing && NR > start && (/^### /  && $0 !~ "^### " n "\\.") { exit }
+    grabbing && /^## / { exit }
+    grabbing && /^---$/ { exit }
+    grabbing { print; start = NR }
+  ' "$1"
+}
+
+# ── Shared conditions ────────────────────────────────────────────────────────
+
+# The user's opt-out from the enforcement hooks, project or global. Same flag-file
+m_skills_guards_disabled() {
+  local project="${CLAUDE_PROJECT_DIR:-$(pwd)}"
+  local config_dir="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+  [ -f "$project/.claude/.m-skills-no-guards" ] && return 0
+  [ -f "$config_dir/.m-skills-no-guards" ] && return 0
+  return 1
+}
+
+# A guard with no JSON engine denies rather than waves the call through.
+guard_require_json_engine() {
+  [ -n "$M_SKILLS_JSON_ENGINE" ] && return 0
+  emit_deny "m-skills guard: neither jq nor python3 is available, so this command could not be checked against the Guidelines §9/§10 guards. Guards fail closed by design. Install jq or python3, or opt out with: touch .claude/.m-skills-no-guards"
+}
+
+# An advisory with no JSON engine says nothing.
+advisory_require_json_engine() {
+  [ -n "$M_SKILLS_JSON_ENGINE" ] || exit 0
+}
+
+# File mtime as an epoch second. `date -r FILE` is GNU-only — on BSD/macOS -r takes
+# epoch SECONDS, so a path argument errors, the fallback returns 0 for every file,
+# and the cache key below silently degenerates to a constant that never invalidates.
+m_skills_mtime() {
+  stat -c %Y "$1" 2>/dev/null || stat -f %m "$1" 2>/dev/null || date -r "$1" +%s 2>/dev/null || echo 0
+}
+
+# Cache key for the resolved gate table. The resolution reads PROJECT-PROFILE.md,
+# quality-gates.conf, and the manifest, so the key folds in their mtimes: editing
+# any of them invalidates the cache. Without this a stale table outlives the edit.
+m_skills_gate_cache_key() {
+  local root="$1" stamps=""
+  local f
+  for f in "$root/.claude/PROJECT-PROFILE.md" "$root/.claude/quality-gates.conf" \
+           "$root/package.json" "$root/Makefile" "$root/pyproject.toml" \
+           "$root/Cargo.toml" "$root/go.mod"; do
+    [ -f "$f" ] && stamps="$stamps|$(m_skills_mtime "$f")"
+  done
+  printf '%s' "$root$stamps" | cksum | cut -d' ' -f1
+}
+
+# The session this hook invocation belongs to. Every hook payload carries session_id,
+# which is the only identifier that is both stable across one session and distinct
+# between two — $CLAUDE_SESSION_ID is not always exported into the hook environment.
+#
+# This matters more than it looks: the markers below are never cleaned up, so keying
+# them on a constant made "once per session" mean "once per machine, forever". Two
+# advisories stopped firing after their first use and nothing reported it.
+#
+# Last resort, when neither is available: the parent process's start time. Constant
+# within one Claude Code process, different in the next — still wrong for concurrent
+# sessions sharing a parent, but never a global constant.
+m_skills_session_id() {
+  local from_payload="${1:-}"
+  [ -n "$from_payload" ] && { printf '%s' "$from_payload" | tr -c 'A-Za-z0-9._-' '_'; return; }
+  [ -n "${CLAUDE_SESSION_ID:-}" ] && { printf '%s' "$CLAUDE_SESSION_ID" | tr -c 'A-Za-z0-9._-' '_'; return; }
+  local boot
+  boot="$(awk '{print $22}' "/proc/$PPID/stat" 2>/dev/null)" \
+    || boot="$(ps -o lstart= -p "$PPID" 2>/dev/null)"
+  printf 'pp%s' "$(printf '%s' "${boot:-0}$PPID" | cksum | cut -d' ' -f1)"
+}
+
+# A per-session marker directory, so an advisory can fire once rather than every
+# time the same file is touched. Pass the payload's session_id; two concurrent
+# sessions then never silence each other.
+m_skills_state_dir() {
+  local base="${TMPDIR:-/tmp}/m-skills-$(id -u 2>/dev/null || echo 0)"
+  printf '%s/%s' "$base" "$(m_skills_session_id "${1:-}")"
+}
+
+INPUT="$(hook_read_input)"
+[ -z "$INPUT" ] && exit 0
+
+# UserPromptExpansion is registered with no matcher, so this fires on EVERY user
+# prompt. Decide "not mine" with a shell builtin before spending a jq/python3
+# spawn on it — an ordinary message must cost nothing.
+case "$INPUT" in *m-skills:*) ;; *) exit 0 ;; esac
+
+advisory_require_json_engine
+
+EVENT="$(json_field "$INPUT" "hook_event_name")"
+SESSION="$(json_field "$INPUT" "session_id")"
+
+case "$EVENT" in
+  UserPromptExpansion)
+    NAME="$(json_field "$INPUT" "command_name")"
+    ;;
+  PostToolUse)
+    NAME="$(json_field "$INPUT" "tool_input.skill")"
+    [ -z "$NAME" ] && NAME="$(json_field "$INPUT" "tool_input.name")"
+    ;;
+  *) exit 0 ;;
+esac
+
+# Only this pack's skills. Anything else is somebody else's business.
+case "$NAME" in
+  m-skills:*) SKILL="${NAME#m-skills:}" ;;
+  *) exit 0 ;;
+esac
+
+# A route command (commands/<name>.md) is a thin pre-routed entry into one architect —
+# /m-skills:decompose is product-architect in decompose mode. Left unresolved, SKILL would
+# be "decompose": no skills/decompose/SKILL.md exists, so the composition map below comes
+# out empty, and the once-per-session marker gets written under the wrong key — so the
+# architect the command then reads injects the whole preamble a second time.
+#
+# The owner is derived from the command file itself, never from a table here. Every command
+# body names its architect as `skills/<owner>/SKILL.md` in step 1, so that path IS the
+# declaration; a static map would be one more cross-reference to rot, which is the same
+# reason the composition map below is grepped rather than tabulated.
+CMD_FILE="$DIR/../commands/$SKILL.md"
+if [ -f "$CMD_FILE" ]; then
+  for cand in $(grep -ohE 'skills/[a-z0-9-]+/SKILL\.md' "$CMD_FILE" 2>/dev/null); do
+    cand="${cand#skills/}"; cand="${cand%/SKILL.md}"
+    [ -f "$DIR/../skills/$cand/SKILL.md" ] || continue
+    SKILL="$cand"
+    break
+  done
+fi
+
+# guidelines-meta is the source of the preamble; injecting it into itself is noise.
+# A module is a fragment loaded BY an architect that already got the preamble.
+[ "$SKILL" = "guidelines-meta" ] && exit 0
+case "$SKILL" in module-*) exit 0 ;; esac
+
+GUIDELINES="$DIR/../skills/guidelines-meta/SKILL.md"
+[ -f "$GUIDELINES" ] || exit 0
+
+# Once per skill per session. A skill invoked through the Skill tool AND its slash
+# command satisfies both arms below, which injected the same ~40 lines twice; the
+# marker makes that impossible and also stops a re-invocation repeating it.
+# Scoped by the payload's session_id — keyed on anything constant, "once per session"
+# silently becomes "once per machine" and the injection stops happening at all.
+#
+# Trade-off, stated because it is real: after a context compaction the preamble is
+# gone and will not re-fire for an already-marked skill. Acceptable — §9 and §10 are
+# table is re-derivable from the gate resolver's --list mode.
+MARK="$(m_skills_state_dir "$SESSION")/preamble/$SKILL"
+[ -f "$MARK" ] && exit 0
+mkdir -p "$(dirname "$MARK")" 2>/dev/null || exit 0
+: > "$MARK" 2>/dev/null || exit 0
+
+# The resolved gates, cached per session — the resolution spawns node.
+gates() {
+  local state cache root
+  root="$(git -C "${CLAUDE_PROJECT_DIR:-$(pwd)}" rev-parse --show-toplevel 2>/dev/null || printf '%s' "${CLAUDE_PROJECT_DIR:-$(pwd)}")"
+  state="$(m_skills_state_dir "$SESSION")"
+  cache="$state/gates-$(m_skills_gate_cache_key "$root")"
+  if [ -f "$cache" ]; then cat "$cache"; return 0; fi
+  mkdir -p "$state" 2>/dev/null || return 1
+  (cd "$root" 2>/dev/null && m_skills_gate_table --list 2>/dev/null) \
+    | tee "$cache" 2>/dev/null
+}
+
+GATES="$(gates)"
+[ -z "$GATES" ] && GATES="  (gate resolution unavailable — resolve from the Project Profile per Guidelines §5)"
+
+# The composition map. Derived from the file itself, never from a table here: a
+# static list would be one more cross-reference to rot, which is the failure this
+# whole tier exists to remove.
+SKILLS_ROOT="$DIR/../skills"
+SKILL_FILE="$SKILLS_ROOT/$SKILL/SKILL.md"
+MODULES="$(grep -ohE 'module-[a-z-]+' "$SKILL_FILE" 2>/dev/null | sort -u)"
+REFS="$(grep -ohE 'references/[a-z0-9-]+\.md' "$SKILL_FILE" 2>/dev/null | sort -u)"
+
+# A skill names a sibling's reference files in prose ("harden → its
+# references/secure-construction.md", where "its" is a module). Listing those under
+# ${CLAUDE_SKILL_DIR}/ told Claude to read five paths that resolve nowhere, so split
+# the hits by where the file actually lives and drop any that exist in neither place.
+OWN_REFS=""; FOREIGN_REFS=""
+for r in $REFS; do
+  if [ -f "$SKILLS_ROOT/$SKILL/$r" ]; then
+    OWN_REFS="$OWN_REFS$r
+"
+  else
+    for d in "$SKILLS_ROOT"/*/; do
+      [ -f "$d$r" ] || continue
+      FOREIGN_REFS="$FOREIGN_REFS$(basename "${d%/}")/$r
+"
+      break
+    done
+  fi
+done
+OWN_REFS="$(printf '%s' "$OWN_REFS" | grep -v '^$' | sort -u)"
+FOREIGN_REFS="$(printf '%s' "$FOREIGN_REFS" | grep -v '^$' | sort -u)"
+
+COMPOSITION=""
+if [ -n "$MODULES" ] || [ -n "$OWN_REFS" ] || [ -n "$FOREIGN_REFS" ]; then
+  COMPOSITION="
+## What this skill composes from
+
+Load a piece **when the run reaches it**, not up front — that is the point of the split.
+Read what the run needs and no more. Never re-derive a piece's content from memory, and
+never paste one back wholesale into a reply.
+"
+  [ -n "$MODULES" ] && COMPOSITION="$COMPOSITION
+Shared modules, loaded by name with the Skill tool:
+$(printf '%s\n' "$MODULES" | sed 's/^/  - /')
+"
+  [ -n "$OWN_REFS" ] && COMPOSITION="$COMPOSITION
+Reference files, read with the Read tool from \`\${CLAUDE_SKILL_DIR}/\`:
+$(printf '%s\n' "$OWN_REFS" | sed 's/^/  - /')
+"
+  [ -n "$FOREIGN_REFS" ] && COMPOSITION="$COMPOSITION
+Reference files owned by ANOTHER skill — load that skill by name first, then read the
+file from its directory. They do not exist under this skill's \`\${CLAUDE_SKILL_DIR}/\`:
+$(printf '%s\n' "$FOREIGN_REFS" | sed 's/^/  - /')
+"
+fi
+
+BODY="$(printf '%s\n' "m-skills preamble for \`${SKILL}\` — injected by the plugin's hook, not by the model.
+
+## Resolved gates for this project (Guidelines §5)
+
+Use these verbatim. Do not re-derive them, and never invent a command that is not listed.
+
+\`\`\`
+${GATES}
+\`\`\`
+
+A role showing \`n-a\` has no gate in this project — say so and move on (Guidelines §5 step 3, §15).
+
+## Enforced, not advisory
+
+§9 and §10 below are enforced by the plugin's PreToolUse hook. A git mutation or a
+snapshot-update command will be **denied by the runtime**, not merely discouraged.
+They are restated here so you know why before you reach for one.
+
+$(m_skills_section "$GUIDELINES" 9)
+$(m_skills_section "$GUIDELINES" 10)
+
+## Still on you — no hook can check these
+
+$(m_skills_section "$GUIDELINES" 15)
+$(m_skills_section "$GUIDELINES" 19)
+${COMPOSITION}")"
+
+case "$EVENT" in
+  UserPromptExpansion) emit_context "UserPromptExpansion" "$BODY" ;;
+  PostToolUse)         emit_block "$BODY" ;;
+esac
