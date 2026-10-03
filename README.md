@@ -366,6 +366,8 @@ These hold in every skill, in every project:
 
 `~/.claude` is `$CLAUDE_CONFIG_DIR` when that is set.
 
+**What the skills fetch:** two skills have Claude request a web page, and only one you point them at. `search-optimization-architect` fetches the pages it audits with `curl`, the way a crawler sees them; `deployment-architect` checks your deployed app's health endpoint after you report that a deploy landed. Both are read-only requests that send none of your code or project data.
+
 **What they never change: your settings.** When real `.env` files sit in an ignored path and the Bash sandbox is off, the bootstrap has Claude *offer* a `permissions.deny` and sandbox block, once. Nothing is merged into `.claude/settings.json` unless you agree. → [§ Enforcement](#enforcement-the-rules-that-are-no-longer-advice)
 
 **Where the hooks run: Claude Code and Cowork.** claude.ai chat loads the skills and route commands but runs no hook, so there the guards above are rules the model follows, not checks that deny the call. Use Claude Code when the guards matter.
