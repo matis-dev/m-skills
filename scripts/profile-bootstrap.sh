@@ -230,13 +230,24 @@ if [ -f Makefile ]; then
   done
 fi
 
+# Each gate is spelled in full, never as "$RUNNER tool": a runner held in a variable
+# and expanded in front of a tool reads to the Claude directory as an unpinned package
+# launcher, which blocks the listing. uv runs against uv.lock as it is (--frozen) and
+# never re-resolves it in the middle of a gate.
 if [ -f pyproject.toml ]; then
-  RUNNER=""
-  command -v uv >/dev/null 2>&1 && RUNNER="uv run"
-  [ -z "$RUNNER" ] && [ -f poetry.lock ] && RUNNER="poetry run"
-  [ -z "$LINT" ]      && LINT="$RUNNER ruff check ."
-  [ -z "$TYPECHECK" ] && TYPECHECK="$RUNNER mypy ."
-  [ -z "$TEST" ]      && TEST="$RUNNER pytest"
+  if command -v uv >/dev/null 2>&1; then
+    [ -z "$LINT" ]      && LINT="uv run --frozen ruff check ."
+    [ -z "$TYPECHECK" ] && TYPECHECK="uv run --frozen mypy ."
+    [ -z "$TEST" ]      && TEST="uv run --frozen pytest"
+  elif [ -f poetry.lock ]; then
+    [ -z "$LINT" ]      && LINT="poetry run ruff check ."
+    [ -z "$TYPECHECK" ] && TYPECHECK="poetry run mypy ."
+    [ -z "$TEST" ]      && TEST="poetry run pytest"
+  else
+    [ -z "$LINT" ]      && LINT="ruff check ."
+    [ -z "$TYPECHECK" ] && TYPECHECK="mypy ."
+    [ -z "$TEST" ]      && TEST="pytest"
+  fi
 fi
 
 if [ -f Cargo.toml ]; then
