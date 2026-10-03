@@ -412,7 +412,7 @@ The IDE runs no hooks at all ([reproduced on IDE 2.1.1, August 2026](https://dis
 
 ```bash
 bash scripts/build-codex.sh                        # writes dist/codex/m-skills/ and a one-entry marketplace beside it
-codex plugin marketplace add "$PWD/dist/codex"     # once
+codex plugin marketplace add "$(pwd)/dist/codex"   # once
 codex plugin add m-skills@m-skills-local           # installs the plugin
 ```
 

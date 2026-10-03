@@ -58,7 +58,7 @@ The same gate applies to a diagnosis: before declaring a root cause, score wheth
 
 | Severity | Means | Deduction from the dimension's max |
 |---|---|---|
-| **Critical** | data exfiltration, auth bypass, RCE-class, or a total functional break | −20 (auto-`BLOCK` regardless of total) |
+| **Critical** | data exfiltration, auth bypass, RCE-class, or a total functional break | −20 (automatic `BLOCK` regardless of total) |
 | **High** | stored injection, a known-CVE dependency with an exploit path, a failing gate | −10 |
 | **Medium** | reachable only via developer-controlled input; a real defect with a workaround | −4 |
 | **Low** | defense-in-depth gap; cosmetic-but-wrong | −2 |

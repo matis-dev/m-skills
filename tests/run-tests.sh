@@ -14,8 +14,8 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VERBOSE=0; [ "${1:-}" = "-v" ] && VERBOSE=1
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
 
-PASS=0; FAIL=0; SKIP=0
-ok()   { PASS=$((PASS+1)); [ $VERBOSE -eq 1 ] && printf '  \033[32m✓\033[0m %s\n' "$1"; return 0; }
+PASSED=0; FAIL=0; SKIP=0
+ok()   { PASSED=$((PASSED+1)); [ $VERBOSE -eq 1 ] && printf '  \033[32m✓\033[0m %s\n' "$1"; return 0; }
 bad()  { FAIL=$((FAIL+1)); printf '  \033[31m✗\033[0m %s\n' "$1"; [ -n "${2:-}" ] && printf '      %s\n' "$2"; return 0; }
 skip() { SKIP=$((SKIP+1)); printf '  \033[33m-\033[0m %s (skipped: %s)\n' "$1" "$2"; return 0; }
 section() { printf '\n\033[1m%s\033[0m\n' "$1"; }
@@ -1696,7 +1696,7 @@ fi
 
 # ─────────────────────────────────────────────────────────────────────────────
 printf '\n\033[1m─────────────────────────────\033[0m\n'
-printf '  \033[32m%d passed\033[0m' "$PASS"
+printf '  \033[32m%d passed\033[0m' "$PASSED"
 [ "$SKIP" -gt 0 ] && printf '  \033[33m%d skipped\033[0m' "$SKIP"
 [ "$FAIL" -gt 0 ] && printf '  \033[31m%d failed\033[0m' "$FAIL"
 printf '\n\033[1m─────────────────────────────\033[0m\n'

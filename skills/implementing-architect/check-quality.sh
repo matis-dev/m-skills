@@ -27,7 +27,7 @@ PROFILE=".claude/PROJECT-PROFILE.md"
 GATE_KEYS=(LINT TYPECHECK TEST BUILD E2E VISUAL A11Y AUDIT)
 GATE_LABELS=("Lint" "Type-check" "Tests + Coverage" "Build" "E2E" "Visual regression" "Accessibility" "Dependency audit")
 
-for k in "${GATE_KEYS[@]}"; do eval "$k=\"\${$k:-}\""; done
+for k in "${GATE_KEYS[@]}"; do printf -v "$k" '%s' "${!k:-}"; done
 VISUAL_REPORT="${VISUAL_REPORT:-}"
 UPDATE_CMD="${UPDATE_CMD:-}"
 
@@ -86,7 +86,7 @@ fi
 # A cell that is empty, `n-a`, or still a `<placeholder>` is treated as unset and
 # falls through to the conf / detection below — so a half-filled profile is safe,
 # which is the normal state (§5 "progressive, not a questionnaire").
-# No eval: awk emits KEY<TAB>VALUE and the loop assigns by an explicit case.
+# Nothing is executed: awk emits KEY<TAB>VALUE and the loop assigns by an explicit case.
 if [ -f "$PROFILE" ]; then
   PROFILE_SET=0
   while IFS="$(printf '\t')" read -r pkey pval; do
@@ -180,7 +180,7 @@ if [ -f package.json ] && command -v node >/dev/null 2>&1; then
   set_gate() { # set_gate VAR script-name...
     local var="$1"; shift
     [ -n "${!var}" ] && return 0
-    local s; s="$(pick_script "$@")" && eval "$var=\"\$RUN \$s\""
+    local s; s="$(pick_script "$@")" && printf -v "$var" '%s' "$RUN $s"
     return 0
   }
   set_gate LINT      lint
@@ -211,7 +211,7 @@ fi
 if [ -f Makefile ]; then
   for i in "${!GATE_KEYS[@]}"; do
     k="${GATE_KEYS[$i]}"; t="$(echo "$k" | tr '[:upper:]' '[:lower:]')"
-    [ -z "${!k}" ] && has_make_target "$t" && eval "$k=\"make $t\""
+    [ -z "${!k}" ] && has_make_target "$t" && printf -v "$k" '%s' "make $t"
   done
 fi
 
@@ -266,7 +266,9 @@ for i in "${!GATE_KEYS[@]}"; do
   [ -z "$cmd" ] && continue
   STEP=$((STEP + 1))
   echo "▶ [$STEP/$RESOLVED] ${GATE_LABELS[$i]} — $cmd"
-  eval "$cmd"
+  # A child shell, so a gate cannot reassign this loop's variables; pipefail kept
+  # so `cmd | tee log` still fails when cmd does.
+  bash -o pipefail -c "$cmd"
   RESULTS+=("$k:$?")
   echo
 done
