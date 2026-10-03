@@ -56,7 +56,7 @@ log_pick() { # <skill> <outcome>
   local d="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/m-skills"
   mkdir -p "$d" 2>/dev/null || return 0
   printf '%s\t%s\t%s\t%s\t%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(m_skills_session_id "$SESSION")" \
-    "${CLAUDE_PROJECT_DIR:-$PWD}" "$1" "$2" >> "$d/picks.log" 2>/dev/null
+    "${CLAUDE_PROJECT_DIR:-$(pwd)}" "$1" "$2" >> "$d/picks.log" 2>/dev/null
   return 0
 }
 

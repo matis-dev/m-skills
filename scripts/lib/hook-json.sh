@@ -120,7 +120,7 @@ m_skills_section() {
 # The user's opt-out from the enforcement hooks, project or global. Same flag-file
 # idiom as adhd-always-on.sh: presence is the whole signal, contents ignored.
 m_skills_guards_disabled() {
-  local project="${CLAUDE_PROJECT_DIR:-$PWD}"
+  local project="${CLAUDE_PROJECT_DIR:-$(pwd)}"
   local config_dir="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
   [ -f "$project/.claude/.m-skills-no-guards" ] && return 0
   [ -f "$config_dir/.m-skills-no-guards" ] && return 0

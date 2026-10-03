@@ -104,7 +104,7 @@ mkdir -p "$(dirname "$MARK")" 2>/dev/null || exit 0
 # The resolved gates, cached per session — the resolution spawns node.
 gates() {
   local state cache root
-  root="$(git -C "${CLAUDE_PROJECT_DIR:-$PWD}" rev-parse --show-toplevel 2>/dev/null || printf '%s' "${CLAUDE_PROJECT_DIR:-$PWD}")"
+  root="$(git -C "${CLAUDE_PROJECT_DIR:-$(pwd)}" rev-parse --show-toplevel 2>/dev/null || printf '%s' "${CLAUDE_PROJECT_DIR:-$(pwd)}")"
   state="$(m_skills_state_dir "$SESSION")"
   cache="$state/gates-$(m_skills_gate_cache_key "$root")"
   if [ -f "$cache" ]; then cat "$cache"; return 0; fi

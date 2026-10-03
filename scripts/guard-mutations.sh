@@ -98,7 +98,7 @@ done | grep -q deny && \
 resolve_update_cmd() {
   local state cache root
   local session; session="$(json_field "$INPUT" "session_id")"
-  root="$(git -C "${CLAUDE_PROJECT_DIR:-$PWD}" rev-parse --show-toplevel 2>/dev/null || printf '%s' "${CLAUDE_PROJECT_DIR:-$PWD}")"
+  root="$(git -C "${CLAUDE_PROJECT_DIR:-$(pwd)}" rev-parse --show-toplevel 2>/dev/null || printf '%s' "${CLAUDE_PROJECT_DIR:-$(pwd)}")"
   state="$(m_skills_state_dir "$session")"
   cache="$state/updatecmd-$(m_skills_gate_cache_key "$root")"
   if [ -f "$cache" ]; then

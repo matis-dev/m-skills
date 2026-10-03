@@ -13,7 +13,7 @@
 
 set -uo pipefail
 
-PROJECT="${CLAUDE_PROJECT_DIR:-$PWD}"
+PROJECT="${CLAUDE_PROJECT_DIR:-$(pwd)}"
 PROGRESS="$PROJECT/.claude/PROGRESS.md"
 [ -s "$PROGRESS" ] || exit 0
 

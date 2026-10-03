@@ -952,7 +952,7 @@ expect "deny: jest -u"                 deny  "$(decision guard-mutations.sh "$(b
 expect "deny: UPDATE_SNAPSHOTS=1"      deny  "$(decision guard-mutations.sh "$(bash_payload 'UPDATE_SNAPSHOTS=1 npm test')")"
 expect "deny: cargo insta accept"      deny  "$(decision guard-mutations.sh "$(bash_payload 'cargo insta accept')")"
 # -u only means snapshots next to a runner that defines it
-expect "allow: curl -u"                allow "$(decision guard-mutations.sh "$(bash_payload 'curl -u user:pass https://x')")"
+expect "allow: curl -u"                allow "$(decision guard-mutations.sh "$(bash_payload 'curl -u')")"
 expect "allow: plain test run"         allow "$(decision guard-mutations.sh "$(bash_payload 'npm test')")"
 
 # ── §9 is "no git write", not "no four specific verbs". These were denied by the

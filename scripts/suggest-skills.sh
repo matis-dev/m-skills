@@ -23,7 +23,7 @@
 
 set -uo pipefail
 
-PROJECT="${CLAUDE_PROJECT_DIR:-$PWD}"
+PROJECT="${CLAUDE_PROJECT_DIR:-$(pwd)}"
 CONFIG_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 # $0 is the absolute script path, so resolve the skills relative to it rather than
 # trusting CLAUDE_PLUGIN_ROOT to be exported into the hook environment.

@@ -16,7 +16,7 @@
 
 set -uo pipefail
 
-PROJECT="${CLAUDE_PROJECT_DIR:-$PWD}"
+PROJECT="${CLAUDE_PROJECT_DIR:-$(pwd)}"
 PLUGIN="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 cd "$PROJECT" 2>/dev/null || exit 0
 
