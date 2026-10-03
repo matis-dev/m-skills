@@ -102,7 +102,7 @@ fi
 
 # ── 1b. The Project Profile outranks it (guidelines-meta §5 rule 1) ───────────
 # Parses the §Commands table the profile template defines:
-#   | `<lint>` | pnpm run lint | notes |
+#   | `<lint>` | <the project's lint command> | notes |
 # A cell that is empty, `n-a`, or still a `<placeholder>` is treated as unset and
 # falls through to the conf / detection below — so a half-filled profile is safe,
 # which is the normal state (§5 "progressive, not a questionnaire").
@@ -139,7 +139,7 @@ if [ -f "$PROFILE" ]; then
     else if (role == "audit")      print "AUDIT\t"     cmd
     next
   }
-  # **Golden / snapshot update command (USER-ONLY …):** `pnpm run e2e:update`
+  # **Golden / snapshot update command (USER-ONLY …):** `<the update command>`
   /[Gg]olden.*update command|snapshot-update command/ {
     if (match($0, /`[^`]+`[^`]*$/)) {
       v = substr($0, RSTART + 1, RLENGTH - 2); sub(/`.*$/, "", v)
@@ -233,10 +233,8 @@ if [ -f Makefile ]; then
   done
 fi
 
-# Each gate is spelled in full, never as "$RUNNER tool": a runner held in a variable
-# and expanded in front of a tool reads to the Claude directory as an unpinned package
-# launcher, which blocks the listing. uv runs against uv.lock as it is (--frozen) and
-# never re-resolves it in the middle of a gate.
+# Each gate is spelled in full, so the command reads exactly as it will run. uv runs
+# against uv.lock as it is (--frozen) and never re-resolves it in the middle of a gate.
 if [ -f pyproject.toml ]; then
   if command -v uv >/dev/null 2>&1; then
     [ -z "$LINT" ]      && LINT="uv run --frozen ruff check ."
