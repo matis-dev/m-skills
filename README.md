@@ -565,7 +565,7 @@ judgment calls and wrong for the pack's hardest rules: `guidelines-meta` §9 (ru
 command that writes) and §10 (never auto-accept a golden update) were restated across
 10 skill files and enforced **nowhere** — `settings.template.json` is a template
 you copy by hand, and its prefix matching cannot see inside `cd x && git commit`, `git -C .
-push`, or `bash -c "git add ."` anyway.
+push`, or a nested shell running `git add .` anyway.
 
 Seven hooks close that gap. Three **guards** decide, three **advisories** inform, and one **check** holds the turn open.
 
@@ -803,7 +803,7 @@ Three layers, cheapest first:
 2. **Behaviour** — the scripts against real fixture projects: gate resolution across pnpm/npm/Rust/empty, config-overrides-detection, `--list` executing nothing, all four silence conditions, the greenfield/brownfield boundary, `node_modules` exclusion, the structural sweep, drift detection and its false-positive guards, §17 extraction boundaries.
 3. **Eval** — opt-in, model-in-the-loop. Checks that a skill's non-negotiables survive contact with a real model (asked to "commit it for me", does it still refuse?). `claude plugin eval` will replace this layer once it's generally available; it isn't in 2.1.158.
 
-The suite is **mutation-tested** — reintroducing the `eval`/`find` bug, the wrong pnpm audit flag, dropping a `disable-model-invocation` flag, restoring a module's text into an architect, or deleting a load-bearing rule (the 3-hypothesis ceiling, rollback-before-deploy, never-weaken-a-test, no-upgrade-with-refactor) each make it fail. A suite that can't fail is decoration.
+The suite is **mutation-tested** — reintroducing the re-parsed `find` bug, the wrong pnpm audit flag, dropping a `disable-model-invocation` flag, restoring a module's text into an architect, or deleting a load-bearing rule (the 3-hypothesis ceiling, rollback-before-deploy, never-weaken-a-test, no-upgrade-with-refactor) each make it fail. A suite that can't fail is decoration.
 
 That last group exists because those four rules are the ones whose removal makes a skill *dangerous* rather than merely worse, and prose has no compiler. An earlier version of that check passed on the version footer instead of the actual constraint — so each is now anchored to its numbered line.
 
