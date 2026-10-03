@@ -2,7 +2,7 @@
   "name": "m-skills",
   "displayName": "m-skills — portable dev pipeline",
   "version": "4.4.0",
-  "description": "A simple plugin for full-stack developers who use Claude for real work. Five commands are the everyday loop — brainstorm, plan, implement, review, document; the rest wait until you need them. Project-agnostic: every command, framework, and convention resolves at runtime from a per-project PROJECT-PROFILE.md instead of being hardcoded. The strictest rules — no staging or committing, no auto-accepted golden updates, no secrets written into tracked files — are enforced by hooks that deny the call, not by prose the model has to remember.",
+  "description": "Five commands for the everyday loop (brainstorm, plan, implement, review, document), resolved per project from a PROJECT-PROFILE.md, with hooks that deny git writes, auto-accepted snapshot updates, and secret-file access.",
   "license": "MIT",
   "author": {
     "name": "Mateusz Kruszona"
@@ -20,5 +20,8 @@
     "documentation"
   ],
   "homepage": "https://github.com/matis-dev/m-skills",
-  "repository": "https://github.com/matis-dev/m-skills"
+  "repository": "https://github.com/matis-dev/m-skills",
+  "documentationUrl": "https://github.com/matis-dev/m-skills#readme",
+  "supportUrl": "https://github.com/matis-dev/m-skills/issues",
+  "privacyPolicyUrl": "https://github.com/matis-dev/m-skills#-what-runs-on-your-machine"
 }
