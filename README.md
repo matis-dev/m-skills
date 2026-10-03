@@ -508,7 +508,7 @@ git -C ../m-skills-release push
 | `scripts/codex-adapt.sh` | Runs the secret-file guard over each path a Codex `apply_patch` touches; ships only in the Codex build | stays put |
 | `scripts/build-claude.sh` | Builds the self-contained tree the Claude plugin directory follows into `dist/claude/m-skills/` — see [§ Claude directory release](#-claude-directory-release) | stays put |
 | `README.release.md` | The short listing README; ships as `README.md` in the directory release | stays put |
-| `tests/run-tests.sh` | The pack's own test suite — 896 assertions, no dependencies | stays put |
+| `tests/run-tests.sh` | The pack's own test suite — 902 assertions, no dependencies | stays put |
 | `commands/*.md` | The 16 route commands — thin pre-routed entries into one architect's mode | plugin: stays put · copy-mode: → `<project>/.claude/commands/`, paths rewritten |
 | `skills/<architect>/SKILL.md` | An architect's spine — constraints, modes, procedure | plugin: stays put · copy-mode: → `<project>/.claude/skills/` |
 | `skills/module-*/` | The 9 shared modules, addressed by name | same |

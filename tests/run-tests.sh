@@ -524,6 +524,25 @@ assert_contains "polyglot: make build is found"     "$out" "make build"
 assert_contains "polyglot: python typecheck found"  "$out" "mypy"
 assert_missing  "polyglot: nothing left falsely n-a" "$out" "Tests + Coverage   n-a"
 
+# Python gates are spelled in full. A runner held in a variable and expanded in front
+# of the tool reads to the Claude directory as an unpinned launcher, which blocks the
+# listing; uv runs against uv.lock as it is (--frozen), never re-resolving mid-gate.
+PY="$TMP/py"; mkdir -p "$PY/bin"; printf '[project]\nname="x"\n' > "$PY/pyproject.toml"
+printf '#!/bin/sh\nexit 0\n' > "$PY/bin/uv"; chmod +x "$PY/bin/uv"
+out="$(cd "$PY" && PATH="$PY/bin:$PATH" bash "$CQ" --list)"
+assert_contains "python + uv: lint runs frozen"      "$out" "uv run --frozen ruff check ."
+assert_contains "python + uv: typecheck runs frozen" "$out" "uv run --frozen mypy ."
+assert_contains "python + uv: tests run frozen"      "$out" "uv run --frozen pytest"
+if command -v uv >/dev/null 2>&1; then
+  skip "python without uv: poetry and bare gates" "uv is installed on this machine"
+else
+  out="$(cd "$PY" && bash "$CQ" --list)"
+  assert_contains "python, no runner: bare ruff"     "$out" "Lint               ruff check ."
+  touch "$PY/poetry.lock"
+  out="$(cd "$PY" && bash "$CQ" --list)"
+  assert_contains "python + poetry.lock: poetry run" "$out" "poetry run pytest"
+fi
+
 # the earlier ecosystem still outranks the later one for a role BOTH define
 PG2="$TMP/polyglot2"; mkdir -p "$PG2"
 printf '{"scripts":{"test":"vitest run"}}' > "$PG2/package.json"
@@ -1769,7 +1788,10 @@ plant() { # <what> <lines appended to a hook script> <expected refusal>
   if out="$(bash "$pl/scripts/build-claude.sh" 2>&1)"; then
     bad "build refuses $1" "it built"
   else
-    assert_contains "build refuses $1" "$out" "$3"
+    case "$out" in
+      *"$3"*) ok "build refuses $1" ;;
+      *) bad "build refuses $1" "expected '$3', got: $(printf '%s' "$out" | tr '\n' ' ' | cut -c1-300)" ;;
+    esac
   fi
 }
 plant "a here-document"          "$(printf 'cat <<EOF\nx\nEOF')" "here-document"
@@ -1777,6 +1799,7 @@ plant "a file loaded with ."     '. "$PLUGIN/extra"'             "loads a file"
 plant "a call to another script" 'bash "$PLUGIN/extra"'          "runs a script"
 plant "a script named in text"   'echo "see other.sh"'           "names a script"
 plant "a computed command"       'bash -o pipefail -c "$cmd"'    "runs a computed command"
+plant "an unpinned launcher"     'RUNNER="uv run"'               "names an unpinned package launcher"
 # Hooks only list the gates; the inlined resolver must not carry the part that runs them.
 assert_empty "release hooks carry no gate runner" "$(grep -l 'Quality Check Results' "$REL"/scripts/*.sh)"
 

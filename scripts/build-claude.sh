@@ -80,7 +80,9 @@ tail -n +2 "$LIB" | drop_script_comments > "$PART/lib"
   echo '    [[ "$(declare -p "$v" 2>/dev/null)" =~ ^declare\ -[a-zA-Z]*x ]] || unset "$v"'
   echo '  done'
   tail -n +2 "$CQ" | drop_script_comments \
-    | awk '{ print } /^if \[ "\$\{1:-\}" = "--list" \]; then$/ { list = 1 } list && /^fi$/ { exit }'
+    | awk 'done { next } { print } /^if \[ "\$\{1:-\}" = "--list" \]; then$/ { list = 1 } list && /^fi$/ { done = 1 }'
+  # (awk reads to the end rather than exiting: an early exit sends SIGPIPE up the pipe,
+  # and under pipefail that silently fails the build on some runs, not others)
   echo ')'
 } > "$PART/gate"
 grep -q '^if \[ "${1:-}" = "--list" \]; then$' "$PART/gate" \
@@ -122,6 +124,9 @@ for f in "$OUT"/scripts/*.sh; do
   grep -nE '(^|[^A-Za-z0-9_])(ba)?sh[[:space:]]+"\$' "$f" | sed "s|^|  $rel: runs a script at |" >> "$PART/bad" || true
   grep -nE '(^|[^A-Za-z0-9_])(ba)?sh([[:space:]]+-[a-z]+([[:space:]]+[a-z]+)?)*[[:space:]]+-c[[:space:]]+"\$' "$f" \
     | sed "s|^|  $rel: runs a computed command at |" >> "$PART/bad" || true
+  # Package launchers block the listing unless pinned; uv run is pinned by --frozen or --locked.
+  grep -nE '(^|[^A-Za-z0-9_-])(npx|bunx|uvx|pnpm dlx|yarn dlx|pipx run)([^A-Za-z0-9_-]|$)|uv run( |"|$)' "$f" \
+    | grep -vE 'uv run --(frozen|locked)' | sed "s|^|  $rel: names an unpinned package launcher at |" >> "$PART/bad" || true
   grep -nE '[A-Za-z0-9_-]\.sh([^A-Za-z0-9_]|$)' "$f" | sed "s|^|  $rel: names a script at |" >> "$PART/bad" || true
 done
 if [ -n "$fail" ] || [ -s "$PART/bad" ]; then
