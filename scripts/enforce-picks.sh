@@ -71,21 +71,21 @@ env_pinned() { case " $ENV_PINNED " in *" $1 "*) return 0 ;; *) return 1 ;; esac
 #   · sourcing blindly assigns, which silently clobbered a value passed on the
 #     invocation. Skipping pinned keys here keeps precedence as anyone would read it:
 #     env > profile > conf > detection.
-# Accepts KEY="v" / KEY='v' / KEY=v, leading indentation, # comments, and a trailing
+# Accepts NAME="v" / NAME='v' / NAME=v, leading indentation, # comments, and a trailing
 # comment after a quoted value — every shape the template at the end of this file uses.
 read_conf() {
-  local line key val
+  local line gate val
   while IFS= read -r line || [ -n "$line" ]; do
     line="${line#"${line%%[![:space:]]*}"}"
     case "$line" in ''|'#'*) continue ;; esac
     case "$line" in *=*) ;; *) continue ;; esac
-    key="${line%%=*}"; val="${line#*=}"
-    key="${key%"${key##*[![:space:]]}"}"
-    case "$key" in
+    gate="${line%%=*}"; val="${line#*=}"
+    gate="${gate%"${gate##*[![:space:]]}"}"
+    case "$gate" in
       LINT|TYPECHECK|TEST|BUILD|E2E|VISUAL|A11Y|AUDIT|UPDATE_CMD|VISUAL_REPORT) ;;
       *) continue ;;
     esac
-    env_pinned "$key" && continue
+    env_pinned "$gate" && continue
     val="${val#"${val%%[![:space:]]*}"}"
     case "$val" in
       \"*)  val="${val#\"}";  val="${val%%\"*}" ;;
@@ -93,7 +93,7 @@ read_conf() {
       *)    val="${val%%[[:space:]]#*}" ;;
     esac
     val="${val%"${val##*[![:space:]]}"}"
-    printf -v "$key" '%s' "$val"
+    printf -v "$gate" '%s' "$val"
   done < "$1"
 }
 
@@ -110,7 +110,7 @@ fi
 # A cell that is empty, `n-a`, or still a `<placeholder>` is treated as unset and
 # falls through to the conf / detection below — so a half-filled profile is safe,
 # which is the normal state (§5 "progressive, not a questionnaire").
-# Nothing is executed: awk emits KEY<TAB>VALUE and the loop assigns by an explicit case.
+# Nothing is executed: awk emits NAME<TAB>VALUE and the loop assigns by an explicit case.
 if [ -f "$PROFILE" ]; then
   PROFILE_SET=0
   while IFS="$(printf '\t')" read -r pkey pval; do
@@ -269,77 +269,6 @@ if [ "${1:-}" = "--list" ]; then
   printf '  %-18s %s\n' "Update (user-only)" "${UPDATE_CMD:-n-a}"
   exit 0
 fi
-
-RESOLVED=0
-for k in "${GATE_NAMES[@]}"; do [ -n "${!k}" ] && RESOLVED=$((RESOLVED + 1)); done
-if [ "$RESOLVED" -eq 0 ]; then
-  echo "❌ No quality gates resolved. Create $CONF (see the template at the end of this script)."
-  exit 1
-fi
-
-# ── 3. Run ────────────────────────────────────────────────────────────────────
-echo "⚖️  Quality Check — $RESOLVED gate(s), $SOURCE"
-echo
-
-declare -a RESULTS=()
-STEP=0
-for i in "${!GATE_NAMES[@]}"; do
-  k="${GATE_NAMES[$i]}"; cmd="${!k}"
-  [ -z "$cmd" ] && continue
-  STEP=$((STEP + 1))
-  echo "▶ [$STEP/$RESOLVED] ${GATE_LABELS[$i]} — $cmd"
-  # A child shell, so a gate cannot reassign this loop's variables; pipefail kept
-  # so `cmd | tee log` still fails when cmd does.
-  bash -o pipefail -c "$cmd"
-  RESULTS+=("$k:$?")
-  echo
-done
-
-# ── 4. Summary ────────────────────────────────────────────────────────────────
-echo "═══════════════════════════════"
-echo "  Quality Check Results"
-echo "═══════════════════════════════"
-FAILED=0
-VISUAL_FAILED=0
-for r in "${RESULTS[@]}"; do
-  k="${r%%:*}"; code="${r##*:}"
-  for i in "${!GATE_NAMES[@]}"; do [ "${GATE_NAMES[$i]}" = "$k" ] && label="${GATE_LABELS[$i]}"; done
-  if [ "$code" -eq 0 ]; then
-    echo "  ✅ $label"
-  else
-    echo "  ❌ $label"
-    FAILED=$((FAILED + 1))
-    { [ "$k" = "VISUAL" ] || [ "$k" = "E2E" ]; } && VISUAL_FAILED=1
-  fi
-done
-echo "═══════════════════════════════"
-
-if [ "$FAILED" -eq 0 ]; then
-  echo "✅ Quality Check Passed."
-  exit 0
-fi
-
-echo "❌ Quality Check Failed ($FAILED gate(s)). Fix issues above."
-if [ "$VISUAL_FAILED" -eq 1 ]; then
-  echo
-  echo "ℹ️  Visual diffs may be intentional — review ${VISUAL_REPORT:-the test report}."
-  echo "   If intended, run '${UPDATE_CMD:-the snapshot update command}' manually (NEVER automated)."
-fi
-exit 1
-
-# ──────────────────────────────────────────────────────────────────────────────
-# .claude/quality-gates.conf template — copy the block below, drop the leading '# '
-#
-# LINT="pnpm run lint"
-# TYPECHECK="pnpm run type-check"
-# TEST="pnpm run test:ci"
-# BUILD="pnpm run build"
-# E2E="pnpm run e2e"
-# VISUAL=""                       # empty = n-a, gate skipped
-# A11Y="pnpm run e2e:a11y"
-# AUDIT="pnpm audit --omit=dev"
-# VISUAL_REPORT="playwright-report/"
-# UPDATE_CMD="pnpm run e2e:update"  # never executed by this script
 )
 m_skills_preamble() (
 # m-skills — inject the shared preamble when a pack skill starts.
@@ -397,6 +326,10 @@ case "$NAME" in
   m-skills:*) SKILL="${NAME#m-skills:}" ;;
   *) exit 0 ;;
 esac
+# The name becomes a path segment below (skills/<name>/, commands/<name>.md, the
+# marker). Every skill and command name is [a-z0-9-]; anything else, ../ included,
+# is not one of ours.
+case "$SKILL" in ''|*[!a-z0-9-]*) exit 0 ;; esac
 
 # A route command (commands/<name>.md) is a thin pre-routed entry into one architect —
 # /m-skills:decompose is product-architect in decompose mode. Left unresolved, SKILL would
