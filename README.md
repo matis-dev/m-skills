@@ -443,6 +443,44 @@ codex plugin add m-skills@m-skills-local           # installs the plugin
 
 ---
 
+## 📮 Claude directory release
+
+**The Claude plugin directory follows a `release` branch, built from this tree.** Its validator follows a hook's script only when the script is self-contained: no library it loads, no other script it runs, no here-document. A script that does any of those holds every version for a reviewer. `main` keeps the commented, multi-file sources; the build compiles each hook script into one file and leaves out what an installed plugin never runs.
+
+```bash
+bash scripts/build-claude.sh   # writes dist/claude/m-skills/; refuses to finish if a hook script would hold the plugin
+```
+
+**What changes on the way out.** The library is pasted in where it was loaded. The `check-quality.sh --list` and `skill-preamble.sh` calls become the subshell functions `m_skills_gate_table` and `m_skills_preamble`. Comment lines that name a `.sh` file are dropped. `README.release.md` ships as the listing's `README.md`. Tests, the changelog, the templates, the library, and the build and adapter scripts stay on `main`.
+
+**Proof it is the same plugin.** Section 10 of `tests/run-tests.sh` runs the hook behaviour sections against the sources and against the build, and requires the same pass count from both.
+
+**Publish a release.** Every git step is yours. The first time, create the branch as an orphan worktree beside this checkout:
+
+```bash
+bash scripts/build-claude.sh
+git worktree add --orphan -b release ../m-skills-release
+cp -R dist/claude/m-skills/. ../m-skills-release/
+git -C ../m-skills-release add -A
+git -C ../m-skills-release commit -m "release: m-skills <version>"
+git -C ../m-skills-release push -u origin release
+```
+
+Later releases replace the worktree's contents instead of adding to them, so a file the build no longer ships leaves the branch too:
+
+```bash
+bash scripts/build-claude.sh
+find ../m-skills-release -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+cp -R dist/claude/m-skills/. ../m-skills-release/
+git -C ../m-skills-release add -A
+git -C ../m-skills-release commit -m "release: m-skills <version>"
+git -C ../m-skills-release push
+```
+
+**In the developer portal, set Branch or tag to `release`.** A submission that is with a reviewer can't change its tracked branch, so validate `matis-dev/m-skills@release` before you submit.
+
+---
+
 ## 📦 What's in here
 
 | Path | What it is | Goes where |
@@ -468,7 +506,9 @@ codex plugin add m-skills@m-skills-local           # installs the plugin
 | `scripts/antigravity-adapt.sh` | Runs the three guards under Antigravity's hooks; ships only in the Antigravity build | stays put |
 | `scripts/build-codex.sh` | Builds the Codex plugin into `dist/codex/m-skills/` — see [§ Codex](#-codex) | stays put |
 | `scripts/codex-adapt.sh` | Runs the secret-file guard over each path a Codex `apply_patch` touches; ships only in the Codex build | stays put |
-| `tests/run-tests.sh` | The pack's own test suite — 790 assertions, no dependencies | stays put |
+| `scripts/build-claude.sh` | Builds the self-contained tree the Claude plugin directory follows into `dist/claude/m-skills/` — see [§ Claude directory release](#-claude-directory-release) | stays put |
+| `README.release.md` | The short listing README; ships as `README.md` in the directory release | stays put |
+| `tests/run-tests.sh` | The pack's own test suite — 892 assertions, no dependencies | stays put |
 | `commands/*.md` | The 16 route commands — thin pre-routed entries into one architect's mode | plugin: stays put · copy-mode: → `<project>/.claude/commands/`, paths rewritten |
 | `skills/<architect>/SKILL.md` | An architect's spine — constraints, modes, procedure | plugin: stays put · copy-mode: → `<project>/.claude/skills/` |
 | `skills/module-*/` | The 9 shared modules, addressed by name | same |

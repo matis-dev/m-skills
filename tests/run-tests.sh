@@ -14,6 +14,12 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VERBOSE=0; [ "${1:-}" = "-v" ] && VERBOSE=1
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
 
+# Sections 2–6 run the hook scripts from PLUGIN_UT: this tree, or a built copy. Section 10
+# points it at the directory release build, with M_SKILLS_ONLY=behaviour running those
+# sections alone, to prove the compiled hooks behave exactly like these sources.
+PLUGIN_UT="${M_SKILLS_PLUGIN:-$ROOT}"
+ONLY="${M_SKILLS_ONLY:-}"
+
 PASSED=0; FAIL=0; SKIP=0
 ok()   { PASSED=$((PASSED+1)); [ $VERBOSE -eq 1 ] && printf '  \033[32m✓\033[0m %s\n' "$1"; return 0; }
 bad()  { FAIL=$((FAIL+1)); printf '  \033[31m✗\033[0m %s\n' "$1"; [ -n "${2:-}" ] && printf '      %s\n' "$2"; return 0; }
@@ -26,6 +32,7 @@ assert_missing()  { case "$2" in *"$3"*) bad "$1" "should NOT contain: $3" ;; *)
 assert_empty()    { if [ -z "$2" ]; then ok "$1"; else bad "$1" "expected no output, got: $(printf '%s' "$2" | head -c 120)"; fi; }
 assert_eq()       { if [ "$2" = "$3" ]; then ok "$1"; else bad "$1" "expected '$3', got '$2'"; fi; }
 
+if [ "$ONLY" != behaviour ]; then
 # ─────────────────────────────────────────────────────────────────────────────
 section "1. Structure"
 
@@ -386,6 +393,19 @@ for s in "$ROOT"/scripts/*.sh "$ROOT"/skills/*/*.sh "$ROOT"/tests/*.sh; do
   bash -n "$s" 2>/dev/null && ok "parses: ${s#$ROOT/}" || bad "parses: ${s#$ROOT/}"
 done
 
+# A here-document in a script a hook can reach holds the plugin in the Claude
+# directory ("Scripts the validator couldn't follow"). Here-strings (<<<) pass.
+heredocs() { grep -nE '<<[^<]|<<$' "$1" | grep -v '<<<'; }
+printf 'cat <<EOF\nx\nEOF\nread -r a <<< "$b"\n' > "$TMP/heredoc-probe.sh"
+[ "$(heredocs "$TMP/heredoc-probe.sh" | wc -l)" -eq 1 ] \
+  && ok "here-document check flags cat <<EOF and passes <<<" \
+  || bad "here-document check flags cat <<EOF and passes <<<" "probe gave: $(heredocs "$TMP/heredoc-probe.sh")"
+for s in $(grep -oE 'scripts/[a-z-]+\.sh' "$ROOT/hooks/hooks.json" | sort -u) \
+         scripts/lib/hook-json.sh skills/implementing-architect/check-quality.sh; do
+  hd="$(heredocs "$ROOT/$s")"
+  [ -z "$hd" ] && ok "no here-document: $s" || bad "no here-document: $s" "$hd"
+done
+
 # every hook script named in hooks.json must exist and parse
 HOOKS_JSON="$ROOT/hooks/hooks.json"
 if command -v jq >/dev/null 2>&1; then
@@ -455,10 +475,12 @@ done
 grep -q 'enforced by the plugin' "$ROOT/skills/implementing-architect/SKILL.md" \
   && ok "implementing cites the hook, not a restatement" || bad "implementing cites the hook, not a restatement"
 
+fi  # section 1 skipped under M_SKILLS_ONLY=behaviour
+
 # ─────────────────────────────────────────────────────────────────────────────
 section "2. Behaviour — check-quality.sh gate resolution"
 
-CQ="$ROOT/skills/implementing-architect/check-quality.sh"
+CQ="$PLUGIN_UT/skills/implementing-architect/check-quality.sh"
 
 mk_node_project() { # <dir> <lockfile> <scripts-json>
   mkdir -p "$1"; printf '{"scripts":%s}' "$3" > "$1/package.json"; touch "$1/$2"
@@ -585,8 +607,8 @@ assert_contains "conf: empty means n-a" "$out" "Visual regression  n-a"
 # ─────────────────────────────────────────────────────────────────────────────
 section "3. Behaviour — profile-bootstrap.sh"
 
-BS="$ROOT/scripts/profile-bootstrap.sh"
-run_bs() { CLAUDE_PROJECT_DIR="$1" CLAUDE_PLUGIN_ROOT="$ROOT" bash "$BS" 2>/dev/null; }
+BS="$PLUGIN_UT/scripts/profile-bootstrap.sh"
+run_bs() { CLAUDE_PROJECT_DIR="$1" CLAUDE_PLUGIN_ROOT="$PLUGIN_UT" bash "$BS" 2>/dev/null; }
 
 # silence conditions
 mkdir -p "$TMP/hasprofile/.claude"; printf '{}' > "$TMP/hasprofile/package.json"
@@ -699,7 +721,7 @@ assert_missing  "no contradictory pending advice" "$out" "Leave §Design, §Depl
 
 # never writes without the opt-in env var
 [ -f "$BR/.claude/PROJECT-PROFILE.md" ] && bad "writes nothing by default" "a profile was created" || ok "writes nothing by default"
-out="$(CLAUDE_PROJECT_DIR="$BR" CLAUDE_PLUGIN_ROOT="$ROOT" M_SKILLS_AUTOPROFILE=1 bash "$BS" 2>/dev/null)"
+out="$(CLAUDE_PROJECT_DIR="$BR" CLAUDE_PLUGIN_ROOT="$PLUGIN_UT" M_SKILLS_AUTOPROFILE=1 bash "$BS" 2>/dev/null)"
 [ -f "$BR/.claude/PROJECT-PROFILE.md" ] && ok "M_SKILLS_AUTOPROFILE=1 writes a draft" || bad "M_SKILLS_AUTOPROFILE=1 writes a draft"
 assert_contains "the draft write is announced" "$out" "DRAFT has been written"
 
@@ -714,7 +736,7 @@ assert_empty "a freshly stamped profile reports no drift" "$(run_bs "$BR")"
 # ...on the greenfield path too. $WROTE was interpolated only into the brownfield
 # heredoc, so a file appeared in the user's repo and the session never said so.
 GW="$TMP/greenwrite"; mkdir -p "$GW"; printf '{"scripts":{}}' > "$GW/package.json"
-out="$(CLAUDE_PROJECT_DIR="$GW" CLAUDE_PLUGIN_ROOT="$ROOT" M_SKILLS_AUTOPROFILE=1 bash "$BS" 2>/dev/null)"
+out="$(CLAUDE_PROJECT_DIR="$GW" CLAUDE_PLUGIN_ROOT="$PLUGIN_UT" M_SKILLS_AUTOPROFILE=1 bash "$BS" 2>/dev/null)"
 [ -f "$GW/.claude/PROJECT-PROFILE.md" ] \
   && ok "greenfield + autoprofile writes a draft" || bad "greenfield + autoprofile writes a draft"
 assert_contains "greenfield draft write is announced too" "$out" "DRAFT has been written"
@@ -723,7 +745,7 @@ assert_contains "greenfield draft write is announced too" "$out" "DRAFT has been
 #    fixtures carry a profile so the only possible output is the secret report.
 mkgit()   { mkdir -p "$1/.claude" && git -C "$1" init -q >/dev/null 2>&1 && touch "$1/.claude/PROJECT-PROFILE.md"; }
 gcommit() { git -C "$1" add -A >/dev/null 2>&1; git -C "$1" -c user.name=t -c user.email=t@t -c commit.gpgsign=false commit -qm x >/dev/null 2>&1; }
-run_sec() { CLAUDE_PROJECT_DIR="$1" CLAUDE_PLUGIN_ROOT="$ROOT" CLAUDE_CONFIG_DIR="$TMP/nocfg" bash "$BS" 2>/dev/null; }
+run_sec() { CLAUDE_PROJECT_DIR="$1" CLAUDE_PLUGIN_ROOT="$PLUGIN_UT" CLAUDE_CONFIG_DIR="$TMP/nocfg" bash "$BS" 2>/dev/null; }
 
 S1="$TMP/sec-tracked"; mkgit "$S1"; mkdir -p "$S1/apps/api"
 printf 'KEY=real\n' > "$S1/apps/api/.env"; printf 'KEY=\n' > "$S1/.env.example"
@@ -775,7 +797,7 @@ assert_empty    "no git, no report"                   "$(run_sec "$S6")"
 # ─────────────────────────────────────────────────────────────────────────────
 section "4. Behaviour — adhd-always-on.sh"
 
-AD="$ROOT/scripts/adhd-always-on.sh"
+AD="$PLUGIN_UT/scripts/adhd-always-on.sh"
 mkdir -p "$TMP/home/.claude" "$TMP/proj/.claude"
 run_ad() { CLAUDE_PROJECT_DIR="$TMP/proj" CLAUDE_CONFIG_DIR="$TMP/home/.claude" bash "$AD" 2>/dev/null; }
 
@@ -797,7 +819,7 @@ assert_contains "global flag activates" "$(run_ad)" "all projects"
 rm "$TMP/home/.claude/.m-skills-adhd-always"
 
 # resume-progress.sh — the file existing means an implementing run never reached its summary.
-RP="$ROOT/scripts/resume-progress.sh"
+RP="$PLUGIN_UT/scripts/resume-progress.sh"
 mkdir -p "$TMP/rpproj/.claude"
 run_rp() { CLAUDE_PROJECT_DIR="$TMP/rpproj" bash "$RP" 2>/dev/null; }
 assert_empty    "resume: silent without PROGRESS.md"  "$(run_rp)"
@@ -818,7 +840,7 @@ section "5. Behaviour — suggest-skills.sh"
 # implementing-architect existed. These assertions cover the two ways that regresses:
 # the hook going quiet, and the roster going stale.
 
-SG="$ROOT/scripts/suggest-skills.sh"
+SG="$PLUGIN_UT/scripts/suggest-skills.sh"
 mkdir -p "$TMP/sghome/.claude" "$TMP/sgproj/.claude"
 run_sg() { CLAUDE_PROJECT_DIR="$TMP/sgproj" CLAUDE_CONFIG_DIR="$TMP/sghome/.claude" bash "$SG" 2>/dev/null; }
 
@@ -840,7 +862,7 @@ assert_contains "states the flag-file off-switch" "$out" ".m-skills-no-suggest"
 
 # Derived, not hardcoded: every gated skill must appear. A twelfth one added later and
 # missed here would be exactly the invisibility this hook exists to remove.
-for f in "$ROOT"/skills/*/SKILL.md; do
+for f in "$PLUGIN_UT"/skills/*/SKILL.md; do
   grep -q "^disable-model-invocation: true" "$f" || continue
   s="$(basename "$(dirname "$f")")"
   assert_contains "roster includes $s" "$out" "$s"
@@ -901,7 +923,7 @@ fi
 # decision <script> <json-payload> → "deny" | "ask" | "block" | "allow"
 decision() {
   local out res
-  out="$(printf '%s' "$2" | bash "$ROOT/scripts/$1" 2>/dev/null)"
+  out="$(printf '%s' "$2" | bash "$PLUGIN_UT/scripts/$1" 2>/dev/null)"
   [ -z "$out" ] && { echo allow; return; }
   res="$(printf '%s' "$out" | verdict)"
   printf '%s\n' "${res:-allow}"
@@ -1089,18 +1111,18 @@ expect "allow: ordinary util file"     allow "$(decision advise-propagation.sh "
 expect "allow: a test file"            allow "$(decision advise-propagation.sh "$(edit_payload 'src/models/user.spec.ts' 'a' 'b')")"
 
 # ── H3 preamble: this pack's skills only, and it must carry the resolved gates
-out="$(printf '{"hook_event_name":"UserPromptExpansion","command_name":"m-skills:testing-architect"}' | bash "$ROOT/scripts/skill-preamble.sh" 2>/dev/null)"
+out="$(printf '{"hook_event_name":"UserPromptExpansion","command_name":"m-skills:testing-architect"}' | bash "$PLUGIN_UT/scripts/skill-preamble.sh" 2>/dev/null)"
 assert_contains "preamble injects gate resolution" "$out" "Gate resolution"
 assert_contains "preamble injects §9"              "$out" "Inherited Guards"
 assert_contains "preamble names the skill"         "$out" "testing-architect"
-out="$(printf '{"hook_event_name":"UserPromptExpansion","command_name":"some-other-plugin:thing"}' | bash "$ROOT/scripts/skill-preamble.sh" 2>/dev/null)"
+out="$(printf '{"hook_event_name":"UserPromptExpansion","command_name":"some-other-plugin:thing"}' | bash "$PLUGIN_UT/scripts/skill-preamble.sh" 2>/dev/null)"
 assert_empty "preamble silent for other plugins" "$out"
-out="$(printf '{"hook_event_name":"UserPromptExpansion","command_name":"m-skills:guidelines-meta"}' | bash "$ROOT/scripts/skill-preamble.sh" 2>/dev/null)"
+out="$(printf '{"hook_event_name":"UserPromptExpansion","command_name":"m-skills:guidelines-meta"}' | bash "$PLUGIN_UT/scripts/skill-preamble.sh" 2>/dev/null)"
 assert_empty "preamble silent for guidelines-meta itself" "$out"
 
 # It is registered with no matcher, so it runs on EVERY user prompt: it must decide
 # "not mine" with a shell builtin, before spending a jq/python3 spawn on it.
-out="$(printf '{"hook_event_name":"UserPromptExpansion","prompt":"what does this repo do?"}' | bash "$ROOT/scripts/skill-preamble.sh" 2>/dev/null)"
+out="$(printf '{"hook_event_name":"UserPromptExpansion","prompt":"what does this repo do?"}' | bash "$PLUGIN_UT/scripts/skill-preamble.sh" 2>/dev/null)"
 assert_empty "preamble silent on an ordinary prompt" "$out"
 
 # Silence alone does not prove it was cheap — an early `exit 0` after the jq call
@@ -1113,7 +1135,7 @@ for engine in jq python3; do
 done
 rm -f "$SPY/spawned"
 printf '{"hook_event_name":"UserPromptExpansion","prompt":"an ordinary question"}' \
-  | PATH="$SPY:$PATH" bash "$ROOT/scripts/skill-preamble.sh" >/dev/null 2>&1
+  | PATH="$SPY:$PATH" bash "$PLUGIN_UT/scripts/skill-preamble.sh" >/dev/null 2>&1
 if [ -f "$SPY/spawned" ]; then
   bad "preamble spawns no JSON engine on an ordinary prompt" "jq/python3 was invoked; the cheap-exit is gone"
 else
@@ -1122,7 +1144,7 @@ fi
 # ...but it must still spawn one when the prompt IS a pack command, or it cannot work
 rm -f "$SPY/spawned"
 printf '{"hook_event_name":"UserPromptExpansion","command_name":"m-skills:code-review-architect"}' \
-  | PATH="$SPY:$PATH" bash "$ROOT/scripts/skill-preamble.sh" >/dev/null 2>&1
+  | PATH="$SPY:$PATH" bash "$PLUGIN_UT/scripts/skill-preamble.sh" >/dev/null 2>&1
 if [ -f "$SPY/spawned" ]; then
   ok "preamble still parses a real pack invocation"
 else
@@ -1131,11 +1153,11 @@ fi
 
 # Once per skill per session. A skill arriving via BOTH the slash command and the
 # Skill tool used to inject the identical ~40 lines twice.
-out="$(printf '{"hook_event_name":"UserPromptExpansion","command_name":"m-skills:deployment-architect"}' | bash "$ROOT/scripts/skill-preamble.sh" 2>/dev/null)"
+out="$(printf '{"hook_event_name":"UserPromptExpansion","command_name":"m-skills:deployment-architect"}' | bash "$PLUGIN_UT/scripts/skill-preamble.sh" 2>/dev/null)"
 assert_contains "preamble injects on first invocation" "$out" "deployment-architect"
-out="$(printf '{"hook_event_name":"PostToolUse","tool_input":{"skill":"m-skills:deployment-architect"}}' | bash "$ROOT/scripts/skill-preamble.sh" 2>/dev/null)"
+out="$(printf '{"hook_event_name":"PostToolUse","tool_input":{"skill":"m-skills:deployment-architect"}}' | bash "$PLUGIN_UT/scripts/skill-preamble.sh" 2>/dev/null)"
 assert_empty "preamble does not inject the same skill twice" "$out"
-out="$(printf '{"hook_event_name":"PostToolUse","tool_input":{"skill":"m-skills:design-architect"}}' | bash "$ROOT/scripts/skill-preamble.sh" 2>/dev/null)"
+out="$(printf '{"hook_event_name":"PostToolUse","tool_input":{"skill":"m-skills:design-architect"}}' | bash "$PLUGIN_UT/scripts/skill-preamble.sh" 2>/dev/null)"
 assert_contains "a different skill still injects" "$out" "design-architect"
 
 # ── Route commands resolve to the architect they route into. Unresolved, SKILL would
@@ -1143,7 +1165,7 @@ assert_contains "a different skill still injects" "$out" "design-architect"
 #    comes out EMPTY and the marker is written under the wrong key — which means the
 #    architect the command then reads injects the whole preamble a second time.
 RC='{"hook_event_name":"UserPromptExpansion","command_name":"m-skills:decompose","session_id":"%s"}'
-out="$(printf "$RC" "route-$$-a" | CLAUDE_SESSION_ID= bash "$ROOT/scripts/skill-preamble.sh" 2>/dev/null)"
+out="$(printf "$RC" "route-$$-a" | CLAUDE_SESSION_ID= bash "$PLUGIN_UT/scripts/skill-preamble.sh" 2>/dev/null)"
 assert_contains "route command resolves to its owner"      "$out" "preamble for \`product-architect\`"
 assert_contains "route command gets the owner's ref map"   "$out" "references/decompose.md"
 assert_contains "route command gets the owner's modules"   "$out" "module-writing-floor"
@@ -1151,11 +1173,11 @@ assert_missing  "route command is not mapped as itself"    "$out" "preamble for 
 # the dedupe that the resolution buys: the owner, loaded next by the command body,
 # must NOT inject a second copy in the same session
 out="$(printf '{"hook_event_name":"PostToolUse","tool_input":{"skill":"m-skills:product-architect"},"session_id":"route-'"$$"'-a"}' \
-       | CLAUDE_SESSION_ID= bash "$ROOT/scripts/skill-preamble.sh" 2>/dev/null)"
+       | CLAUDE_SESSION_ID= bash "$PLUGIN_UT/scripts/skill-preamble.sh" 2>/dev/null)"
 assert_empty "route command's owner does not inject twice" "$out"
 # a name that is neither a skill nor a command must not acquire an owner
 out="$(printf '{"hook_event_name":"UserPromptExpansion","command_name":"m-skills:not-a-thing","session_id":"route-'"$$"'-b"}' \
-       | CLAUDE_SESSION_ID= bash "$ROOT/scripts/skill-preamble.sh" 2>/dev/null)"
+       | CLAUDE_SESSION_ID= bash "$PLUGIN_UT/scripts/skill-preamble.sh" 2>/dev/null)"
 assert_missing "unknown name resolves to no owner" "$out" "What this skill composes from"
 rm -rf "${TMPDIR:-/tmp}/m-skills-$(id -u 2>/dev/null || echo 0)"/route-$$-*
 
@@ -1194,18 +1216,18 @@ expect "deny: playwright -u behind &&"            deny \
 #    that when the runtime exported none, the state dir was one shared name and the
 #    marker outlived the session — the preamble then injected once per MACHINE.
 SP='{"hook_event_name":"UserPromptExpansion","command_name":"m-skills:planning-architect","session_id":"%s"}'
-a="$(printf "$SP" "sess-$$-one" | CLAUDE_SESSION_ID= bash "$ROOT/scripts/skill-preamble.sh" 2>/dev/null)"
-b="$(printf "$SP" "sess-$$-one" | CLAUDE_SESSION_ID= bash "$ROOT/scripts/skill-preamble.sh" 2>/dev/null)"
-c="$(printf "$SP" "sess-$$-two" | CLAUDE_SESSION_ID= bash "$ROOT/scripts/skill-preamble.sh" 2>/dev/null)"
+a="$(printf "$SP" "sess-$$-one" | CLAUDE_SESSION_ID= bash "$PLUGIN_UT/scripts/skill-preamble.sh" 2>/dev/null)"
+b="$(printf "$SP" "sess-$$-one" | CLAUDE_SESSION_ID= bash "$PLUGIN_UT/scripts/skill-preamble.sh" 2>/dev/null)"
+c="$(printf "$SP" "sess-$$-two" | CLAUDE_SESSION_ID= bash "$PLUGIN_UT/scripts/skill-preamble.sh" 2>/dev/null)"
 assert_contains "payload session_id: first invocation injects"  "$a" "planning-architect"
 assert_empty    "payload session_id: same session stays silent" "$b"
 assert_contains "payload session_id: a NEW session injects"     "$c" "planning-architect"
 
 # the same guarantee for the propagation advisory, which is once-per-file-per-session
 PP='{"tool_name":"Edit","tool_input":{"file_path":"src/models/order.ts","old_string":"a","new_string":"b"},"session_id":"%s"}'
-a="$(printf "$PP" "prop-$$-one" | CLAUDE_SESSION_ID= bash "$ROOT/scripts/advise-propagation.sh" 2>/dev/null)"
-b="$(printf "$PP" "prop-$$-one" | CLAUDE_SESSION_ID= bash "$ROOT/scripts/advise-propagation.sh" 2>/dev/null)"
-c="$(printf "$PP" "prop-$$-two" | CLAUDE_SESSION_ID= bash "$ROOT/scripts/advise-propagation.sh" 2>/dev/null)"
+a="$(printf "$PP" "prop-$$-one" | CLAUDE_SESSION_ID= bash "$PLUGIN_UT/scripts/advise-propagation.sh" 2>/dev/null)"
+b="$(printf "$PP" "prop-$$-one" | CLAUDE_SESSION_ID= bash "$PLUGIN_UT/scripts/advise-propagation.sh" 2>/dev/null)"
+c="$(printf "$PP" "prop-$$-two" | CLAUDE_SESSION_ID= bash "$PLUGIN_UT/scripts/advise-propagation.sh" 2>/dev/null)"
 assert_contains "propagation: advises on first edit"  "$a" "shared-shape"
 assert_empty    "propagation: silent on second edit"  "$b"
 assert_contains "propagation: a NEW session advises"  "$c" "shared-shape"
@@ -1222,7 +1244,7 @@ expect "allow: NotebookEdit into a notebook"   allow \
 # ── A pick must provably start the skill it names (§17). It was prose only, and a
 #    session picked "Yes — run debugging-architect" and got a grep instead. The sequence
 #    under test: pick → marker; stop with it pending → held once; load → preamble + log.
-EP="$ROOT/scripts/enforce-picks.sh"
+EP="$PLUGIN_UT/scripts/enforce-picks.sh"
 PICKS_BASE="${TMPDIR:-/tmp}/m-skills-$(id -u 2>/dev/null || echo 0)"
 PICK_LOG="$CLAUDE_CONFIG_DIR/m-skills/picks.log"
 ask_payload() { # <session> <answer-json-value> [labels…] — tool_response as {answers}
@@ -1235,12 +1257,12 @@ read_payload() { printf '{"hook_event_name":"PostToolUse","tool_name":"Read","se
 pending() { [ -f "$PICKS_BASE/$1/pick/$2" ] && echo yes || echo no; }
 
 out="$(ask_payload "pick-$$-a" "$(esc 'Approve → implementing-architect')" 'Approve → implementing-architect' 'Revise the plan' 'Stop here' | bash "$EP" 2>/dev/null)"
-assert_contains "pick: names the SKILL.md to read"   "$out" "$ROOT/skills/implementing-architect/SKILL.md"
-assert_contains "pick: resolves CLAUDE_SKILL_DIR"    "$out" "means $ROOT/skills/implementing-architect"
+assert_contains "pick: names the SKILL.md to read"   "$out" "$PLUGIN_UT/skills/implementing-architect/SKILL.md"
+assert_contains "pick: resolves CLAUDE_SKILL_DIR"    "$out" "means $PLUGIN_UT/skills/implementing-architect"
 assert_eq       "pick: leaves a pending marker"      "$(pending "pick-$$-a" implementing-architect)" yes
 expect "stop: held while the pick is unloaded" block "$(decision enforce-picks.sh "$(stop_payload "pick-$$-a" false)")"
 assert_contains "stop: reason names the skill" "$(stop_payload "pick-$$-a" false | bash "$EP" 2>/dev/null)" "implementing-architect"
-out="$(read_payload "pick-$$-a" "$ROOT/skills/implementing-architect/SKILL.md" | bash "$EP" 2>/dev/null)"
+out="$(read_payload "pick-$$-a" "$PLUGIN_UT/skills/implementing-architect/SKILL.md" | bash "$EP" 2>/dev/null)"
 assert_contains "load: injects the preamble"         "$out" 'm-skills preamble for `implementing-architect`'
 assert_eq       "load: clears the marker"            "$(pending "pick-$$-a" implementing-architect)" no
 assert_contains "load: logged as loaded"             "$(grep "pick-$$-a" "$PICK_LOG" 2>/dev/null)" "implementing-architect	loaded"
@@ -1271,15 +1293,15 @@ assert_eq "pick: multiSelect marks the second" "$(pending "pick-$$-e" code-revie
 
 # a Bash cat of the file loads it as well as a Read does
 printf '{"hook_event_name":"PostToolUse","tool_name":"Bash","session_id":"pick-%s-e","tool_input":{"command":%s}}' \
-  "$$" "$(esc "cat $ROOT/skills/debugging-architect/SKILL.md")" | bash "$EP" >/dev/null 2>&1
+  "$$" "$(esc "cat $PLUGIN_UT/skills/debugging-architect/SKILL.md")" | bash "$EP" >/dev/null 2>&1
 assert_eq "load: Bash cat clears the marker" "$(pending "pick-$$-e" debugging-architect)" no
 printf '{"hook_event_name":"PostToolUse","tool_name":"Bash","session_id":"pick-%s-e","tool_input":{"command":%s}}' \
-  "$$" "$(esc "D=$ROOT/skills/code-review-architect; cat \$D/SKILL.md")" | bash "$EP" >/dev/null 2>&1
+  "$$" "$(esc "D=$PLUGIN_UT/skills/code-review-architect; cat \$D/SKILL.md")" | bash "$EP" >/dev/null 2>&1
 assert_eq "load: cat through a variable clears it" "$(pending "pick-$$-e" code-review-architect)" no
 
 # editing the pack reads SKILL.md files all day; with no pick pending that is silence
 assert_empty "load: silent with no pick pending" \
-  "$(read_payload "pick-$$-f" "$ROOT/skills/planning-architect/SKILL.md" | bash "$EP" 2>/dev/null)"
+  "$(read_payload "pick-$$-f" "$PLUGIN_UT/skills/planning-architect/SKILL.md" | bash "$EP" 2>/dev/null)"
 
 # the answer is untrusted text: never executed, never a path, never logged
 ask_payload "pick-$$-g" "$(esc 'Approve → implementing-architect $(touch '"$TMP"'/pwned) ../../x')" \
@@ -1309,6 +1331,7 @@ rm -rf "${TMPDIR:-/tmp}/m-skills-$(id -u 2>/dev/null || echo 0)/$CLAUDE_SESSION_
 unset CLAUDE_SESSION_ID CLAUDE_PROJECT_DIR CLAUDE_CONFIG_DIR
 fi
 
+if [ "$ONLY" != behaviour ]; then
 # ─────────────────────────────────────────────────────────────────────────────
 section "7. Antigravity — adapter and build"
 
@@ -1693,6 +1716,89 @@ else
     "structure:|signature" "hero.*three (equal )?cards"
 
 fi
+
+# ─────────────────────────────────────────────────────────────────────────────
+section "10. Claude directory release — build-claude.sh"
+
+CB="$ROOT/scripts/build-claude.sh"
+REL="$TMP/claude/dist/claude/m-skills"
+if out="$(bash "$CB" "$REL" 2>&1)"; then ok "build-claude builds the release tree"; else bad "build-claude builds the release tree" "$out"; fi
+assert_contains "the build names the manifest version" "$out" "(m-skills $pv)"
+if out="$(bash "$CB" "$TMP/claude/elsewhere" 2>&1)"; then
+  bad "refuses an output path it does not own" "it built into $TMP/claude/elsewhere"
+else
+  assert_contains "refuses an output path it does not own" "$out" "refusing to clear"
+fi
+
+# What ships: what an installed plugin loads, and the two files the directory requires.
+for f in .claude-plugin/plugin.json .claude-plugin/marketplace.json .claude-plugin/icon.png \
+         hooks/hooks.json README.md LICENSE THIRD-PARTY-NOTICES.md \
+         skills/guidelines-meta/SKILL.md skills/implementing-architect/check-quality.sh commands/onboard.md \
+         $(grep -oE 'scripts/[a-z-]+\.sh' "$ROOT/hooks/hooks.json" | sort -u); do
+  [ -f "$REL/$f" ] && ok "release ships $f" || bad "release ships $f"
+done
+# What stays on main: nothing an installed plugin runs needs it.
+for f in tests CHANGELOG.md CLAUDE.template.md SKILLS_INDEX.md settings.template.json README.release.md \
+         scripts/lib scripts/build-claude.sh scripts/build-codex.sh scripts/build-antigravity.sh \
+         scripts/codex-adapt.sh scripts/antigravity-adapt.sh; do
+  [ -e "$REL/$f" ] && bad "release leaves out $f" || ok "release leaves out $f"
+done
+
+# The directory's file limits: at most 512 files, every non-image under 256 KiB.
+n="$(find "$REL" -type f | wc -l | tr -d ' ')"
+[ "$n" -le 512 ] && ok "release holds at most 512 files ($n)" || bad "release holds at most 512 files" "$n files"
+assert_empty "no release file over 256 KiB" "$(find "$REL" -type f ! -name '*.png' -size +256k)"
+
+# The build is the guard against an unfollowable script, so each refusal is tested on
+# a planted copy: if a check were deleted from the build, its row here goes red.
+plant() { # <what> <lines appended to a hook script> <expected refusal>
+  local pl="$TMP/plant"
+  rm -rf "$pl"; mkdir -p "$pl/scripts"
+  cp -R "$ROOT/.claude-plugin" "$ROOT/skills" "$ROOT/commands" "$ROOT/hooks" "$pl/"
+  cp -R "$ROOT/scripts/." "$pl/scripts/"
+  cp "$ROOT/LICENSE" "$ROOT/THIRD-PARTY-NOTICES.md" "$ROOT/README.release.md" "$pl/"
+  printf '%s\n' "$2" >> "$pl/scripts/resume-progress.sh"
+  if out="$(bash "$pl/scripts/build-claude.sh" 2>&1)"; then
+    bad "build refuses $1" "it built"
+  else
+    assert_contains "build refuses $1" "$out" "$3"
+  fi
+}
+plant "a here-document"          "$(printf 'cat <<EOF\nx\nEOF')" "here-document"
+plant "a file loaded with ."     '. "$PLUGIN/extra"'             "loads a file"
+plant "a call to another script" 'bash "$PLUGIN/extra"'          "runs a script"
+plant "a script named in text"   'echo "see other.sh"'           "names a script"
+
+# The release README is the listing page: 40+ words outside code (the directory's floor),
+# and none of the text the validator reads as reading a credential or sending data.
+RM="$REL/README.md"
+words="$(awk '/^```/ { code = !code; next } !code' "$RM" | wc -w | tr -d ' ')"
+[ "$words" -ge 40 ] && ok "release README has 40+ words outside code ($words)" || bad "release README has 40+ words outside code" "$words"
+assert_empty "release README names no variable"          "$(grep -nE '\$[A-Za-z_{(]' "$RM")"
+assert_empty "release README spells no URL"              "$(grep -n '://' "$RM")"
+assert_empty "release README names no plugin-folder path" "$(grep -n '\.claude-plugin/' "$RM")"
+assert_empty "release README names no download tool"     "$(grep -niwE 'curl|wget' "$RM")"
+
+if command -v claude >/dev/null 2>&1; then
+  out="$(claude plugin validate "$REL/.claude-plugin/plugin.json" --strict 2>&1)"
+  assert_contains "release plugin manifest validates" "$out" "Validation passed"
+else
+  skip "release: claude plugin validate --strict" "claude CLI not on PATH"
+fi
+
+# Equivalence: sections 2–6 once against these sources and once against the release
+# build. Same pass count, zero failures, or the compiled hooks are not the same hooks.
+counts() { tr -d '\033' | sed 's/\[[0-9;]*m//g' | grep -oE '[0-9]+ (passed|skipped|failed)' | tr '\n' ' '; }
+src_out="$(M_SKILLS_ONLY=behaviour bash "$ROOT/tests/run-tests.sh" 2>&1)"; src_rc=$?
+rel_out="$(M_SKILLS_ONLY=behaviour M_SKILLS_PLUGIN="$REL" bash "$ROOT/tests/run-tests.sh" 2>&1)"; rel_rc=$?
+[ "$src_rc" -eq 0 ] && ok "behaviour sections pass on the sources: $(printf '%s' "$src_out" | counts)" \
+  || bad "behaviour sections pass on the sources" "$(printf '%s' "$src_out" | grep '✗' | head -5)"
+[ "$rel_rc" -eq 0 ] && ok "behaviour sections pass on the release build: $(printf '%s' "$rel_out" | counts)" \
+  || bad "behaviour sections pass on the release build" "$(printf '%s' "$rel_out" | grep '✗' | head -5)"
+assert_eq "the release build passes the same behaviour assertions as the sources" \
+  "$(printf '%s' "$rel_out" | counts)" "$(printf '%s' "$src_out" | counts)"
+
+fi  # sections 7–10 skipped under M_SKILLS_ONLY=behaviour
 
 # ─────────────────────────────────────────────────────────────────────────────
 printf '\n\033[1m─────────────────────────────\033[0m\n'

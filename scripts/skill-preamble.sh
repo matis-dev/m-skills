@@ -13,7 +13,7 @@
 #                          back to Claude while the turn continues.
 #
 # What it injects, deterministically, so the skill files stop re-deriving it:
-#   1. the gate table resolved by check-quality.sh --list
+#   1. the gate table, as implementing-architect's gate resolver lists it
 #   2. guidelines-meta §9, §10, §15, §19, read live from the skill file
 #   3. the composition map for this skill — which modules and reference files it
 #      names — derived by grepping the skill file rather than from a static table,
@@ -95,7 +95,7 @@ GUIDELINES="$DIR/../skills/guidelines-meta/SKILL.md"
 # Trade-off, stated because it is real: after a context compaction the preamble is
 # gone and will not re-fire for an already-marked skill. Acceptable — §9 and §10 are
 # enforced by guard-mutations.sh whether or not Claude remembers them, and the gate
-# table is re-derivable with `check-quality.sh --list`.
+# table is re-derivable from the gate resolver's --list mode.
 MARK="$(m_skills_state_dir "$SESSION")/preamble/$SKILL"
 [ -f "$MARK" ] && exit 0
 mkdir -p "$(dirname "$MARK")" 2>/dev/null || exit 0
@@ -169,8 +169,7 @@ $(printf '%s\n' "$FOREIGN_REFS" | sed 's/^/  - /')
 "
 fi
 
-BODY="$(cat <<EOF
-m-skills preamble for \`${SKILL}\` — injected by the plugin's hook, not by the model.
+BODY="$(printf '%s\n' "m-skills preamble for \`${SKILL}\` — injected by the plugin's hook, not by the model.
 
 ## Resolved gates for this project (Guidelines §5)
 
@@ -195,9 +194,7 @@ $(m_skills_section "$GUIDELINES" 10)
 
 $(m_skills_section "$GUIDELINES" 15)
 $(m_skills_section "$GUIDELINES" 19)
-${COMPOSITION}
-EOF
-)"
+${COMPOSITION}")"
 
 case "$EVENT" in
   UserPromptExpansion) emit_context "UserPromptExpansion" "$BODY" ;;

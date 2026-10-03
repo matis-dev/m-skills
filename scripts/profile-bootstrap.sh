@@ -96,8 +96,7 @@ $(bullets "$history")"
     [ -n "$tracked" ] && untrack="
 - Stop tracking. The user runs it, because git writes are theirs: \`git rm --cached $(printf '%s\n' "$tracked" | tr '\n' ' ' | sed 's/ $//')\`, then commit, with these lines in .gitignore:
 $ignore_lines"
-    cat <<EOF
-m-skills 🚨 SECRET FILES IN GIT — raise this with the user BEFORE anything else, including their current request.
+    printf '%s\n' "m-skills 🚨 SECRET FILES IN GIT — raise this with the user BEFORE anything else, including their current request.
 
 Found by name in git's index and log. No file was opened, so whether they hold real values is unknown — treat them as exposed.
 $tracked_part$history_part
@@ -106,20 +105,17 @@ Tell the user, plainly, first:
 - Rotate every credential these files ever held, at its provider. Untracking, deleting, or ignoring a file does not undo the exposure. Rotation is theirs; never attempt it.$untrack
 - Purging history (git filter-repo, BFG) rewrites every commit and needs a force-push. Name it as an option, never run it, and say rotation comes first.
 - Never open, cat, or grep these files to check the values — that is the exposure this prevents. \`git log --all --oneline -- <path>\` shows when one was committed without printing it.
-
-EOF
+"
   fi
 
   if [ -n "$unignored" ]; then
-    cat <<EOF
-m-skills ⚠️ ENV FILES NOT IGNORED BY GIT — one \`git add .\` away from being committed:
+    printf '%s\n' "m-skills ⚠️ ENV FILES NOT IGNORED BY GIT — one \`git add .\` away from being committed:
 $(bullets "$unignored")
 
 Open your reply with this in one line, whatever the user asked, and offer to add these lines to .gitignore (a file edit — ask first):
 $ignore_lines
 Confirm afterwards with \`git check-ignore -v <path>\`, never by opening the file.
-
-EOF
+"
   fi
 
   if [ "$hint" -eq 1 ]; then
@@ -129,19 +125,17 @@ EOF
       deny_read="$deny_read${deny_read:+, }\"./$p\""
       perm_deny="$perm_deny${perm_deny:+, }\"Read(./$p)\""
     done <<< "$on_disk"
-    cat <<EOF
-m-skills ℹ️ Real env files are on disk in this project:
+    printf '%s\n' "m-skills ℹ️ Real env files are on disk in this project:
 $(bullets "$on_disk")
-guard-secrets.sh denies reads that name them, but \`grep -r\` or a script that loads dotenv reaches them without naming them — only the OS closes that. At a natural pause, offer ONCE to merge this into .claude/settings.json (ask first; the sandbox also isolates the network, so point the user at /sandbox to review it):
+The m-skills secret guard denies reads that name them, but \`grep -r\` or a script that loads dotenv reaches them without naming them — only the OS closes that. At a natural pause, offer ONCE to merge this into .claude/settings.json (ask first; the sandbox also isolates the network, so point the user at /sandbox to review it):
 
 {
-  "permissions": { "deny": [$perm_deny] },
-  "sandbox": { "enabled": true, "filesystem": { "denyRead": [$deny_read] } }
+  \"permissions\": { \"deny\": [$perm_deny] },
+  \"sandbox\": { \"enabled\": true, \"filesystem\": { \"denyRead\": [$deny_read] } }
 }
 
 If they decline, create .claude/.m-skills-no-sandbox-hint so this is not offered again.
-
-EOF
+"
   fi
 }
 m_skills_secret_hygiene
@@ -180,9 +174,7 @@ if [ -f "$PROFILE" ]; then
   - path \`$c\` is named in the profile but does not exist"
         ;;
     esac
-  done <<EOF
-$CLAIMS
-EOF
+  done <<< "$CLAIMS"
 
   # 2. FINGERPRINT (cheap change-detection). Hash the inputs the profile was derived
   #    from. Different hash = something it depends on moved; re-verify it.
@@ -196,8 +188,7 @@ EOF
   # 3. Clean? Say nothing. Silence is the common case and must stay free.
   [ -z "$DRIFT" ] && exit 0
 
-  cat <<EOF
-m-skills: \`.claude/PROJECT-PROFILE.md\` makes claims that no longer match this repo.
+  printf '%s\n' "m-skills: \`.claude/PROJECT-PROFILE.md\` makes claims that no longer match this repo.
 This matters because the skills TRUST that file — a stale row silently misroutes every
 decision built on it.
 $DRIFT
@@ -206,8 +197,7 @@ WHAT TO DO — not now, and do not interrupt what the user asked for. At a natur
 mention the drift in ONE line and offer to fix just those rows. Verify against the repo
 before rewriting anything; do not regenerate the whole profile, and do not touch rows
 that are still correct. If a row is genuinely gone, \`n-a\` is the honest value.
-Record the new fingerprint as \`<!-- m-skills-fingerprint: $FP_NOW -->\` when you edit it.
-EOF
+Record the new fingerprint as \`<!-- m-skills-fingerprint: $FP_NOW -->\` when you edit it."
   exit 0
 fi
 
@@ -431,8 +421,7 @@ fi
 
 # ── Greenfield: nothing to detect, only to decide ─────────────────────────────
 if [ "$GREENFIELD" -eq 1 ]; then
-cat <<EOF
-m-skills: this looks like a project that has not really started yet ($SRC_COUNT source files found).
+printf '%s\n' "m-skills: this looks like a project that has not really started yet ($SRC_COUNT source files found).
 No \`.claude/PROJECT-PROFILE.md\` exists, and there is very little to detect from.
 
 What is knowable now:
@@ -455,20 +444,18 @@ skill first needs them — never to a questionnaire up front (Guidelines §5):
 
 So do NOT offer to fill the profile. Offer the conversation instead — at a natural pause, in ONE line:
 
-  "Project looks new — want to start with /m-skills:brainstorming-planner kickoff? It works out what
-   you're building and the first slice, and the setup falls out of that."
+  \"Project looks new — want to start with /m-skills:brainstorming-planner kickoff? It works out what
+   you're building and the first slice, and the setup falls out of that.\"
 
 That skill's Kickoff Mode is the greenfield entry point: it establishes what is being built, routes each
 foundational decision to the skill that owns it, defers the rest as \`pending\`, and ends with a plan for
 the first slice. If the user would rather just start coding, that is fine too — say nothing more and let
-the owning skills ask when they actually need something.
-EOF
+the owning skills ask when they actually need something."
 exit 0
 fi
 
 # ── Hand it to Claude ─────────────────────────────────────────────────────────
-cat <<EOF
-m-skills: this project has no \`.claude/PROJECT-PROFILE.md\`, so the pack's skills would
+printf '%s\n' "m-skills: this project has no \`.claude/PROJECT-PROFILE.md\`, so the pack's skills would
 auto-detect their commands every session instead of reading them once.
 
 Mechanically detected just now (verified from real files — safe to trust):
@@ -495,8 +482,8 @@ $GATES
 $WROTE
 
 WHAT TO DO WITH THIS — do not act on it now, and do not interrupt whatever the user
-actually asked for. At a natural pause, offer in ONE line: "No PROJECT-PROFILE.md here —
-want me to write one? ~2 min. /m-skills:onboard does it and also adopts the existing docs." Then:
+actually asked for. At a natural pause, offer in ONE line: \"No PROJECT-PROFILE.md here —
+want me to write one? ~2 min. /m-skills:onboard does it and also adopts the existing docs.\" Then:
 
 - Only if they say yes: fill the template at $PLUGIN/skills/guidelines-meta/PROJECT-PROFILE.template.md
   and write it to .claude/PROJECT-PROFILE.md. Fill every row the repo can answer — the detected values
@@ -513,6 +500,5 @@ want me to write one? ~2 min. /m-skills:onboard does it and also adopts the exis
   fires a deploy, where production secrets live, the coverage bar the team wants, the rollback
   they would actually perform. Asking a question the repo already answers is a defect.
 - Never invent a value to fill a row — an absent gate is \`n-a\`.
-- If they decline, create .claude/.m-skills-no-bootstrap so this never asks again.
-EOF
+- If they decline, create .claude/.m-skills-no-bootstrap so this never asks again."
 exit 0

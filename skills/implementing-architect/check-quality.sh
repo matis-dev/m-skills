@@ -96,8 +96,7 @@ if [ -f "$PROFILE" ]; then
       LINT|TYPECHECK|TEST|BUILD|E2E|VISUAL|A11Y|AUDIT|UPDATE_CMD|VISUAL_REPORT)
         printf -v "$pkey" '%s' "$pval"; PROFILE_SET=1 ;;
     esac
-  done <<PROFILE_ROWS
-$(awk '
+  done <<< "$(awk '
   function clean(c) {
     gsub(/^[ \t]+|[ \t]+$/, "", c); gsub(/`/, "", c)
     gsub(/^[ \t]+|[ \t]+$/, "", c); return c
@@ -135,8 +134,7 @@ $(awk '
     }
     next
   }
-' "$PROFILE")
-PROFILE_ROWS
+' "$PROFILE")"
   if [ "$PROFILE_SET" -eq 1 ]; then
     if [ -f "$CONF" ]; then SOURCE="$PROFILE, then $CONF, then auto-detection"
     else SOURCE="$PROFILE, then auto-detection"; fi
