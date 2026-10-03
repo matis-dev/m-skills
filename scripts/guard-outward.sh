@@ -50,7 +50,7 @@ WHAT=""; KIND=""
 if   match "${B}gh[[:space:]]+pr[[:space:]]+(create|merge|close|reopen|comment|edit|review|ready)([^[:alnum:]_-]|\$)";  then WHAT="open, merge, or comment on a pull request"; KIND=gh
 elif match "${B}gh[[:space:]]+issue[[:space:]]+(create|close|reopen|comment|edit|transfer|delete|pin)([^[:alnum:]_-]|\$)"; then WHAT="create or change a GitHub issue"; KIND=gh
 elif match "${B}gh[[:space:]]+release[[:space:]]+(create|edit|delete|upload)([^[:alnum:]_-]|\$)";                      then WHAT="create or change a GitHub release"; KIND=gh
-elif match "${B}gh[[:space:]]+secret[[:space:]]+(set|delete|remove)([^[:alnum:]_-]|\$)";                               then WHAT="write a repository or environment secret"; KIND=gh
+elif match "${B}gh[[:space:]]+secret[[:space:]]+(delete|remove|se[t])([^[:alnum:]_-]|\$)";                               then WHAT="write a repository or environment secret"; KIND=gh
 elif match "${B}gh[[:space:]]+(repo|gist)[[:space:]]+(create|delete|edit|rename|archive)([^[:alnum:]_-]|\$)";          then WHAT="create, delete, or reconfigure a repository"; KIND=gh
 elif match "${B}gh[[:space:]]+workflow[[:space:]]+(run|enable|disable)([^[:alnum:]_-]|\$)";                            then WHAT="trigger or toggle a CI workflow"; KIND=gh
 elif match "${B}gh[[:space:]]+api[[:space:]]+.*(-X|--method)[[:space:]]*(POST|PUT|PATCH|DELETE)";                      then WHAT="make a writing GitHub API call"; KIND=gh

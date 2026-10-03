@@ -1143,7 +1143,7 @@ assert_contains "a different skill still injects" "$out" "design-architect"
 #    comes out EMPTY and the marker is written under the wrong key — which means the
 #    architect the command then reads injects the whole preamble a second time.
 RC='{"hook_event_name":"UserPromptExpansion","command_name":"m-skills:decompose","session_id":"%s"}'
-out="$(printf "$RC" "route-$$-a" | env -u CLAUDE_SESSION_ID bash "$ROOT/scripts/skill-preamble.sh" 2>/dev/null)"
+out="$(printf "$RC" "route-$$-a" | CLAUDE_SESSION_ID= bash "$ROOT/scripts/skill-preamble.sh" 2>/dev/null)"
 assert_contains "route command resolves to its owner"      "$out" "preamble for \`product-architect\`"
 assert_contains "route command gets the owner's ref map"   "$out" "references/decompose.md"
 assert_contains "route command gets the owner's modules"   "$out" "module-writing-floor"
@@ -1151,11 +1151,11 @@ assert_missing  "route command is not mapped as itself"    "$out" "preamble for 
 # the dedupe that the resolution buys: the owner, loaded next by the command body,
 # must NOT inject a second copy in the same session
 out="$(printf '{"hook_event_name":"PostToolUse","tool_input":{"skill":"m-skills:product-architect"},"session_id":"route-'"$$"'-a"}' \
-       | env -u CLAUDE_SESSION_ID bash "$ROOT/scripts/skill-preamble.sh" 2>/dev/null)"
+       | CLAUDE_SESSION_ID= bash "$ROOT/scripts/skill-preamble.sh" 2>/dev/null)"
 assert_empty "route command's owner does not inject twice" "$out"
 # a name that is neither a skill nor a command must not acquire an owner
 out="$(printf '{"hook_event_name":"UserPromptExpansion","command_name":"m-skills:not-a-thing","session_id":"route-'"$$"'-b"}' \
-       | env -u CLAUDE_SESSION_ID bash "$ROOT/scripts/skill-preamble.sh" 2>/dev/null)"
+       | CLAUDE_SESSION_ID= bash "$ROOT/scripts/skill-preamble.sh" 2>/dev/null)"
 assert_missing "unknown name resolves to no owner" "$out" "What this skill composes from"
 rm -rf "${TMPDIR:-/tmp}/m-skills-$(id -u 2>/dev/null || echo 0)"/route-$$-*
 
@@ -1194,18 +1194,18 @@ expect "deny: playwright -u behind &&"            deny \
 #    that when the runtime exported none, the state dir was one shared name and the
 #    marker outlived the session — the preamble then injected once per MACHINE.
 SP='{"hook_event_name":"UserPromptExpansion","command_name":"m-skills:planning-architect","session_id":"%s"}'
-a="$(printf "$SP" "sess-$$-one" | env -u CLAUDE_SESSION_ID bash "$ROOT/scripts/skill-preamble.sh" 2>/dev/null)"
-b="$(printf "$SP" "sess-$$-one" | env -u CLAUDE_SESSION_ID bash "$ROOT/scripts/skill-preamble.sh" 2>/dev/null)"
-c="$(printf "$SP" "sess-$$-two" | env -u CLAUDE_SESSION_ID bash "$ROOT/scripts/skill-preamble.sh" 2>/dev/null)"
+a="$(printf "$SP" "sess-$$-one" | CLAUDE_SESSION_ID= bash "$ROOT/scripts/skill-preamble.sh" 2>/dev/null)"
+b="$(printf "$SP" "sess-$$-one" | CLAUDE_SESSION_ID= bash "$ROOT/scripts/skill-preamble.sh" 2>/dev/null)"
+c="$(printf "$SP" "sess-$$-two" | CLAUDE_SESSION_ID= bash "$ROOT/scripts/skill-preamble.sh" 2>/dev/null)"
 assert_contains "payload session_id: first invocation injects"  "$a" "planning-architect"
 assert_empty    "payload session_id: same session stays silent" "$b"
 assert_contains "payload session_id: a NEW session injects"     "$c" "planning-architect"
 
 # the same guarantee for the propagation advisory, which is once-per-file-per-session
 PP='{"tool_name":"Edit","tool_input":{"file_path":"src/models/order.ts","old_string":"a","new_string":"b"},"session_id":"%s"}'
-a="$(printf "$PP" "prop-$$-one" | env -u CLAUDE_SESSION_ID bash "$ROOT/scripts/advise-propagation.sh" 2>/dev/null)"
-b="$(printf "$PP" "prop-$$-one" | env -u CLAUDE_SESSION_ID bash "$ROOT/scripts/advise-propagation.sh" 2>/dev/null)"
-c="$(printf "$PP" "prop-$$-two" | env -u CLAUDE_SESSION_ID bash "$ROOT/scripts/advise-propagation.sh" 2>/dev/null)"
+a="$(printf "$PP" "prop-$$-one" | CLAUDE_SESSION_ID= bash "$ROOT/scripts/advise-propagation.sh" 2>/dev/null)"
+b="$(printf "$PP" "prop-$$-one" | CLAUDE_SESSION_ID= bash "$ROOT/scripts/advise-propagation.sh" 2>/dev/null)"
+c="$(printf "$PP" "prop-$$-two" | CLAUDE_SESSION_ID= bash "$ROOT/scripts/advise-propagation.sh" 2>/dev/null)"
 assert_contains "propagation: advises on first edit"  "$a" "shared-shape"
 assert_empty    "propagation: silent on second edit"  "$b"
 assert_contains "propagation: a NEW session advises"  "$c" "shared-shape"
