@@ -55,16 +55,16 @@ is_secret() {
 # a bracket expression is a set, not literal text) names nothing. With `shell`, a dotfile only matches a pattern that starts with a dot,
 # which is how bash expands it.
 glob_hits_secret() {
-  local pat="${1##*/}" name lit
-  lit="$(printf '%s' "$pat" | sed 's/\[[^]]*\]//g')"
+  local glob="${1##*/}" name lit
+  lit="$(printf '%s' "$glob" | sed 's/\[[^]]*\]//g')"
   case "$lit" in *[A-Za-z0-9]*) ;; *) return 1 ;; esac
   for name in .env .env.local .env.production .env.development .envrc \
               _.pem _.key _.p12 id_rsa id_ed25519 .npmrc .pypirc .netrc; do
     if [ "${2:-}" = shell ]; then
-      case "$name" in .*) case "$pat" in .*) ;; *) continue ;; esac ;; esac
+      case "$name" in .*) case "$glob" in .*) ;; *) continue ;; esac ;; esac
     fi
     # shellcheck disable=SC2053 # the right side is meant to be a pattern
-    [[ $name == $pat ]] && return 0
+    [[ $name == $glob ]] && return 0
   done
   return 1
 }
