@@ -1,7 +1,7 @@
 {
   "name": "m-skills",
   "displayName": "m-skills — portable dev pipeline",
-  "version": "4.2.0",
+  "version": "4.4.0",
   "description": "A simple plugin for full-stack developers who use Claude for real work. Five commands are the everyday loop — brainstorm, plan, implement, review, document; the rest wait until you need them. Project-agnostic: every command, framework, and convention resolves at runtime from a per-project PROJECT-PROFILE.md instead of being hardcoded. The strictest rules — no staging or committing, no auto-accepted golden updates, no secrets written into tracked files — are enforced by hooks that deny the call, not by prose the model has to remember.",
   "license": "MIT",
   "author": {
