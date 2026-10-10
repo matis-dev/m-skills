@@ -78,7 +78,7 @@ gated_names() {
 pick_lines() {
   case "$M_SKILLS_JSON_ENGINE" in
     jq)
-      printf '%s' "$INPUT" | jq -r '
+      printf '%s' "$INPUT" | m_skills_jq -r '
         def flat: gsub("[\t\n]"; " ");
         (.tool_input.questions[]?.options[]?.label | strings | "L\t" + flat),
         (.tool_response
@@ -91,7 +91,7 @@ pick_lines() {
           | "A\t" + flat)' 2>/dev/null
       ;;
     python3)
-      printf '%s' "$INPUT" | python3 -c '
+      printf '%s' "$INPUT" | m_skills_py -c '
 import json, re, sys
 try:
     d = json.load(sys.stdin)

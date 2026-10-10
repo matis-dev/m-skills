@@ -15,10 +15,14 @@
 #   out  hookSpecificOutput.permissionDecision "deny" — Codex blocks the call and shows
 #        the model the reason. No output = no opinion.
 #
-# Fails CLOSED, and never crashes: Codex runs the tool anyway when a hook exits non-zero
-# (observed with exit 127). Every path the patch names is checked — a secret file hidden
-# behind the first one, or reached by a Move to, still denies the whole patch. A header
-# this script does not know is denied rather than skipped.
+# Never crashes: Codex runs the tool anyway when a hook exits non-zero (observed with
+# exit 127). Every path the patch names is checked — a secret file hidden behind the
+# first one, or reached by a Move to, still denies the whole patch.
+#
+# When Codex changes — no patch text, or a header this script does not know — the
+# known paths are still checked, the rest goes through, and a line naming what was
+# unreadable lands in ~/.claude/m-skills/guards.log. A host update is not the user's
+# mistake, and denying would stop all their edits until m-skills caught up.
 
 set -uo pipefail
 
@@ -29,22 +33,25 @@ deny() {
   exit 0
 }
 
-DIR="$(cd "$(dirname -- "$0")" 2>/dev/null && pwd)" || deny "m-skills adapter: cannot locate its own directory, so this edit could not be checked."
+# A broken install steps aside: the guard cannot run, and that is no reason to stop work.
+DIR="$(cd "$(dirname -- "$0")" 2>/dev/null && pwd)" || exit 0
 # shellcheck source=lib/hook-json.sh
-. "$DIR/lib/hook-json.sh" 2>/dev/null || deny "m-skills adapter: scripts/lib/hook-json.sh is missing, so this edit could not be checked."
+. "$DIR/lib/hook-json.sh" 2>/dev/null || exit 0
 
 m_skills_guards_disabled && exit 0
 
 INPUT="$(hook_read_input)"
 [ -z "$INPUT" ] && exit 0
 
-[ -n "$M_SKILLS_JSON_ENGINE" ] \
-  || deny "m-skills guard: neither jq nor python3 is available, so this edit could not be checked against the secret-file guard. Guards fail closed by design. Install jq or python3, or opt out with: touch .claude/.m-skills-no-guards"
+guard_require_json_engine
 
 [ "$(json_field "$INPUT" "tool_name")" = apply_patch ] || exit 0
 
 PATCH="$(json_field "$INPUT" "tool_input.command")"
-[ -n "$PATCH" ] || deny "m-skills adapter: apply_patch arrived without its patch text, so it could not be checked. Guards fail closed; if Codex renamed the argument, rebuild the plugin from an updated m-skills."
+if [ -z "$PATCH" ]; then
+  m_skills_guard_log "Codex sent apply_patch without its patch text; update scripts/codex-adapt.sh"
+  exit 0
+fi
 
 SESSION="$(json_string "$(json_field "$INPUT" "session_id")")"
 PATHS=0
@@ -54,7 +61,11 @@ while IFS= read -r line; do
     '*** Begin Patch'*|'*** End Patch'*|'*** End of File'*) continue ;;
   esac
   [[ $line =~ ^[[:space:]]*\*\*\*[[:space:]]*(Add\ File|Update\ File|Delete\ File|Move\ to):[[:space:]]*(.*[^[:space:]])[[:space:]]*$ ]] || {
-    [[ $line =~ ^[[:space:]]*\*\*\*[[:space:]] ]] && deny "m-skills adapter: apply_patch carries a header this adapter does not know (${line:0:80}), so the files it touches could not be checked. Rebuild the plugin from an updated m-skills."
+    if [[ $line =~ ^[[:space:]]*\*\*\*[[:space:]]*([A-Za-z][A-Za-z ]*): ]]; then
+      m_skills_guard_log "apply_patch header '${BASH_REMATCH[1]}' is unknown, its file went unchecked; update scripts/codex-adapt.sh"
+    elif [[ $line =~ ^[[:space:]]*\*\*\*[[:space:]] ]]; then
+      m_skills_guard_log "apply_patch carries an unnamed header, its file went unchecked; update scripts/codex-adapt.sh"
+    fi
     continue
   }
   PATHS=$((PATHS + 1))
@@ -67,5 +78,5 @@ while IFS= read -r line; do
   esac
 done <<< "$PATCH"
 
-[ "$PATHS" -gt 0 ] || deny "m-skills adapter: apply_patch names no file this adapter can find, so it could not be checked. Guards fail closed."
+[ "$PATHS" -gt 0 ] || m_skills_guard_log "apply_patch named no file this adapter can find; update scripts/codex-adapt.sh"
 exit 0

@@ -15,10 +15,12 @@
 #   cwd  the plugin directory, and no plugin-root variable is exported.
 #
 # multi_replace_file_content was not captured; TargetFile is inferred from its sibling.
-# If that guess is wrong the call is denied below, visibly, rather than waved through.
 #
-# Fails CLOSED. The guards treat an empty command or path as "nothing to check", so a
-# payload whose argument this cannot find must never reach them as empty.
+# When agy changes — an argument renamed, so this cannot find what to check — the call
+# goes through and a line naming the tool lands in ~/.claude/m-skills/guards.log. A host
+# update is not the user's mistake, and denying would stop all their work until m-skills
+# caught up. Only a fault in m-skills itself (an unknown guard name, an unreadable guard
+# answer) still denies.
 
 set -uo pipefail
 
@@ -28,9 +30,10 @@ deny() {
   exit 0
 }
 
-DIR="$(cd "$(dirname -- "$0")" 2>/dev/null && pwd)" || deny "m-skills adapter: cannot locate its own directory, so this call could not be checked."
+# A broken install steps aside: the guards cannot run, and that is no reason to stop work.
+DIR="$(cd "$(dirname -- "$0")" 2>/dev/null && pwd)" || exit 0
 # shellcheck source=lib/hook-json.sh
-. "$DIR/lib/hook-json.sh" 2>/dev/null || deny "m-skills adapter: scripts/lib/hook-json.sh is missing, so this call could not be checked."
+. "$DIR/lib/hook-json.sh" 2>/dev/null || exit 0
 
 GUARD="${1:-}"
 case "$GUARD" in
@@ -38,22 +41,14 @@ case "$GUARD" in
   *) deny "m-skills adapter: unknown guard '${GUARD}' in hooks.json." ;;
 esac
 
+# The cwd is the plugin directory, so this reaches only the global flag; the project
+# flag resolves inside the guard, once workspacePaths has set CLAUDE_PROJECT_DIR.
+m_skills_guards_disabled && exit 0
+
 INPUT="$(hook_read_input)"
 [ -z "$INPUT" ] && exit 0
 
-[ -n "$M_SKILLS_JSON_ENGINE" ] \
-  || deny "m-skills guard: neither jq nor python3 is available, so this call could not be checked against the Guidelines §9/§10 guards. Guards fail closed by design. Install jq or python3, or opt out with: touch .claude/.m-skills-no-guards"
-
-first_workspace() {
-  case "$M_SKILLS_JSON_ENGINE" in
-    jq) printf '%s' "$1" | jq -r '.workspacePaths[0] // ""' 2>/dev/null ;;
-    python3) printf '%s' "$1" | python3 -c '
-import json, sys
-try: w = json.load(sys.stdin).get("workspacePaths") or [""]
-except Exception: w = [""]
-print(w[0] if isinstance(w[0], str) else "")' 2>/dev/null ;;
-  esac
-}
+guard_require_json_engine
 
 TOOL="$(json_field "$INPUT" "toolCall.name")"
 case "$TOOL" in
@@ -65,9 +60,14 @@ case "$TOOL" in
   *) exit 0 ;;
 esac
 
-[ -n "$ARG" ] || deny "m-skills adapter: ${TOOL} arrived without the argument the guards check, so it could not be verified. Guards fail closed; if agy renamed the argument, rebuild the plugin from an updated m-skills."
+# Empty means agy renamed the argument. The guards would read that as "nothing to
+# check", so it is logged where the user can find it, then the call goes through.
+if [ -z "$ARG" ]; then
+  m_skills_guard_log "agy sent ${TOOL} without the argument the guards check; update scripts/antigravity-adapt.sh"
+  exit 0
+fi
 
-WS="$(first_workspace "$INPUT")"
+WS="$(json_field "$INPUT" "workspacePaths.0")"
 [ -n "$WS" ] && export CLAUDE_PROJECT_DIR="$WS"
 
 PAYLOAD="$(printf '{"tool_name":"%s","tool_input":{"%s":%s},"session_id":%s}' \

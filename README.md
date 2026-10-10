@@ -404,7 +404,7 @@ The IDE runs no hooks at all ([reproduced on IDE 2.1.1, August 2026](https://dis
 - **No advisories, no gate preamble, no pick check.** The skip-marker and shared-shape nudges, the resolved gate table injected when a skill starts, and the check that a picked skill was loaded are Claude Code only.
 - **Headless `agy -p` refuses any shell command it would normally ask about**, so check the guards in an interactive session.
 
-**When agy changes.** The adapter (`scripts/antigravity-adapt.sh`) translates agy's hook payload using argument names captured from agy 1.2.2. If agy renames one, the adapter denies the call rather than letting it through unchecked. Update the adapter and the `ag_*` payload builders in `tests/run-tests.sh` section 7 together.
+**When agy changes.** The adapter (`scripts/antigravity-adapt.sh`) translates agy's hook payload using argument names captured from agy 1.2.2. If agy renames one, the call goes through unchecked and `~/.claude/m-skills/guards.log` gets a line naming the tool, so a host update never stops your work. When that line appears, update the adapter and the `ag_*` payload builders in `tests/run-tests.sh` section 7 together. The Codex adapter works the same way for an `apply_patch` it cannot read.
 
 ---
 
@@ -623,10 +623,15 @@ Seven hooks close that gap. Three **guards** decide, three **advisories** inform
 
 Three properties are deliberate and worth knowing before you rely on them:
 
-- **The guards fail closed; the advisories fail open.** A guard that cannot parse its input
-  denies rather than waving the command through — allowing on failure is exactly the
-  fail-open pattern `code-review-architect` Phase 4 flags under OWASP A10. A missed advisory
-  costs nothing, so it exits quietly.
+- **Your machine and your host never block your work.** A guard that cannot run — no JSON
+  reader at all, or Antigravity or Codex renaming the argument it checks — lets the call
+  through and writes one line to `~/.claude/m-skills/guards.log` (time, script, what was
+  missing; never the command or path). A broken install, with `scripts/lib/hook-json.sh`
+  missing, lets the call through too but logs nothing, since the logger lives in that
+  file. The guards are a tripwire, not the security
+  boundary (that is the sandbox, below), and a tripwire that blocks every call over a missing
+  tool gets switched off entirely. Only a fault in m-skills itself, such as an unknown guard
+  name, still denies. Advisories exit quietly.
 - **Secret files are closed both ways; their examples stay open.** `guard-secrets.sh` denies
   reading and writing `.env`, keys, and credential files — through `Read`, `Grep`, or a shell
   command that names the path (`cat .env`, `source .env`, `--env-file=.env`, `open('.env')`,
@@ -677,9 +682,23 @@ respect the same flag, and so does the bootstrap's secret-file check — `.m-ski
 does not mute that one. The preamble injection ignores the flag, since it is context rather than
 enforcement.
 
-**Dependencies.** The hook scripts need `jq` **or** `python3` — parsing a shell command out of
-JSON with `sed` is how a guard gets bypassed by a quoted newline. Everything else in the pack,
-`tests/run-tests.sh` included, remains bash + coreutils only.
+**Dependencies.** None beyond bash and coreutils — install nothing, including on a work laptop
+that may not install Python. Each hook reads its JSON input with a real parser, because pulling
+a command out of JSON with `sed` is how a guard gets bypassed by a quoted newline: `jq` if the
+machine has it, else a Python 3 (`python3`, `python`, or `py -3`, each test-run first, so the
+Windows Store `python3` stub is skipped), else a reader built into the pack in awk. All three
+give the same answers; `tests/run-tests.sh` section 6b checks that on every reader present, and
+section 10 reruns every hook test with jq and Python hidden. The one exception is the pick
+check (`enforce-picks.sh`): it needs jq or Python, and without either it is inactive rather
+than blocking.
+
+**On Windows.** Every hook is started as `bash`, so Git Bash must be on `PATH` before the
+plugin is enabled (`C:\Program Files\Git\bin`, then restart the IDE). If `bash` resolves to
+`C:\Windows\System32\bash.exe` instead, that is WSL: the hooks run on the Linux side and see
+the wrong paths, so put Git's `bin` ahead of it. To switch the guards off, create
+`~/.claude/.m-skills-no-guards` (PowerShell: `New-Item -Force ~/.claude/.m-skills-no-guards`),
+or `.claude/.m-skills-no-guards` in one project. Never patch `exit 0` into the scripts: every
+hook sources `scripts/lib/hook-json.sh`, so one edit there silently disables them all.
 
 **What deliberately stayed prose.** Hooks that cannot decide correctly are worse than no hook.
 The design craft floor and refuse list judge a *rendered* result, so no script can check them.

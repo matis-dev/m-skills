@@ -15,7 +15,7 @@
 # dotenv itself) passes. The boundary is sandbox.filesystem.denyRead — see README,
 # Enforcement.
 #
-# Opt out with .claude/.m-skills-no-guards. Fails CLOSED.
+# Opt out with .claude/.m-skills-no-guards. With no JSON reader at all, steps aside and logs.
 
 set -uo pipefail
 
@@ -44,10 +44,12 @@ GUARDED_FILE_RE="$GUARDED_RE|(^|/)[^/]+\\.env\$"
 # `.key`, JS's `obj.key` split at the dot — not a file with a name.
 BARE_EXT='^\.(pem|key|p12|pfx|jks|keystore)$'
 
-# is_secret <path> <regex>
+# is_secret <path> <regex>. A Windows path (C:\proj\.env) is read with forward
+# slashes, or no (^|/) anchor ever matches it.
 is_secret() {
-  printf '%s' "$1" | grep -Eq "$EXAMPLE" && return 1
-  printf '%s' "$1" | grep -Eq "$2"
+  local p="${1//\\//}"
+  printf '%s' "$p" | grep -Eq "$EXAMPLE" && return 1
+  printf '%s' "$p" | grep -Eq "$2"
 }
 
 # glob_hits_secret <pattern> [shell] — whether a glob would match a secret file:
@@ -55,7 +57,8 @@ is_secret() {
 # a bracket expression is a set, not literal text) names nothing. With `shell`, a dotfile only matches a pattern that starts with a dot,
 # which is how bash expands it.
 glob_hits_secret() {
-  local glob="${1##*/}" name lit
+  local glob="${1//\\//}" name lit
+  glob="${glob##*/}"
   lit="$(printf '%s' "$glob" | sed 's/\[[^]]*\]//g')"
   case "$lit" in *[A-Za-z0-9]*) ;; *) return 1 ;; esac
   for name in .env .env.local .env.production .env.development .envrc \
@@ -71,8 +74,14 @@ glob_hits_secret() {
 
 # words <text> — one word per line, split on whitespace, quotes, and shell
 # punctuation, so `--env-file=.env`, `HEAD:.env`, `open('.env')` and `$(<.env)`
-# all surface `.env` as a word of its own.
-words() { printf '%s' "$1" | tr -s "[:space:]\"'\`;|&<>(){}=,:@\$" '\n'; }
+# all surface `.env` as a word of its own. On Windows, where the command runs in
+# PowerShell or cmd, a backslash separates paths and splits too (`C:\proj\.env`);
+# elsewhere it is an escape, and `grep '\.env'` names no file.
+if [ "${OS:-}" = Windows_NT ]; then
+  words() { printf '%s' "$1" | tr -s "[:space:]\"'\`;|&<>(){}=,:@\$\\\\" '\n'; }
+else
+  words() { printf '%s' "$1" | tr -s "[:space:]\"'\`;|&<>(){}=,:@\$" '\n'; }
+fi
 
 # names_only <segment> — commands that name a secret path without printing what
 # is inside it. Anything else that names one counts as a read.

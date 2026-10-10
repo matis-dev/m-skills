@@ -15,7 +15,7 @@
 # because it is four lines here and the failure mode is unrecoverable.
 #
 # Opt out with .claude/.m-skills-no-guards (project) or in $CLAUDE_CONFIG_DIR (global).
-# Fails CLOSED: an unverifiable guard denies rather than waving the command through.
+# With no JSON reader at all, steps aside and logs it to guards.log (README, Enforcement).
 
 set -uo pipefail
 

@@ -20,7 +20,7 @@
 # `gh issue view|list`, `gh run view|list`. code-review-architect reviews a PR by
 # fetching it with the platform CLI, and denying that would break the review path.
 #
-# Opt out with .claude/.m-skills-no-guards. Fails CLOSED.
+# Opt out with .claude/.m-skills-no-guards. With no JSON reader at all, steps aside and logs.
 
 set -uo pipefail
 

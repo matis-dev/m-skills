@@ -460,11 +460,12 @@ done
 assert_empty "composition map advertises only paths that resolve" "$badmap"
 rm -rf "${TMPDIR:-/tmp}/m-skills-$(id -u 2>/dev/null || echo 0)"/map-$$-*
 
-# guards must fail closed, advisories must fail open — asserted on the source,
-# because a hook that silently allows is indistinguishable from one that passed
+# with no JSON reader at all, guards step aside and log it, advisories stay silent —
+# asserted on the source, because a hook that skips the check reads an empty field
+# as "nothing to check" and allows without a trace
 for g in guard-mutations guard-outward guard-secrets; do
   grep -q 'guard_require_json_engine' "$ROOT/scripts/$g.sh" \
-    && ok "$g fails closed without a JSON engine" || bad "$g fails closed without a JSON engine"
+    && ok "$g logs when it has no JSON reader" || bad "$g logs when it has no JSON reader"
 done
 for a in skill-preamble warn-test-weakening advise-propagation enforce-picks; do
   grep -q 'advisory_require_json_engine' "$ROOT/scripts/$a.sh" \
@@ -911,9 +912,6 @@ section "6. Behaviour — the enforcement hooks"
 # to live only in prose, so a regression here silently returns the pack to the state
 # where §9 was restated eleven times and enforced zero times.
 
-if ! command -v jq >/dev/null 2>&1 && ! command -v python3 >/dev/null 2>&1; then
-  skip "hook behaviour" "neither jq nor python3 available"
-else
 
 # Isolate the hooks' per-session state so one run cannot silence the next.
 export CLAUDE_SESSION_ID="test-$$"
@@ -921,22 +919,17 @@ export CLAUDE_PROJECT_DIR="$TMP/hookproj"
 export CLAUDE_CONFIG_DIR="$TMP/hookconfig"
 mkdir -p "$CLAUDE_PROJECT_DIR/.claude" "$CLAUDE_CONFIG_DIR"
 
-# The block above admits either engine, so these two must too. Hardcoding python3
-# made every assertion below evaluate to "allow" on a jq-only box — ~70 silent passes
-# reported as failures with no hint that the harness, not the hook, was broken.
-if command -v jq >/dev/null 2>&1; then
-  esc() { printf '%s' "$1" | jq -Rs .; }
-  verdict() { jq -r '.hookSpecificOutput.permissionDecision // .decision // "allow"' 2>/dev/null; }
-else
-  esc() { printf '%s' "$1" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))'; }
-  verdict() { python3 -c '
-import json,sys
-try: d = json.load(sys.stdin)
-except Exception: print("allow"); sys.exit()
-h = d.get("hookSpecificOutput") or {}
-print(h.get("permissionDecision") or d.get("decision") or "allow")
-' 2>/dev/null; }
-fi
+# Payloads are built and verdicts read with the hooks' own library, so these rows run on
+# any machine — the hooks need no jq or Python, and neither does their test. The
+# readers are checked against each other and against fixed answers in 6b.
+. "$ROOT/scripts/lib/hook-json.sh"
+esc() { json_string "$1"; }
+verdict() {
+  local out d; out="$(cat)"
+  d="$(json_field "$out" hookSpecificOutput.permissionDecision)"
+  [ -n "$d" ] || d="$(json_field "$out" decision)"
+  printf '%s\n' "${d:-allow}"
+}
 
 # decision <script> <json-payload> → "deny" | "ask" | "block" | "allow"
 decision() {
@@ -1073,6 +1066,11 @@ sec() { decision guard-secrets.sh "$(bash_payload "$1")"; }
 expect "deny: Read .env"                   deny  "$(decision guard-secrets.sh "$(write_payload Read '/p/.env')")"
 expect "deny: Read nested .env.production" deny  "$(decision guard-secrets.sh "$(write_payload Read '/p/apps/api/.env.production')")"
 expect "deny: Read docker.env"             deny  "$(decision guard-secrets.sh "$(write_payload Read '/p/docker.env')")"
+# Windows paths: the (^|/) anchors saw no slash in C:\p\.env and let it through
+expect "deny: Read a Windows-path .env"    deny  "$(decision guard-secrets.sh "$(write_payload Read 'C:\p\.env')")"
+expect "deny: Write a Windows-path id_rsa" deny  "$(decision guard-secrets.sh "$(write_payload Write 'C:\Users\u\.ssh\id_rsa')")"
+expect "allow: Read a Windows-path .env.example" allow "$(decision guard-secrets.sh "$(write_payload Read 'C:\p\.env.example')")"
+expect "deny: type of a Windows-path .env on Windows" deny "$(OS=Windows_NT sec 'type C:\p\.env')"
 expect "deny: Read id_rsa"                 deny  "$(decision guard-secrets.sh "$(write_payload Read '/home/u/.ssh/id_rsa')")"
 expect "deny: Grep pointed at .env.local"  deny  "$(decision guard-secrets.sh "$(grep_payload path '/p/.env.local')")"
 expect "deny: Grep globbed to .env*"       deny  "$(decision guard-secrets.sh "$(grep_payload glob '.env*')")"
@@ -1270,6 +1268,11 @@ expect "allow: NotebookEdit into a notebook"   allow \
 # ── A pick must provably start the skill it names (§17). It was prose only, and a
 #    session picked "Yes — run debugging-architect" and got a grep instead. The sequence
 #    under test: pick → marker; stop with it pending → held once; load → preamble + log.
+# The pick check reads the picker's options with jq or Python only; on a machine with
+# neither it is inactive by design (README § Enforcement), so its rows skip there.
+if ! command -v jq >/dev/null 2>&1 && ! command -v python3 >/dev/null 2>&1; then
+  skip "pick check" "inactive without jq or Python, by design"
+else
 EP="$PLUGIN_UT/scripts/enforce-picks.sh"
 PICKS_BASE="${TMPDIR:-/tmp}/m-skills-$(id -u 2>/dev/null || echo 0)"
 PICK_LOG="$CLAUDE_CONFIG_DIR/m-skills/picks.log"
@@ -1342,6 +1345,7 @@ assert_empty "opt-out releases the pick check" \
   "$(ask_payload "pick-$$-h" "$(esc 'Approve → implementing-architect')" 'Approve → implementing-architect' | bash "$EP" 2>/dev/null)"
 rm -f "$CLAUDE_PROJECT_DIR/.claude/.m-skills-no-guards"
 rm -rf "$PICKS_BASE"/pick-$$-*
+fi
 
 # ── the opt-out must release every guard, or the pack is unusable for anyone who
 #    wants Claude to touch git at all
@@ -1353,9 +1357,57 @@ expect "opt-out releases outward gate"  allow "$(decision guard-outward.sh "$(ba
 rm -f "$CLAUDE_PROJECT_DIR/.claude/.m-skills-no-guards"
 expect "guard re-arms once flag is gone" deny "$(decision guard-mutations.sh "$(bash_payload 'git commit -m x')")"
 
+# ── 6b. The JSON readers agree. A guard reads its payload with jq, Python, or the
+#    built-in awk reader — whichever the machine has. Any answer one gives and another
+#    does not is a way past the guards on the machines that have it, so every reader
+#    present must give these fixed answers. awk always runs; so does gawk --posix when
+#    gawk is the awk, to catch an extension the other awks lack.
+READERS="awk"
+command -v gawk >/dev/null 2>&1 && READERS="$READERS gawk-posix"
+command -v mawk >/dev/null 2>&1 && READERS="$READERS mawk"
+command -v jq >/dev/null 2>&1 && READERS="$READERS jq"
+command -v python3 >/dev/null 2>&1 && READERS="$READERS python3"
+rd() { # <reader> <payload> <path>
+  (
+    case "$1" in
+      gawk-posix) M_SKILLS_JSON_ENGINE=awk; awk() { command gawk --posix "$@"; } ;;
+      mawk)       M_SKILLS_JSON_ENGINE=awk; awk() { command mawk "$@"; } ;;
+      python3)    M_SKILLS_JSON_ENGINE=python3; M_SKILLS_PY=(python3) ;;
+      *)          M_SKILLS_JSON_ENGINE="$1" ;;
+    esac
+    json_field "$2" "$3"
+  )
+}
+agree() { # <label> <payload> <path> <expected> [readers]
+  local r
+  for r in ${5:-$READERS}; do expect "reader $r: $1" "$4" "$(rd "$r" "$2" "$3")"; done
+}
+agree "the last duplicate key wins"             '{"tool_input":{"command":"ls","command":"git push"}}' tool_input.command 'git push'
+agree "a later ancestor discards an earlier find" '{"tool_input":{"command":"git push"},"tool_input":{}}' tool_input.command ''
+agree "a deeper key of the same name is not read" '{"tool_input":{"x":{"command":"git push"}}}' tool_input.command ''
+agree "a \\u escape decodes"                     '{"tool_input":{"command":"git push"}}' tool_input.command 'git push'
+agree "an escaped key matches"                  '{"tool_input":{"command":"git push"}}' tool_input.command 'git push'
+agree "a surrogate pair is one character"       '{"a":"😀"}' a "$(printf '\360\237\230\200')"
+agree "escaped quote, backslash, and slash"     '{"a":"q\"b\\n\/"}' a 'q"b\n/'
+agree "a raw newline in a string is invalid"    "$(printf '{"a":"x\ny"}')" a ''
+agree "an unknown escape is invalid"            '{"a":"\q"}' a ''
+agree "a truncated payload is invalid"          '{"a":"x"' a ''
+agree "true reads as text"                      '{"a":true}' a 'true'
+agree "null reads as empty"                     '{"a":null}' a ''
+agree "CRLF between tokens is whitespace"       "$(printf '{"a":\r\n"x"}')" a 'x'
+agree "a numeric segment indexes an array"     '{"w":["/a","/b"]}' w.1 '/b'
+agree "an index past the end is empty"          '{"w":["/a"]}' w.3 ''
+agree "a numeric key on an object is a key"     '{"w":{"0":"k"}}' w.0 'k'
+agree "a long number does not end the parse"    '{"a":123456789012345678901234567890123456789,"b":"x"}' b 'x'
+# jq rejects a whole payload over one lone surrogate anywhere in it, and a guard handed
+# nothing allows the call. Python reads past one in another field but cannot print one in
+# the field it reads, so it joins this row only. The awk reader decodes it to U+FFFD.
+agree "a lone surrogate elsewhere hides nothing" '{"tool_input":{"command":"git push","description":"\ud800"}}' \
+  tool_input.command 'git push' \
+  "awk $(command -v gawk >/dev/null 2>&1 && echo gawk-posix) $(command -v python3 >/dev/null 2>&1 && echo python3)"
+
 rm -rf "${TMPDIR:-/tmp}/m-skills-$(id -u 2>/dev/null || echo 0)/$CLAUDE_SESSION_ID"
 unset CLAUDE_SESSION_ID CLAUDE_PROJECT_DIR CLAUDE_CONFIG_DIR
-fi
 
 if [ "$ONLY" != behaviour ]; then
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1364,9 +1416,6 @@ section "7. Antigravity — adapter and build"
 # The adapter runs the unchanged guards under agy. Its payload shapes were captured
 # from agy 1.2.2 — not the docs, whose hooks.json example did not even load — so these
 # builders are the contract; if agy renames an argument, update them and the adapter.
-if ! command -v jq >/dev/null 2>&1 && ! command -v python3 >/dev/null 2>&1; then
-  skip "antigravity adapter" "neither jq nor python3 available"
-else
 
 export CLAUDE_CONFIG_DIR="$TMP/agconfig"
 AGWS="$TMP/agws"; AGSESS="ag-test-$$"
@@ -1398,10 +1447,13 @@ expect "ag allow: a tool no guard covers"    allow "$(ag_decision guard-secrets.
 out="$(printf '%s' "$(ag_run 'git commit -m x')" | bash "$ROOT/scripts/antigravity-adapt.sh" guard-mutations.sh 2>/dev/null)"
 assert_contains "ag deny carries the guard's own reason" "$out" "Blocked by m-skills (Guidelines §9)"
 
-# The guards read an empty command as "nothing to check". A payload whose argument
-# the adapter cannot find must be denied, not handed over empty.
-expect "ag deny: run_command with unrecognised args fails closed" deny \
+# An argument the adapter cannot find means agy changed. The call goes through and the
+# log names the tool, never the command, so a secret path cannot end up in it.
+expect "ag allow: run_command with a renamed argument steps aside" allow \
   "$(ag_decision guard-mutations.sh "$(ag_payload run_command '{"Command":"git push"}')")"
+glog="$(cat "$CLAUDE_CONFIG_DIR/m-skills/guards.log" 2>/dev/null)"
+assert_contains "ag: the step-aside is logged with the tool name" "$glog" "run_command without the argument"
+case "$glog" in *"git push"*) bad "ag: the log never carries the command" ;; *) ok "ag: the log never carries the command" ;; esac
 expect "ag deny: an unknown guard name in hooks.json" deny \
   "$(ag_decision guard-nonexistent.sh "$(ag_run 'git status')")"
 
@@ -1411,9 +1463,73 @@ expect "ag opt-out in the workspace releases the git guard" allow \
   "$(ag_decision guard-mutations.sh "$(ag_run 'git commit -m x')")"
 rm -f "$AGWS/.claude/.m-skills-no-guards"
 
+# ── Windows, or any machine where nothing may be installed. Git Bash keeps the CR of
+#    a native jq.exe / python.exe line ending, `python3` there is often the Store stub
+#    that exits 9009 with no output, and a work laptop may have neither. All three are
+#    simulated here: a bin dir with only what the hooks call, awk included.
+WINBIN="$TMP/winbin"; mkdir -p "$WINBIN"
+for c in bash sh cat grep tr sed awk dirname basename head cut cksum id stat date mkdir touch rm ls env; do
+  p="$(command -v "$c" 2>/dev/null)" && [ -n "$p" ] && ln -sf "$p" "$WINBIN/$c"
+done
+win_decision() { # <guard> <payload> [PATH] → like ag_decision, under the simulated bin dir
+  local out; out="$(printf '%s' "$2" | PATH="${3:-$WINBIN}" bash "$ROOT/scripts/antigravity-adapt.sh" "$1" 2>/dev/null)"
+  [ -z "$out" ] && { echo allow; return; }
+  printf '%s' "$out" | verdict
+}
+REALJQ="$(command -v jq 2>/dev/null)"; REALPY="$(command -v python3 2>/dev/null)"
+
+# no jq, no Python: the built-in awk reader runs every guard
+expect "ag win: no jq or Python, git commit still denied" deny \
+  "$(win_decision guard-mutations.sh "$(ag_run 'git commit -m x')")"
+expect "ag win: no jq or Python, git status allowed"      allow \
+  "$(win_decision guard-mutations.sh "$(ag_run 'git status')")"
+expect "ag win: no jq or Python, view_file .env denied"   deny \
+  "$(win_decision guard-secrets.sh "$(ag_file view_file AbsolutePath "$AGWS/.env")")"
+touch "$CLAUDE_CONFIG_DIR/.m-skills-no-guards"
+expect "ag win: the global opt-out releases a call under agy" allow \
+  "$(win_decision guard-mutations.sh "$(ag_run 'git commit -m x')")"
+rm -f "$CLAUDE_CONFIG_DIR/.m-skills-no-guards"
+
+# workspacePaths.0 is read by the awk reader too, so the project opt-out still resolves
+touch "$AGWS/.claude/.m-skills-no-guards"
+expect "ag win: no jq or Python, the workspace opt-out still resolves" allow \
+  "$(win_decision guard-mutations.sh "$(ag_run 'git commit -m x')")"
+rm -f "$AGWS/.claude/.m-skills-no-guards"
+
+# no reader at all (awk missing too): the guards step aside instead of blocking work
+mkdir -p "$TMP/noawk"; ln -sf "$WINBIN"/* "$TMP/noawk/" 2>/dev/null; rm -f "$TMP/noawk/awk"
+expect "ag win: no reader at all steps aside" allow \
+  "$(win_decision guard-mutations.sh "$(ag_run 'git commit -m x')" "$TMP/noawk")"
+
+if [ -n "$REALJQ" ]; then
+  mkdir -p "$TMP/winjq"; ln -sf "$WINBIN"/* "$TMP/winjq/" 2>/dev/null
+  printf '#!/bin/sh\n"%s" "$@" | sed "s/$/\\r/"\n' "$REALJQ" > "$TMP/winjq/jq"; chmod +x "$TMP/winjq/jq"
+  expect "ag win: CRLF jq still denies git commit" deny \
+    "$(win_decision guard-mutations.sh "$(ag_run 'git commit -m x')" "$TMP/winjq")"
+  expect "ag win: CRLF jq still denies view_file .env" deny \
+    "$(win_decision guard-secrets.sh "$(ag_file view_file AbsolutePath "$AGWS/.env")" "$TMP/winjq")"
+else
+  skip "ag win: CRLF jq" "jq not available"
+fi
+
+if [ -n "$REALPY" ]; then
+  mkdir -p "$TMP/winpy"; ln -sf "$WINBIN"/* "$TMP/winpy/" 2>/dev/null
+  printf '#!/bin/sh\nexit 9009\n' > "$TMP/winpy/python3"
+  printf '#!/bin/sh\n"%s" "$@" | sed "s/$/\\r/"\n' "$REALPY" > "$TMP/winpy/python"
+  chmod +x "$TMP/winpy/python3" "$TMP/winpy/python"
+  expect "ag win: Store-stub python3 is skipped for python, git commit denied" deny \
+    "$(win_decision guard-mutations.sh "$(ag_run 'git commit -m x')" "$TMP/winpy")"
+  expect "ag win: Store-stub python3 is skipped for python, git status allowed" allow \
+    "$(win_decision guard-mutations.sh "$(ag_run 'git status')" "$TMP/winpy")"
+  rm -f "$TMP/winpy/python"
+  expect "ag win: only the Store stub, the awk reader takes over" deny \
+    "$(win_decision guard-mutations.sh "$(ag_run 'git commit -m x')" "$TMP/winpy")"
+else
+  skip "ag win: Store-stub python3" "python3 not available"
+fi
+
 rm -rf "${TMPDIR:-/tmp}/m-skills-$(id -u 2>/dev/null || echo 0)/$AGSESS"
 unset CLAUDE_CONFIG_DIR
-fi
 
 # ── the build. Coreutils only, so it runs even where the adapter rows skip.
 AGOUT="$TMP/dist/antigravity/m-skills"
@@ -1536,9 +1652,6 @@ section "8. Codex — adapter and build"
 # guards on them; these rows pin that shape as captured from codex-cli 0.159.0, and
 # cover the one translation Codex needs — apply_patch, which names its files inside
 # the patch text. If Codex changes either, update these builders and the adapter.
-if ! command -v jq >/dev/null 2>&1 && ! command -v python3 >/dev/null 2>&1; then
-  skip "codex adapter" "neither jq nor python3 available"
-else
 
 export CLAUDE_CONFIG_DIR="$TMP/cxconfig"
 CXWS="$TMP/cxws"; CXSESS="cx-test-$$"
@@ -1585,14 +1698,19 @@ expect "cx deny: apply_patch renames into .env via Move to" deny \
   "$(cx_decision codex-adapt.sh "$(cx_patch $'*** Update File: notes.txt\n*** Move to: config/.env\n@@\n-a\n+b')")"
 expect "cx deny: apply_patch with CRLF line ends still sees .env" deny \
   "$(cx_decision codex-adapt.sh "$(cx_payload apply_patch $'*** Begin Patch\r\n*** Add File: .env\r\n+x\r\n*** End Patch\r\n')")"
-# The guard reads an empty path as "nothing to check", and Codex runs the tool when a
-# hook fails — so an edit the adapter cannot read must be denied, never waved through.
-expect "cx deny: apply_patch with no file header fails closed" deny \
+# What the adapter cannot read means Codex changed. The known paths are still checked,
+# the rest goes through, and the log names the header kind, never its path.
+expect "cx allow: apply_patch with no file header steps aside" allow \
   "$(cx_decision codex-adapt.sh "$(cx_patch '+x')")"
-expect "cx deny: apply_patch with an unknown header fails closed" deny \
-  "$(cx_decision codex-adapt.sh "$(cx_patch '*** Copy File: .env')")"
-expect "cx deny: apply_patch without its patch text fails closed" deny \
+expect "cx allow: apply_patch with an unknown header steps aside" allow \
+  "$(cx_decision codex-adapt.sh "$(cx_patch '*** Copy File: notes.txt')")"
+expect "cx deny: an unknown header does not hide a known secret path" deny \
+  "$(cx_decision codex-adapt.sh "$(cx_patch '*** Copy File: notes.txt'$'\n''*** Add File: .env')")"
+expect "cx allow: apply_patch without its patch text steps aside" allow \
   "$(cx_decision codex-adapt.sh "{\"session_id\":\"$CXSESS\",\"tool_name\":\"apply_patch\",\"tool_input\":{}}")"
+glog="$(cat "$CLAUDE_CONFIG_DIR/m-skills/guards.log" 2>/dev/null)"
+assert_contains "cx: an unknown header is logged by kind" "$glog" "header 'Copy File' is unknown"
+case "$glog" in *notes.txt*) bad "cx: the log never carries a path" ;; *) ok "cx: the log never carries a path" ;; esac
 expect "cx allow: the adapter leaves shell calls to the guards" allow \
   "$(cx_decision codex-adapt.sh "$(cx_shell 'cat .env')")"
 
@@ -1607,7 +1725,6 @@ rm -f "$CXWS/.claude/.m-skills-no-guards"
 
 rm -rf "${TMPDIR:-/tmp}/m-skills-$(id -u 2>/dev/null || echo 0)/$CXSESS"
 unset CLAUDE_CONFIG_DIR
-fi
 
 # ── the build. Coreutils only, so it runs even where the adapter rows skip.
 CXOUT="$TMP/dist/codex/m-skills"
@@ -1831,6 +1948,23 @@ rel_out="$(M_SKILLS_ONLY=behaviour M_SKILLS_PLUGIN="$REL" bash "$ROOT/tests/run-
   || bad "behaviour sections pass on the release build" "$(printf '%s' "$rel_out" | grep '✗' | head -5)"
 assert_eq "the release build passes the same behaviour assertions as the sources" \
   "$(printf '%s' "$rel_out" | counts)" "$(printf '%s' "$src_out" | counts)"
+
+# Once more on a machine with nothing installed: every PATH command except jq and
+# Python, so each hook reads with the built-in awk reader. 6b has fewer reader rows
+# there, so the counts differ; the rows that fail must not.
+NOENG="$TMP/noengine"; mkdir -p "$NOENG"
+IFS=: read -r -a pdirs <<< "$PATH"
+for d in "${pdirs[@]}"; do
+  for f in "$d"/*; do
+    n="${f##*/}"
+    case "$n" in jq|py|python*) continue ;; esac
+    [ -x "$f" ] && [ ! -e "$NOENG/$n" ] && ln -s "$f" "$NOENG/$n"
+  done
+done
+awk_out="$(PATH="$NOENG" M_SKILLS_ONLY=behaviour bash "$ROOT/tests/run-tests.sh" 2>&1)"
+failed_rows() { tr -d '\033' | sed 's/\[[0-9;]*m//g' | grep '✗' | sort; }
+assert_eq "with no jq or Python, the same behaviour rows pass: $(printf '%s' "$awk_out" | counts)" \
+  "$(printf '%s' "$awk_out" | failed_rows)" "$(printf '%s' "$src_out" | failed_rows)"
 
 fi  # sections 7–10 skipped under M_SKILLS_ONLY=behaviour
 
