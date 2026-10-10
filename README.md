@@ -6,7 +6,7 @@ Nothing is tied to one project. Every command, framework, and convention is reso
 
 ## Before you install
 
-The hooks are bash scripts that parse their input with `jq` or `python3`, so one of the two must be on your PATH. Without either, the guards deny the call rather than let it through unchecked, and the advisories stay silent.
+There is nothing to install first. The hooks are bash scripts with their own JSON reader, so they need no jq or Python; they use either one when your machine already has it. Only the check that a skill picked in the question sheet was actually loaded needs jq or Python, and without them it stays inactive rather than blocking anything.
 
 ## Install it
 

@@ -1,7 +1,7 @@
 {
   "name": "m-skills",
   "displayName": "m-skills — portable dev pipeline",
-  "version": "4.4.0",
+  "version": "4.5.0",
   "description": "Five commands for the everyday loop (brainstorm, plan, implement, review, document), resolved per project from a PROJECT-PROFILE.md, with hooks that deny git writes, auto-accepted snapshot updates, and secret-file access.",
   "license": "MIT",
   "author": {

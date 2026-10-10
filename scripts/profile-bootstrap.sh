@@ -317,61 +317,233 @@ m_skills_secret_hygiene() {
 # carries the three things all of them need: reading a field out of the payload,
 # escaping a string back into JSON, and the emit helpers for each decision shape.
 #
-# Dependency note: the pack's "bash + coreutils only" contract holds for
-# shell command out of JSON with sed is how a guard gets bypassed by a quoted
-# newline. Every dev machine that runs Claude Code has one of the two.
+# Dependency note: bash + coreutils only, like the rest of the pack. A payload is read
+# by jq or Python when the machine has one, and by the awk reader below otherwise — a
+# real parser either way, because pulling a command out of JSON with sed is how a
+# guard gets bypassed by a quoted newline. Nothing has to be installed: a work laptop
+# that may not install Python still runs every guard.
 #
-# Engine missing splits by hook class, deliberately:
-#   guards     → fail CLOSED (deny). An unverifiable guard that allows is the
-#                A10 fail-open pattern code-review-architect flags.
-#   advisories → fail OPEN (silent exit 0). A missed hint costs nothing.
+# Windows (Git Bash) breaks jq and Python in ways that fail OPEN, so both are handled here:
+#   - `python3` is often the Microsoft Store stub: on PATH, exits 9009, prints nothing.
+#     A guard handed an empty command allows it. A real Python 3 there is usually
+#     `python` or `py -3`, so each candidate is run once, not just found.
+#   - Native jq.exe and python.exe end lines with CRLF, and $(…) keeps the CR:
+#     "run_command\r" matches no case arm. Every call goes through m_skills_lf.
+#
+# The engine name stays "python3" whichever interpreter answered; M_SKILLS_PY holds it.
 
 M_SKILLS_JSON_ENGINE=""
+M_SKILLS_PY=()
 if command -v jq >/dev/null 2>&1; then
   M_SKILLS_JSON_ENGINE="jq"
-elif command -v python3 >/dev/null 2>&1; then
-  M_SKILLS_JSON_ENGINE="python3"
+else
+  for _m_py in python3 python "py -3"; do
+    command -v "${_m_py%% *}" >/dev/null 2>&1 || continue
+    # shellcheck disable=SC2086 # "py -3" is meant to split into command and flag
+    if $_m_py -c 'import json, sys; sys.exit(sys.version_info[0] != 3)' >/dev/null 2>&1; then
+      read -r -a M_SKILLS_PY <<< "$_m_py"
+      M_SKILLS_JSON_ENGINE="python3"
+      break
+    fi
+  done
+  unset _m_py
+  command -v awk >/dev/null 2>&1 && [ -z "$M_SKILLS_JSON_ENGINE" ] && M_SKILLS_JSON_ENGINE="awk"
 fi
+
+# The built-in reader: a validating JSON parser in portable awk, run with LC_ALL=C so
+# every length and offset is in bytes. It must answer exactly as jq does, or the reader
+# the machine happens to have becomes the way past a guard:
+#   - the last duplicate key wins, and a later duplicate of an ancestor discards what
+#     was found beneath the earlier one ({"a":{"b":1},"a":{}} has no a.b);
+#   - \uXXXX decodes to UTF-8, a surrogate pair to one character, a lone one to U+FFFD;
+#   - invalid JSON, a raw control character in a string included, prints nothing;
+#   - null prints nothing, other non-strings print as JSON text (true, 3, {...}).
+# Linear time. Every \\ and \" is first masked in a copy with two bytes that cannot
+# occur in valid JSON, so the quotes left standing are exactly the string boundaries:
+# one split finds every string, two regex tests check every escape, and only keys and
+# the value asked for are cut from the original and decoded.
+M_SKILLS_JSON_AWK='
+BEGIN {
+  ESC["\""] = "\""; ESC["/"] = "/"; ESC["n"] = "\n"; ESC["t"] = "\t"
+  ESC["r"] = "\r"; ESC["b"] = sprintf("%c", 8); ESC["f"] = sprintf("%c", 12)
+  CTRL = sprintf("[%c-%c%c%c%c-%c]", 1, 8, 11, 12, 14, 31)
+  Q2 = sprintf("%c%c", 1, 1)
+  np = split(ENVIRON["M_SKILLS_JP"], W, ".")
+}
+{ buf = buf $0 "\n" }
+END {
+  ok = 1; found = 0; out = ""
+  if (buf ~ CTRL) exit
+  y = buf
+  gsub(/\\[\\"]/, Q2, y)
+  if (y ~ /\\([^\/bfnrtu]|$)/ || y ~ /\\u([^0-9a-fA-F]|.[^0-9a-fA-F]|..[^0-9a-fA-F]|...[^0-9a-fA-F])/) exit
+  if (!lex(y)) exit
+  ti = 1; pval(0, 1)
+  if (ok && ti == nt + 1 && found) printf "%s", out
+}
+function lex(y,   m, i, pos) {
+  m = split(y, P, /"/); nt = 0; pos = 1
+  for (i = 1; i <= m; i++) {
+    if (i % 2) { if (!lexs(P[i])) return 0 }
+    else if (i == m || index(P[i], "\t") || index(P[i], "\n") || index(P[i], "\r")) return 0
+    else { T[++nt] = "s"; SS[nt] = pos; SL[nt] = length(P[i]) }
+    pos += length(P[i]) + 1
+  }
+  return 1
+}
+function sraw(n) { return substr(buf, SS[n], SL[n]) }
+function lexs(x,   n, j, c, st) {
+  n = length(x); j = 1
+  while (j <= n) {
+    c = substr(x, j, 1)
+    if (c == " " || c == "\t" || c == "\n" || c == "\r") { j++; continue }
+    if (index("{}[]:,", c)) { T[++nt] = c; j++; continue }
+    st = j
+    while (j <= n && index("+-.0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ", substr(x, j, 1))) j++
+    if (j == st) return 0
+    c = substr(x, st, j - st)
+    if (c !~ /^(true|false|null|-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][-+]?[0-9]+)?)$/) return 0
+    T[++nt] = "v"; V[nt] = c
+  }
+  return 1
+}
+function pval(d, on,   st, t) {
+  st = ti; t = T[ti]
+  if (t == "s") { ti++; if (on && d == np) { out = dec(sraw(st)); found = 1 }; return }
+  if (t == "v") { ti++; if (on && d == np) { out = (V[st] == "null") ? "" : V[st]; found = 1 }; return }
+  if (t == "{") pobj(d, on)
+  else if (t == "[") parr(d, on)
+  else { ok = 0; return }
+  if (ok && on && d == np) { out = raw(st, ti - 1); found = 1 }
+}
+function pobj(d, on,   k, kon) {
+  if (T[++ti] == "}") { ti++; return }
+  while (ok) {
+    if (T[ti] != "s") { ok = 0; return }
+    k = dec(sraw(ti))
+    if (T[++ti] != ":") { ok = 0; return }
+    ti++
+    kon = on && d < np && k == W[d + 1]
+    if (kon) { found = 0; out = "" }
+    pval(d + 1, kon)
+    if (!ok) return
+    if (T[ti] == ",") { ti++; continue }
+    if (T[ti] == "}") { ti++; return }
+    ok = 0
+  }
+}
+function parr(d, on,   k, kon) {
+  if (T[++ti] == "]") { ti++; return }
+  k = 0
+  while (ok) {
+    kon = on && d < np && W[d + 1] ~ /^[0-9]+$/ && k++ == W[d + 1] + 0
+    if (kon) { found = 0; out = "" }
+    pval(d + 1, kon)
+    if (!ok) return
+    if (T[ti] == ",") { ti++; continue }
+    if (T[ti] == "]") { ti++; return }
+    ok = 0
+  }
+}
+function raw(a, b,   r, i) {
+  r = ""
+  for (i = a; i <= b; i++) {
+    if (T[i] == "s") r = r "\"" sraw(i) "\""
+    else if (T[i] == "v") r = r V[i]
+    else r = r T[i]
+  }
+  return r
+}
+function dec(x,   m, i, t, c, h, lo, r) {
+  if (!index(x, "\\")) return x
+  m = split(x, S, /\\/); r = S[1]; i = 2
+  while (i <= m) {
+    t = S[i]
+    if (t == "") { r = r "\\"; if (++i <= m) r = r S[i++]; continue }
+    c = substr(t, 1, 1)
+    if (c != "u") { r = r ESC[c] substr(t, 2); i++; continue }
+    h = hex(substr(t, 2, 4))
+    if (h >= 55296 && h <= 56319 && length(t) == 5 && i < m && S[i + 1] ~ /^u[dD][c-fC-F]/) {
+      lo = hex(substr(S[++i], 2, 4)); h = 65536 + (h - 55296) * 1024 + (lo - 56320); t = S[i]
+    } else if (h >= 55296 && h <= 57343) h = 65533
+    r = r utf8(h) substr(t, 6); i++
+  }
+  return r
+}
+function hex(s,   v, i) {
+  v = 0
+  for (i = 1; i <= 4; i++) v = v * 16 + index("0123456789abcdef", tolower(substr(s, i, 1))) - 1
+  return v
+}
+function utf8(c) {
+  if (c < 128) return sprintf("%c", c)
+  if (c < 2048) return sprintf("%c%c", 192 + int(c / 64), 128 + c % 64)
+  if (c < 65536) return sprintf("%c%c%c", 224 + int(c / 4096), 128 + int(c / 64) % 64, 128 + c % 64)
+  return sprintf("%c%c%c%c", 240 + int(c / 262144), 128 + int(c / 4096) % 64, 128 + int(c / 64) % 64, 128 + c % 64)
+}
+'
+
+# m_skills_lf — drop the CR from each CRLF line ending; LF output passes unchanged.
+# A literal CR in the script, since BSD sed has no \r escape.
+m_skills_lf() { sed $'s/\r$//'; }
+m_skills_jq() { jq "$@" | m_skills_lf; }
+m_skills_py() { "${M_SKILLS_PY[@]}" "$@" | m_skills_lf; }
 
 # Read the entire stdin payload. Call once; stdin is not rewindable.
 hook_read_input() { cat; }
 
-# json_field <payload> <dotted.path> — prints the string value, empty if absent.
+# json_field <payload> <dotted.path> — prints the string value, empty if absent. A
+# numeric segment indexes an array: workspacePaths.0.
 json_field() {
   local payload="$1" path="$2"
   case "$M_SKILLS_JSON_ENGINE" in
     jq)
-      printf '%s' "$payload" | jq -r --arg p "$path" '
-        reduce ($p | split(".")[]) as $k (.; if type == "object" then .[$k] else null end)
+      printf '%s' "$payload" | m_skills_jq -r --arg p "$path" '
+        reduce ($p | split(".")[]) as $k (.;
+          if type == "object" then .[$k]
+          elif type == "array" and ($k | test("^[0-9]+$")) then .[$k | tonumber]
+          else null end)
         | if . == null then "" elif type == "string" then . else tojson end
       ' 2>/dev/null
       ;;
     python3)
-      printf '%s' "$payload" | python3 -c '
+      printf '%s' "$payload" | m_skills_py -c '
 import json, sys
 try:
     d = json.load(sys.stdin)
 except Exception:
     print(""); sys.exit(0)
 for k in sys.argv[1].split("."):
-    if not isinstance(d, dict):
+    if isinstance(d, dict):
+        d = d.get(k)
+    elif isinstance(d, list) and k.isdigit() and int(k) < len(d):
+        d = d[int(k)]
+    else:
         d = None
         break
-    d = d.get(k)
 print(d if isinstance(d, str) else ("" if d is None else json.dumps(d)))
 ' "$path" 2>/dev/null
+      ;;
+    awk)
+      printf '%s' "$payload" | M_SKILLS_JP="$path" LC_ALL=C awk "$M_SKILLS_JSON_AWK" 2>/dev/null
       ;;
     *) return 1 ;;
   esac
 }
 
-# json_string <text> — the text as a JSON string literal, quotes included.
+# json_string <text> — the text as a JSON string literal, quotes included. Plain bash:
+# writing JSON needs no parser, so this is the same on every machine.
 json_string() {
-  case "$M_SKILLS_JSON_ENGINE" in
-    jq)      printf '%s' "$1" | jq -Rs . 2>/dev/null ;;
-    python3) printf '%s' "$1" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))' 2>/dev/null ;;
-    *)       printf '"m-skills guard: cannot serialise reason"' ;;
-  esac
+  local s="$1" c i
+  s="${s//\\/\\\\}"; s="${s//\"/\\\"}"
+  s="${s//$'\n'/\\n}"; s="${s//$'\r'/\\r}"; s="${s//$'\t'/\\t}"
+  if [[ $s == *[[:cntrl:]]* ]]; then
+    for ((i = 1; i < 32; i++)); do
+      printf -v c "\\$(printf '%03o' "$i")"
+      s="${s//"$c"/$(printf '\\u%04x' "$i")}"
+    done
+  fi
+  printf '"%s"' "$s"
 }
 
 # ── Emitters. Each exits; a hook makes exactly one decision. ─────────────────
@@ -435,10 +607,23 @@ m_skills_guards_disabled() {
   return 1
 }
 
-# A guard with no JSON engine denies rather than waves the call through.
+# m_skills_guard_log <reason> — a check that stepped aside, one tab-separated line in
+# $CLAUDE_CONFIG_DIR/m-skills/guards.log (default ~/.claude): time, script, reason.
+# Steps aside rather than denies whenever the machine or the host version is the cause —
+# neither is the user's mistake, and blocking every call would stop their work over it.
+# The reason names what was missing, never the command or path, so no secret path is logged.
+m_skills_guard_log() {
+  local d="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/m-skills"
+  mkdir -p "$d" 2>/dev/null || return 0
+  printf '%s\t%s\t%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${0##*/}" "$1" >> "$d/guards.log" 2>/dev/null
+  return 0
+}
+
+# A guard with no reader at all — awk missing too — steps aside.
 guard_require_json_engine() {
   [ -n "$M_SKILLS_JSON_ENGINE" ] && return 0
-  emit_deny "m-skills guard: neither jq nor python3 is available, so this command could not be checked against the Guidelines §9/§10 guards. Guards fail closed by design. Install jq or python3, or opt out with: touch .claude/.m-skills-no-guards"
+  m_skills_guard_log "no JSON reader: jq, Python 3, and awk are all missing"
+  exit 0
 }
 
 # An advisory with no JSON engine says nothing.
