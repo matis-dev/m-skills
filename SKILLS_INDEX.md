@@ -127,7 +127,7 @@ An architect that branches opens by picking a route — right when the direction
 
 | Command | Architect | Route it enters |
 |---|---|---|
-| **`/m-skills:kickoff`** | [brainstorming-planner](skills/brainstorming-planner/SKILL.md) | Kickoff — a project that does not exist yet |
+| **`/m-skills:kickoff`** | [brainstorming-planner](skills/brainstorming-planner/SKILL.md) | Kickoff — a project that does not exist yet; on an existing repo, onboard and then the next run |
 | **`/m-skills:decompose`** | [product-architect](skills/product-architect/SKILL.md) | `decompose` — vertical slices, one per implementing run |
 | **`/m-skills:prd`** | [product-architect](skills/product-architect/SKILL.md) | `prd` — a durable spec |
 | **`/m-skills:brief`** | [product-architect](skills/product-architect/SKILL.md) | `brief` — one page, north star and anti-goals |

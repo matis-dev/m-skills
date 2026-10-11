@@ -41,10 +41,49 @@ m_skills_pkg_scripts() {
   node -e "const s=require('./package.json').scripts||{};console.log(Object.keys(s).join('\n'))" 2>/dev/null
 }
 
+# Greenfield? A repo with a manifest but almost no source is a project about to start,
+# not a project to analyse. It gets a different message: nothing to detect, only to decide.
+# Sets SRC_COUNT, which the greenfield message quotes.
+m_skills_greenfield() {
+  # "Source" is not a JavaScript word. The old list stopped at a dozen web languages,
+  # so a shell, C, C#, Kotlin, Swift, Elixir, or Lua project reported zero files and got
+  # greeted as not-yet-started — this pack's own repo included.
+  SRC_COUNT=$(find . -type f \
+    \( -name '*.ts' -o -name '*.tsx' -o -name '*.js' -o -name '*.jsx' -o -name '*.mjs' -o -name '*.cjs' \
+       -o -name '*.vue' -o -name '*.svelte' -o -name '*.astro' \
+       -o -name '*.py' -o -name '*.rs' -o -name '*.go' -o -name '*.java' -o -name '*.rb' -o -name '*.php' \
+       -o -name '*.c' -o -name '*.h' -o -name '*.cc' -o -name '*.cpp' -o -name '*.hpp' -o -name '*.cs' \
+       -o -name '*.kt' -o -name '*.kts' -o -name '*.swift' -o -name '*.m' -o -name '*.mm' \
+       -o -name '*.ex' -o -name '*.exs' -o -name '*.erl' -o -name '*.scala' -o -name '*.clj' \
+       -o -name '*.hs' -o -name '*.dart' -o -name '*.lua' -o -name '*.pl' -o -name '*.sh' -o -name '*.bash' \
+       -o -name '*.sql' -o -name '*.vb' -o -name '*.fs' -o -name '*.zig' -o -name '*.nim' \) \
+    -not -path './node_modules/*' -not -path './.git/*' -not -path './vendor/*' -not -path './dist/*' \
+    -not -path './build/*' -not -path './target/*' -not -path './.venv/*' -not -path './venv/*' \
+    2>/dev/null | head -20 | wc -l)
+  [ "$SRC_COUNT" -lt 3 ] || return 1
+
+  # A populated source tree settles it whatever the extension is — the list above will
+  # always be missing somebody's language, and a wrong greenfield greeting on a real
+  # codebase routes every downstream decision to "decide" instead of "read the repo".
+  local d
+  for d in src lib app scripts pkg internal cmd source; do
+    [ -d "$d" ] || continue
+    [ "$(find "$d" -type f 2>/dev/null | head -5 | wc -l)" -ge 3 ] && return 1
+  done
+  return 0
+}
+
 # `--fingerprint` prints the marker for the repo as it is now and exits. A profile written
 # by hand (/m-skills:onboard) stamps it, so the drift check below has something to compare.
 if [ "${1:-}" = "--fingerprint" ]; then
   m_skills_fingerprint "$(m_skills_pkg_scripts)"
+  exit 0
+fi
+
+# `--shape` prints `greenfield` or `brownfield` by the same rule as the session nudge, and
+# exits. /m-skills:kickoff runs it to choose between its greenfield run and onboarding.
+if [ "${1:-}" = "--shape" ]; then
+  m_skills_greenfield && echo greenfield || echo brownfield
   exit 0
 fi
 
@@ -206,39 +245,13 @@ IS_PROJECT=0
 for marker in package.json Makefile pyproject.toml Cargo.toml go.mod composer.json mix.exs build.gradle .git; do
   [ -e "$marker" ] && IS_PROJECT=1 && break
 done
+# An empty folder is a project about to start, not a scratch directory; one holding
+# loose files with no marker still is. Plain `ls` skips dot-entries like .vscode/.claude.
+[ -z "$(ls 2>/dev/null)" ] && IS_PROJECT=1
 [ "$IS_PROJECT" -eq 0 ] && exit 0
 
-# Greenfield? A repo with a manifest but almost no source is a project about to start,
-# not a project to analyse. It gets a different message: nothing to detect, only to decide.
-# "Source" is not a JavaScript word. The old list stopped at a dozen web languages,
-# so a shell, C, C#, Kotlin, Swift, Elixir, or Lua project reported zero files and got
-# greeted as not-yet-started — this pack's own repo included.
-SRC_COUNT=$(find . -type f \
-  \( -name '*.ts' -o -name '*.tsx' -o -name '*.js' -o -name '*.jsx' -o -name '*.mjs' -o -name '*.cjs' \
-     -o -name '*.vue' -o -name '*.svelte' -o -name '*.astro' \
-     -o -name '*.py' -o -name '*.rs' -o -name '*.go' -o -name '*.java' -o -name '*.rb' -o -name '*.php' \
-     -o -name '*.c' -o -name '*.h' -o -name '*.cc' -o -name '*.cpp' -o -name '*.hpp' -o -name '*.cs' \
-     -o -name '*.kt' -o -name '*.kts' -o -name '*.swift' -o -name '*.m' -o -name '*.mm' \
-     -o -name '*.ex' -o -name '*.exs' -o -name '*.erl' -o -name '*.scala' -o -name '*.clj' \
-     -o -name '*.hs' -o -name '*.dart' -o -name '*.lua' -o -name '*.pl' -o -name '*.sh' -o -name '*.bash' \
-     -o -name '*.sql' -o -name '*.vb' -o -name '*.fs' -o -name '*.zig' -o -name '*.nim' \) \
-  -not -path './node_modules/*' -not -path './.git/*' -not -path './vendor/*' -not -path './dist/*' \
-  -not -path './build/*' -not -path './target/*' -not -path './.venv/*' -not -path './venv/*' \
-  2>/dev/null | head -20 | wc -l)
 GREENFIELD=0
-[ "$SRC_COUNT" -lt 3 ] && GREENFIELD=1
-
-# A populated source tree settles it whatever the extension is — the list above will
-# always be missing somebody's language, and a wrong greenfield greeting on a real
-# codebase routes every downstream decision to "decide" instead of "read the repo".
-if [ "$GREENFIELD" -eq 1 ]; then
-  for d in src lib app scripts pkg internal cmd source; do
-    [ -d "$d" ] || continue
-    if [ "$(find "$d" -type f 2>/dev/null | head -5 | wc -l)" -ge 3 ]; then
-      GREENFIELD=0; break
-    fi
-  done
-fi
+m_skills_greenfield && GREENFIELD=1
 
 # ── Mechanical detection ──────────────────────────────────────────────────────
 GATES="$(bash "$PLUGIN/skills/implementing-architect/check-quality.sh" --list 2>/dev/null \
@@ -432,7 +445,7 @@ $GATES
 - Dependency hints: ${FRAMEWORKS:-none}${UI:+, }${UI:-}${TESTS:+, }${TESTS:-}
 
 $WROTE
-WHAT TO DO WITH THIS — do not interrupt whatever the user actually asked for.
+WHAT TO DO WITH THIS — one line ahead of your answer, never instead of it.
 
 A greenfield profile is filled by DECIDING, not detecting, and the decisions belong to whichever
 skill first needs them — never to a questionnaire up front (Guidelines §5):
@@ -442,12 +455,13 @@ skill first needs them — never to a questionnaire up front (Guidelines §5):
 - First deploy → \`deployment-architect\` writes §Deployment.
 - First changelog entry → \`rolling-history\` writes §Documentation Targets and §Commit Convention.
 
-So do NOT offer to fill the profile. Offer the conversation instead — at a natural pause, in ONE line:
+So do NOT offer to fill the profile. Offer the conversation instead: OPEN your first reply with this
+ONE line, then answer what the user actually asked (a secret-file warning above still comes first):
 
-  \"Project looks new — want to start with /m-skills:brainstorming-planner kickoff? It works out what
-   you're building and the first slice, and the setup falls out of that.\"
+  \"No m-skills run here yet — /m-skills:kickoff works out what you're building and the first slice.\"
 
-That skill's Kickoff Mode is the greenfield entry point: it establishes what is being built, routes each
+It is a line for the user to paste; do not start the skill yourself. Skip the line when their first
+message already runs an /m-skills: command — they have found the door. That skill's Kickoff Mode is the greenfield entry point: it establishes what is being built, routes each
 foundational decision to the skill that owns it, defers the rest as \`pending\`, and ends with a plan for
 the first slice. If the user would rather just start coding, that is fine too — say nothing more and let
 the owning skills ask when they actually need something."
@@ -481,11 +495,17 @@ $GATES
 
 $WROTE
 
-WHAT TO DO WITH THIS — do not act on it now, and do not interrupt whatever the user
-actually asked for. At a natural pause, offer in ONE line: \"No PROJECT-PROFILE.md here —
-want me to write one? ~2 min. /m-skills:onboard does it and also adopts the existing docs.\" Then:
+WHAT TO DO WITH THIS — OPEN your first reply with this ONE line, then answer what the user
+actually asked (a secret-file warning above still comes first). Act on nothing below until they
+choose; it is a line for the user to paste, so do not start the skill yourself:
 
-- Only if they say yes: fill the template at $PLUGIN/skills/guidelines-meta/PROJECT-PROFILE.template.md
+  \"No m-skills run here yet — /m-skills:kickoff reads this repo and takes it from there.\"
+
+One command on purpose: kickoff sees an existing codebase, onboards it, then steers to the next
+run — the user never has to choose between entry points. Skip the line when their first message
+already runs an /m-skills: command — they have found the door. Then:
+
+- Only if they ask for the profile, or run kickoff or onboard: fill the template at $PLUGIN/skills/guidelines-meta/PROJECT-PROFILE.template.md
   and write it to .claude/PROJECT-PROFILE.md. Fill every row the repo can answer — the detected values
   above plus whatever the files they point at reveal. Mark a row \`pending: <when>\` ONLY when the answer
   genuinely does not exist yet (no deploy has ever happened, no UI exists); its owning skill fills it

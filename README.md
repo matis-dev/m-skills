@@ -122,7 +122,7 @@ Commands below use the plugin form — in copy mode, drop the `m-skills:` prefix
 
 | Situation | Command |
 |---|---|
-| Starting a project from nothing | `/m-skills:brainstorming-planner kickoff` → what to build, first slice, foundational decisions routed to their owners |
+| Starting out, new project or existing | `/m-skills:kickoff` → looks first: a new repo gets what to build, first slice, foundational decisions routed to their owners; an existing one is onboarded, then steered to the next run |
 | First run in a project that already exists | `/m-skills:onboard` → profile written from the repo, existing docs adopted as targets, changelog baseline offered |
 | Screen or component to design | `/m-skills:design-architect` → visitor mode, direction brief (structure · palette · type · signature moment), craft floor, refuse list |
 | Tests to add or upgrade | `/m-skills:testing-architect` |
@@ -148,7 +148,7 @@ Eight architects branch. `/m-skills:product-architect` opens by reading its mode
 
 | Instead of | Type | Runs |
 |---|---|---|
-| `/m-skills:brainstorming-planner kickoff` | `/m-skills:kickoff` | greenfield — what to build, first slice, decisions routed to their owners |
+| `/m-skills:brainstorming-planner kickoff` | `/m-skills:kickoff` | greenfield — what to build, first slice, decisions routed to their owners; on an existing repo it runs onboard instead |
 | `/m-skills:documentation-architect — onboard` | `/m-skills:onboard` | existing project, first run — profile from the repo, docs adopted, nothing rewritten |
 | `/m-skills:product-architect — decompose` | `/m-skills:decompose` | vertical slices with acceptance criteria |
 | `/m-skills:product-architect — prd` | `/m-skills:prd` | a durable spec |
@@ -264,7 +264,7 @@ The verbose prompts you've been pasting still work verbatim — but each maps to
 | What you used to paste | Now |
 |---|---|
 | "Please use /brainstorming-planner skill to help me come up with a clear instruction…" | `/m-skills:brainstorming-planner <the idea>` |
-| "This is a brand-new empty project, please use /brainstorming-planner kickoff to guide the initial setup" | `/m-skills:brainstorming-planner kickoff` |
+| "This is a brand-new empty project, please use /brainstorming-planner kickoff to guide the initial setup" | `/m-skills:kickoff` |
 | "Here is the prompt from brainstorming, please make an implementation PLAN for it" | `/m-skills:planning-architect <prompt>` |
 | "This plan is too big to ship in one go, please DECOMPOSE it into vertical slices" | `/m-skills:product-architect — decompose` |
 | "PROCEED and IMPLEMENT it… but wait with the testing before I confirm" | `/m-skills:implementing-architect <plan> — tests later` |
@@ -562,9 +562,9 @@ So each section is owned by the skill that needs it, and gets filled the first t
 
 A skill fills **only its own** section, in at most 3–4 questions, and never front-loads questions for work that isn't happening yet. The one exception is `/m-skills:onboard`, which you run to record every row the repo answers at once. An unknown row is `n-a`, `TODO`, `pending: <when>`, or `assumed: <value>` — never blank and never invented.
 
-**On a brand-new project** the hook detects that there's nothing to detect (fewer than three source files) and offers a conversation rather than a form:
+**On a brand-new project** the hook detects that there's nothing to detect (fewer than three source files, or an empty folder) and offers a conversation rather than a form. Claude opens its first reply with the one-liner, then answers whatever was actually asked — unless that first message already runs an `/m-skills:` command:
 
-> *"Project looks new — want to start with `/m-skills:brainstorming-planner kickoff`?"*
+> *"No m-skills run here yet — `/m-skills:kickoff` works out what you're building and the first slice."*
 
 **Kickoff Mode** is the greenfield entry point. It establishes what's being built and for whom, identifies the smallest genuinely useful slice, routes each foundational decision to the skill that owns it, defers everything else as `pending`, and ends with a plan for that first slice. Setup falls out of the conversation instead of preceding it.
 
@@ -587,10 +587,10 @@ Only what the repo genuinely cannot say gets asked, and it's a short list: inten
 | Real `.env` files ignored, sandbox off | Offers the sandbox block once; `.claude/.m-skills-no-sandbox-hint` stops it |
 | Profile already exists **and still true** | **Silent.** No output, no cost. |
 | Profile exists but has drifted | Names the specific stale rows and offers to fix only those |
-| Not a project directory | **Silent.** Never nags in scratch folders. |
+| Not a project directory | **Silent.** A folder with loose files and no project marker never gets nagged; a folder with nothing in it counts as a brand-new project. |
 | `.claude/.m-skills-no-bootstrap` present | No profile offers, ever. The secret-file check still runs; `.m-skills-no-guards` is what mutes it. |
-| Brand-new project | Says what little is knowable, then offers `brainstorming-planner kickoff` — never a questionnaire |
-| Established project, no profile | Sweeps for structural evidence (~0.5s), Claude reads the files it points at, then asks only the residue — or names `/m-skills:onboard` to do that and adopt the docs in one run |
+| Brand-new project | Opens the first reply with one line naming `/m-skills:kickoff` — never a questionnaire |
+| Established project, no profile | Sweeps for structural evidence (~0.5s), Claude reads the files it points at; the first reply opens with one line naming `/m-skills:kickoff`, which sees the existing code, onboards it, and asks only the residue |
 
 **It does not write files by default** — it proposes, you decide. `M_SKILLS_AUTOPROFILE=1` writes a draft instead; detected rows filled, everything else marked.
 

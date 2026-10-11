@@ -638,9 +638,20 @@ mkdir -p "$TMP/optout/.claude"; printf '{}' > "$TMP/optout/package.json"
 touch "$TMP/optout/.claude/.m-skills-no-bootstrap"
 assert_empty "silent when opted out" "$(run_bs "$TMP/optout")"
 
-mkdir -p "$TMP/notaproject"
+mkdir -p "$TMP/notaproject"; touch "$TMP/notaproject/notes.txt"
 assert_empty "silent in non-project dir" "$(run_bs "$TMP/notaproject")"
 assert_empty "silent on missing dir"     "$(run_bs "$TMP/does-not-exist")"
+
+# an empty folder is a project about to start, not a scratch directory
+EF="$TMP/emptyfolder"; mkdir -p "$EF"
+out="$(run_bs "$EF")"
+assert_contains "an empty folder is greenfield"     "$out" "has not really started"
+assert_contains "an empty folder offers kickoff"    "$out" "/m-skills:kickoff"
+case "$out" in '{'*) bad "empty-folder output is plain text" "starts with {" ;; *) ok "empty-folder output is plain text" ;; esac
+EH="$TMP/emptyhidden"; mkdir -p "$EH/.vscode"
+assert_contains "only dot-entries still counts as empty" "$(run_bs "$EH")" "has not really started"
+EO="$TMP/emptyoptout"; mkdir -p "$EO/.claude"; touch "$EO/.claude/.m-skills-no-bootstrap"
+assert_empty "declining in an empty folder silences it" "$(run_bs "$EO")"
 
 # drift detection — a stale profile is worse than a missing one
 DR="$TMP/drift"; mkdir -p "$DR/.claude"
@@ -674,7 +685,11 @@ assert_contains "flags fingerprint drift" "$(run_bs "$DR")" "fingerprint changed
 mkdir -p "$TMP/green"; printf '{"scripts":{}}' > "$TMP/green/package.json"
 out="$(run_bs "$TMP/green")"
 assert_contains "greenfield recognised"        "$out" "has not really started yet"
-assert_contains "greenfield offers kickoff"    "$out" "brainstorming-planner kickoff"
+assert_contains "greenfield offers kickoff"    "$out" "/m-skills:kickoff"
+assert_missing  "greenfield drops the old command form" "$out" "brainstorming-planner kickoff"
+assert_contains "greenfield nudge leads the first reply" "$out" "first reply"
+assert_missing  "greenfield nudge is not deferred" "$out" "natural pause"
+assert_contains "greenfield nudge yields to a command already run" "$out" "already runs an /m-skills: command"
 assert_missing  "greenfield does not offer onboard" "$out" "/m-skills:onboard"
 assert_missing  "greenfield does not demand a profile" "$out" "want me to write one?"
 
@@ -735,7 +750,19 @@ assert_contains "finds design tokens"         "$out" "tokens.css"
 assert_contains "detects monorepo shape"      "$out" "monorepo (turbo)"
 assert_contains "detects framework"           "$out" "React"
 assert_contains "instructs investigate-first" "$out" "investigate before you ask"
-assert_contains "brownfield offers onboard"   "$out" "/m-skills:onboard"
+assert_contains "brownfield offers kickoff as the one door" "$out" "/m-skills:kickoff reads this repo"
+assert_missing  "brownfield does not make the user pick a door" "$out" "/m-skills:onboard maps"
+# kickoff routes on --shape: the same rule as the nudge, so the two cannot disagree
+assert_eq "--shape: established repo is brownfield" "$(CLAUDE_PROJECT_DIR="$BR" bash "$BS" --shape)" "brownfield"
+assert_eq "--shape: empty folder is greenfield"     "$(CLAUDE_PROJECT_DIR="$EF" bash "$BS" --shape)" "greenfield"
+assert_eq "--shape: answers even with a profile"    "$(CLAUDE_PROJECT_DIR="$TMP/hasprofile" bash "$BS" --shape)" "greenfield"
+grep -q 'profile-bootstrap.sh --shape' "$ROOT/commands/kickoff.md" \
+  && ok "kickoff routes on --shape" || bad "kickoff routes on --shape"
+grep -q 'documentation-architect/references/onboard.md' "$ROOT/commands/kickoff.md" \
+  && ok "kickoff chains onboard on a brownfield repo" || bad "kickoff chains onboard on a brownfield repo"
+assert_contains "brownfield nudge leads the first reply" "$out" "first reply"
+assert_missing  "brownfield nudge is not deferred" "$out" "natural pause"
+assert_contains "brownfield nudge yields to a command already run" "$out" "already runs an /m-skills: command"
 assert_missing  "no contradictory pending advice" "$out" "Leave §Design, §Deployment"
 
 # never writes without the opt-in env var
@@ -759,6 +786,11 @@ out="$(CLAUDE_PROJECT_DIR="$GW" CLAUDE_PLUGIN_ROOT="$PLUGIN_UT" M_SKILLS_AUTOPRO
 [ -f "$GW/.claude/PROJECT-PROFILE.md" ] \
   && ok "greenfield + autoprofile writes a draft" || bad "greenfield + autoprofile writes a draft"
 assert_contains "greenfield draft write is announced too" "$out" "DRAFT has been written"
+EW="$TMP/emptywrite"; mkdir -p "$EW"
+CLAUDE_PROJECT_DIR="$EW" CLAUDE_PLUGIN_ROOT="$PLUGIN_UT" M_SKILLS_AUTOPROFILE=1 bash "$BS" >/dev/null 2>&1
+[ -f "$EW/.claude/PROJECT-PROFILE.md" ] \
+  && ok "empty folder + autoprofile writes a draft like any greenfield" \
+  || bad "empty folder + autoprofile writes a draft like any greenfield"
 
 # ── Secret files in git: every session, profile or not, from names alone. The
 #    fixtures carry a profile so the only possible output is the secret report.
