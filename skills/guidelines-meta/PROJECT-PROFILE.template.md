@@ -249,7 +249,7 @@ Anything not listed does not exist in this project — don't propose edits to it
 - **Critical user path to verify after deploy:** `<one real path, e.g. log in → open dashboard>`
 - **Cache layers:** `<CDN | service worker | app cache | none>` — invalidation is `<automatic | this command>`
 - **Migrations:** `<none | tool + command>`; reversible? `<yes/no>`; backup taken by `<mechanism>`
-- **Versioning scheme:** `<semver | date | build number>`; version appears in: `<every file that must move together>`
+- **Versioning scheme:** `<semver | date | build number>`; version appears in: `<every file that must move together>`; released from: `<tag | release branch | registry>` (`rolling-history` bumps once per release against it)
 - **One-way doors** (things a rollback does not undo): `<migrations, outbound email, payments, client-side caches>`
 
 ## Guardrails Specific to This Project

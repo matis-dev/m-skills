@@ -84,7 +84,7 @@ Answer each with yes / no / n-a. Any "no" stops the deploy and is stated plainly
 
 ## Phase 2 — Release Preparation
 
-1. **Version** — bump per the project's scheme. Every place the version appears moves together (this is a change-propagation problem; treat it as one).
+1. **Version** — bump per the project's scheme. Every place the version appears moves together (this is a change-propagation problem; treat it as one). `rolling-history` may already have bumped it: if the version is past the last release, confirm it covers the largest bump any shipped change needs, rather than bumping again.
 2. **Release notes** — derived from the changelog, written for whoever reads them: users get behavior changes, operators get required actions (a new env var, a migration to run, a cache to purge). **Never invent a fix or feature that isn't in the diff** (Guidelines §15).
 3. **Breaking changes named explicitly**, with the migration path for consumers. If this ships a breaking change without one, that is a finding, not a footnote.
 4. **Artifacts** — what actually ships: bundle, image, package, binary. Note the size and how it moved. A sudden jump is a dependency mistake caught cheaply here.
