@@ -147,6 +147,12 @@ grep -q '`Plan it → planning-architect`' "$ROOT/skills/brainstorming-planner/S
 # rolling-history must hand doc prose to documentation-architect, not improvise it
 grep -q "documentation-architect" "$ROOT/skills/rolling-history/SKILL.md" \
   && ok "rolling-history defers doc writing" || bad "rolling-history defers doc writing"
+# rolling-history bumps the version, but once per release: two sessions before one
+# release must not turn a single minor bump into two
+grep -q "Never bump twice for one release" "$ROOT/skills/rolling-history/SKILL.md" \
+  && ok "rolling-history bumps once per release" || bad "rolling-history bumps once per release"
+grep -q "rolling-history. may already have bumped" "$ROOT/skills/deployment-architect/SKILL.md" \
+  && ok "deployment-architect does not bump again" || bad "deployment-architect does not bump again"
 
 # the search skill's evidence table must keep a Source column and a re-verify warning,
 # so no figure in it can be repeated as fact without its provenance and date

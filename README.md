@@ -116,7 +116,7 @@ Commands below use the plugin form — in copy mode, drop the `m-skills:` prefix
 | 2 | Prompt (or a request) needs a plan | `/m-skills:planning-architect` → fixed-shape plan, real commands, confirmation gate |
 | 3 | Plan approved, build it | `/m-skills:implementing-architect` → gates + propagation protocols, stops on visual diffs |
 | 4 | Read before staging | `/m-skills:code-review-architect` → one 0–100 score, writes no code |
-| 5 | Feature done, write it down | `/m-skills:rolling-history` → changelog + commit brief as text |
+| 5 | Feature done, write it down | `/m-skills:rolling-history` → changelog, the version bumped once per release, commit brief as text |
 
 **The rest — reach for one when you hit the thing it's for.** No order, no obligation.
 
