@@ -220,15 +220,16 @@ Ideas absorbed so the source plugins can stay switched off:
 | Source | Where it landed |
 |---|---|
 | Karpathy coding observations | Guidelines Part A |
-| ponytail (laziness) | Guidelines §2 — Laziness Ladder |
-| caveman (terse output) | Guidelines §17 — compression half of the Reply Protocol |
+| ponytail (laziness) | Guidelines §2 — Laziness Ladder, `shortcut:` marker; Maintenance rot sweep — shortcut ledger; Code Review quality pass — load-aware scale checks |
+| caveman (terse output, Apache 2.0) | Guidelines §17 — compression half of the Reply Protocol |
 | code-simplifier | Guidelines §2 — no nested ternaries, preserve behavior exactly |
 | official code-review | Code Review §7 — confidence gate + false-positive filters |
 | security-guidance | Code Review Phase 4 + Testing Architect §2 (TDD closes the loop) |
 | [ayghri/i-have-adhd](https://github.com/ayghri/i-have-adhd) (MIT) | Guidelines **§17** in full — five cognitive facts, ten rules, forbidden opener/recap/closer lists, six break-the-rules cases, pre-send check. Optionally applied session-wide by a hook; never a separate command |
-| [pbakaus/impeccable](https://github.com/pbakaus/impeccable) | Design Architect §1, §3 (visitor modes, craft floor, browser surfaces), §2 and `references/palette-and-type.md` (brief before build, roles not swatches), §Constraints (brief wins, refine vs. redesign); Guidelines §16 (bounded passes) |
+| [pbakaus/impeccable](https://github.com/pbakaus/impeccable) | Design Architect §1, §3 (visitor modes, craft floor, browser surfaces), §2 (world reach per mode, generated-look calibration) and `references/palette-and-type.md` (brief before build, roles not swatches), §Constraints (brief wins, refine vs. redesign); Guidelines §16 (bounded passes) |
 | Prior standalone product prompts (PRD · product brief · user story generation · market research + competitive analysis · user research script · feature deep dive) | Product Architect — the five modes; the sourcing rule in §Constraints 1–2 is a deliberate correction to their "data-backed" framing |
 | Prior standalone doc prompts (generation · audit · technical reference) | Documentation Architect — §1–§3 (audience + artifact types + CommonMark and no-time-estimate rules), §6 (per-symbol reference structure), §7 (the friction log and rewrite pairs) |
+| [morluto/rea](https://github.com/morluto/rea) (MIT) | `module-evidence` §2 (observed / inferred / unknown), `module-findings` §2 (bounded search ≠ absence), `module-gate-battery` §3 (zero-selected, cached-replay, passing-retry traps), Debugging Phases 1 and 5, Code Review quality pass (fix in one caller, callers not updated) |
 | [nutlope/hallmark](https://github.com/nutlope/hallmark) | Design Architect §4–5 and `references/` (refuse list, named structures adapted from the macrostructure catalog, variety stamp, palette construction order, gate sweep, token discipline); Guidelines §15 (no invented metrics), §18 (six-axis self-critique) |
 
 ---

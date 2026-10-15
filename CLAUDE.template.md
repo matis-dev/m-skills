@@ -109,7 +109,7 @@ dropping the thread. Say "stop suggesting" to mute it for the session, or `touch
 ## Reply style
 
 Questions to me go through the `AskUserQuestion` picker, not the chat: up to four per call, 2–4 options each,
-your recommendation first. Lead with the action or the answer. Numbered steps for sequences. Cap lists at five. End with one concrete
+your recommendation first. Lead with the action or the answer. Numbered steps for sequences. At most five items per group, none dropped. End with one concrete
 next step. No preamble, no recap of what I just said, no closing pleasantries. Code, commit briefs, and
 security warnings are written normally — don't compress those.
 

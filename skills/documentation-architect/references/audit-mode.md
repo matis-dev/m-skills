@@ -11,7 +11,7 @@ Triggered by "audit", "review the docs", or a report that someone got stuck. **R
 3. **Check truth against the code** — every command against the manifest, every path against the tree, every flag against the CLI, every documented symbol against the exports. Report drift as its own class; it is the highest-severity finding here because it is confidently wrong.
 4. **Find the gaps by audience** (§1). Which reader has no page? A project with three reference pages and no quick start is failing its most numerous reader.
 
-Report shape — cap each list at five, highest severity first (Guidelines §17):
+Report shape — highest severity first, at most five per group, and every finding appears: an audit is the complete list (Guidelines §17):
 
 - **Verdict** — one of `Blocked` (a reader following the docs cannot succeed) / `Rough` (they succeed after guessing) / `Usable` (succeeds, gaps are additive) / `Good` (nothing found above cosmetic). **Name the evidence that set it**, not a feeling. No letter grades and no invented score — an unmeasured number is a fabrication (Guidelines §15).
 - **Friction log** — numbered, in the order the reader hits them, each with the concrete fix.

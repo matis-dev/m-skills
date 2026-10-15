@@ -57,6 +57,9 @@ Tests that pass while proving nothing. Check for these **by name** before trusti
 - **Gates with a blind spot.** Type-checking usually does not cover template/markup bindings — only the build does. Visual snapshots do not catch a resource that is *consistently* broken (a blocked origin renders blank identically every run, so the baseline matches). Name the project's blind spots in the profile's §Guardrails and verify past them.
 - **A11y scans do not prove usability.** An automated rule scan catches a fraction of real barriers, and can catch none of the architectural ones. Pair it with keyboard traversal, and never read a green scan as "accessible".
 - **A test that passes whether or not the feature works.** If deleting the implementation does not fail the test, the test is decoration.
+- **Zero tests selected.** A changed-files run (`--changed`, `-o`, `--onlyChanged`) or a filter that matched nothing exits green; so does `--passWithNoTests`. Selection by import graph also misses runtime registration, generated data, and shell entry points. Read the test count, not the exit code — an empty selection means nothing was checked.
+- **A replayed cached pass.** A build-cache hit (Turbo, Nx, Bazel, Gradle) replays an old result; it cannot vouch for live state — the installed toolchain, env vars, a service, permissions. Re-run uncached when the gate's point is the environment.
+- **A passing retry.** A retry that goes green establishes neither a cause nor a fix; keep the original failure and hand it to `debugging-architect`'s flaky discipline.
 
 A blind spot found the hard way is written into the profile's §Guardrails → Known blind spots, phrased as what to check next time. That write-back is what makes this list grow with the project instead of staying generic.
 

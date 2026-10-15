@@ -47,6 +47,8 @@ Before listing a finding, self-score your confidence that it is **real**, **intr
 - Pedantic nitpicks with no behavioral or maintainability cost.
 - Anything the linter already catches.
 - A line carrying an explicit "safe because …" justification that actually holds.
+- A `shortcut: <ceiling>, <when to upgrade>` comment (Guidelines §2) — a recorded decision, not a finding, unless the project's expected load already crosses the ceiling it names.
+- An absence claim — "unused", "no callers", "never null" — resting on a search that could not see everything. Before claiming one, search tests, fixtures, config, and string-keyed or dynamic references (reflection, runtime registration, generated code, templates). A bounded search that finds nothing proves nothing past its bounds; state what was searched.
 
 **The one exception:** a correctness or security item you are under 80 on **but that would be severe if true** is not dropped. List it under a short **"Worth a second look (unverified)"** note, kept separate from the scored findings, with what would confirm it.
 
@@ -90,7 +92,7 @@ Where a skill does **not** score numerically, the bands are qualitative and name
 ## 5. Shaping the Report
 
 - **Lead with the verdict and the single next action** (Guidelines §17). The reader gets both from the first two lines.
-- **Cap each list at five**, highest severity first. More than five means split by priority and lead with the top group.
+- **At most five per group**, highest severity first. More than five means split by priority and lead with the top group — every finding still appears; the cap shapes the list, never shortens it.
 - **Group by cause, not by node.** Forty findings of one shape are usually one component. Fix the component and the count collapses; a per-node list is how remediation becomes a month that should have been an hour.
 - **Say what was clean.** A section with no findings is noted clean rather than omitted — silence reads as "not assessed", and sometimes it truthfully is, in which case say *that*.
 - **State what was not tested.** A claim beyond what was actually run is a fabrication, however reasonable it sounds.

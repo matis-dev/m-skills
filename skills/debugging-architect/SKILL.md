@@ -58,6 +58,8 @@ Answer these before touching code. Guessing here costs whole sessions.
 
 **Get the real error text.** Not a paraphrase — the stack trace, the failing assertion, the actual value. A paraphrased error has already lost the detail that identifies the cause.
 
+**Several symptoms, or a "why does X behave like this" spanning subsystems?** Write the questions down first, each with the evidence that would answer it. Before finishing, mark every one **answered**, **partial**, or **unresolved** — a broad investigation is never reported complete while a question is still open.
+
 ---
 
 ## Phase 2 — Narrow Before Hypothesising
@@ -109,7 +111,7 @@ Before fixing, close the loop both ways:
 ## Phase 5 — Fix It Once
 
 1. **Write the failing test first**, per the `testing-architect` skill. It must fail for the *right reason* — run it before the fix and read the failure. A regression test that would pass without the fix is decoration.
-2. **Fix the cause, not the symptom.** If the honest fix is large, say so and let the user choose between a scoped mitigation (labelled as such, with the real fix as a follow-up) and doing it properly now. Never disguise a mitigation as a fix.
+2. **Fix the cause, not the symptom — at the boundary that produces it.** Fix the producer of the bad value before adding downstream repairs, then grep its consumers for the same rule reinterpreted elsewhere; a fix in one caller while the shared code stays broken is a mitigation. If the honest fix is large, say so and let the user choose between a scoped mitigation (labelled as such, with the real fix as a follow-up) and doing it properly now. Never disguise a mitigation as a fix.
 3. **Smallest change that removes the cause** (Guidelines §2, §3). Do not refactor the surrounding area because you were in there.
 4. **Check propagation.** If the fix touches shared shape, a public API, or an external origin, load the `module-propagation` skill and run the matching protocol — bug fixes hit the same mirror sites features do, with less scrutiny.
 5. **Run the gates** per the `module-gate-battery` skill, once as a batch.

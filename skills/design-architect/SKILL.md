@@ -58,12 +58,20 @@ State the mode in one line: `mode: Operate — a settings screen; scanability ou
 
 The mode says what wins; this says what the page *is*. Six steps, in order, producing a ten-line brief that is emitted before any markup.
 
-1. **Ground in the subject.** From the brief and the codebase: who arrives, in what state; the one primary task; and the product's **material world** — its industry, its objects, its era — in three to five nouns. The aesthetic comes from those nouns, never from the category's habit.
+1. **Ground in the subject.** From the brief and the codebase: who arrives, in what state; the one primary task; and the product's **material world** — its industry, its objects, its era — in three to five nouns. The aesthetic comes from those nouns, never from the category's habit. **How far that world reaches is set by the mode:**
+
+   | Mode | The world may | The world never |
+   |---|---|---|
+   | **Operate** | Lend type, palette, density, and one signature move; commit the palette to the shell, states, and data series | Supply the layout, navigation model, or controls — those stay the category's and the platform's standard ones |
+   | **Read** | Own the frame — masthead, rail, ground, section openers, how code and tables are set | Enter the reading column (calm face, real contrast, 60–75ch) or replace the wayfinding |
+   | **Persuade / Experience** | Carry and structure the page; its material is the ground and the major surfaces | Become a painted picture with no working parts. On Persuade the primary action shows in its **working form** — the route-and-dates search, not a link to it |
+
+   On Operate and Read, draw the world from the audience's publishing and graphic traditions, **never from the tools they operate** — a terminal, a cockpit, a control panel comes back as a costume of that tool on a working screen. A grey screen with one accent is the category default without its polish, not restraint.
 2. **Pick a structure by name** from `references/structures.md`. Say where the weight sits and what divides sections. It must differ from the last stamp in this project.
 3. **Derive the palette and choose the type pairing** per `references/palette-and-type.md`: anchor hue from the material world, paper lightness from the use scene, roles not swatches; a display face chosen by tone, a body face chosen by measure.
-4. **Name the signature moment** — the one thing a visitor would describe afterwards. One per surface. Motion, accent, and the largest type are spent on it and nowhere else.
+4. **Name the signature moment** — the one thing a visitor would describe afterwards, concretely enough that the build can find it (service health drawn as a transit map, not "transit vibes"). One per surface. Motion, accent, and the largest type are spent on it and nowhere else; the other regions hold still in the world's material. Busy is louder, not bolder.
 5. **Emit the brief** in the template at `references/direction-brief.md`. Establish writes it to the profile's §Design; Study fills it from the reference.
-6. **Run the generic test.** Could this brief serve a competitor's product unchanged? If yes, step 1 was skipped — redo it before building.
+6. **Run the generic test.** Could this brief serve a competitor's product unchanged? If yes, step 1 was skipped — redo it before building. Also fail it when, with the aesthetic left free, the brief lands on one of the looks generated interfaces converge on regardless of subject: warm cream + high-contrast serif + terracotta accent · near-black + one neon accent + glowing edges · editorial hairlines + italic display serif + tracked mono labels · flat saturated ink + black boxes + hard offset shadows. On the built result, **cover the name**: an Operate or Read surface must still read as a product of its category, and no surface should read as any other product's.
 
 ---
 

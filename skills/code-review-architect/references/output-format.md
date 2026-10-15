@@ -14,6 +14,7 @@
 - Base `<ref>` → Head `<ref>` (<N> commits, <F> files, +<add>/-<del>)
 - Stated goals (from commits / PR):
   - <goal>
+- Expected load: <one user running a script | many users and processes — from README / deploy config, or `assumed:`>
 
 ## Static Gates
 <the gate result table — shape in `module-gate-battery` §2>
@@ -21,7 +22,7 @@
 ## Findings
 
 ### 🔴 Critical
-- **[Security] <title>** — `path/to/file.ts:42`
+- **1. [Security] <title>** — `path/to/file.ts:42`
   Why it matters: <one paragraph>
   Fix: <concrete pointer; no code written here>
 
@@ -30,6 +31,7 @@
 ### 🔵 Low
 ### ⚪ Nit
 
+> Findings are numbered once across all groups, so the user can answer "fix 2 and 5".
 > Out-of-diff findings tagged `[OUT-OF-DIFF]` with a one-line justification.
 
 ### Worth a second look (unverified)

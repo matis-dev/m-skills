@@ -24,15 +24,17 @@ user-invocable: false
 - **YAGNI ("You Aren't Gonna Need It") is the default lens for every implementation.** Build only what the current task demands; do not add anything for a future that hasn't arrived.
 - **The Laziness Ladder — stop at the first rung that holds.** Before writing new code, climb down this list and take the highest rung that works:
   1. **Does it need to exist at all?** Speculative need → skip it, say so in one line. (YAGNI)
-  2. **Does the language / stdlib do it?** Use it.
-  3. **Does a native platform or framework feature cover it?** (A built-in input type over a picker lib, the framework's own validation over hand-rolled checks, CSS over JS, a component from the project's committed design system over custom UI.) Use it.
-  4. **Does an already-installed dependency solve it?** (Whatever the manifest already lists.) Use it. **Never add a new dependency for what a few lines can do** — flag any genuinely-needed new dep to the user first.
-  5. **Can it be one clear line?** A `map`/`filter`/`reduce`, a ternary, an optional-chain, a guard return — write it that way. Readability still wins; never collapse so far the *why* is lost.
-  6. **Only then:** the minimum code that works.
+  2. **Does this codebase already have it?** A helper, component, service, or pattern — use it the way the surrounding code does. A house component beats a native widget.
+  3. **Does the language / stdlib do it?** Use it.
+  4. **Does a native platform or framework feature cover it?** (A built-in input type over a picker lib, the framework's own validation over hand-rolled checks, CSS over JS.) Use it.
+  5. **Does an already-installed dependency solve it?** (Whatever the manifest already lists.) Use it. **Never add a new dependency for what a few lines can do** — flag any genuinely-needed new dep to the user first.
+  6. **Can it be one clear line?** A `map`/`filter`/`reduce`, a ternary, an optional-chain, a guard return — write it that way. Readability still wins; never collapse so far the *why* is lost.
+  7. **Only then:** the minimum code that works.
   The ladder is a reflex, not a research project — two rungs work, take the higher one and move on.
+- **Lazy about the solution, never about the change.** Before editing, list every site the change must reach — callers, tests, fixtures, config, exports — and finish all of them. Code you move or merge keeps its error handling and validation. Between options of equal size, take the one correct on edge cases.
 - **Deletion over addition.** The best change is often removing code. Prefer boring over clever — clever is what someone decodes at 3am.
 - **The ladder never buys brevity with clarity.** A one-liner that stays readable wins; one that hurts does not. Specifically: **no nested ternaries** — a single ternary is fine, but nest them and it becomes a `switch` / `if-else` chain. Don't trade debuggability or a useful abstraction for fewer lines. When simplifying existing code, **preserve behavior exactly — change how, never what** (same outputs, same side effects, same edge cases); a simplification that alters behavior is a bug, not a cleanup.
-- **Mark deliberate shortcuts.** A simplification with a known ceiling (a naive O(n²) scan, a global assumption, a skipped edge case) gets **one** short comment naming the ceiling and the upgrade path — e.g. `// naive linear scan; index it if the list grows past a few hundred`. This is a legitimate "why" comment under §13; it reads as intent, not ignorance.
+- **Mark deliberate shortcuts** with one comment in a fixed form: `shortcut: <the ceiling>, <when to upgrade>` — e.g. `// shortcut: linear scan holds to a few hundred items, index it past that`. A simplification with a known ceiling (a naive O(n²) scan, a global assumption, a skipped edge case) reads as intent, not ignorance; it is a legitimate "why" comment under §13. The fixed prefix is what lets `maintenance-architect`'s rot sweep list every one, and lets review treat it as a decision rather than a finding.
 - No features beyond what was asked. No abstractions for single-use code. No "flexibility"/"configurability" that wasn't requested. No error handling for impossible scenarios.
 - If 200 lines could be 50, rewrite it. If 5 lines could be 1 clear line, collapse it.
 - **When a request implies more than it needs:** ship the lazy version and question the rest in the same reply — "Did X; Y already covers Z. Want the full X? Say so." Don't stall on a default you can pick.
@@ -92,7 +94,7 @@ The profile also carries the project's **conventions**: design system, i18n loca
 ### 6. Stack Conventions Priority
 - **The project's committed conventions win over your preferences, every time.** Read a representative existing file before writing a new one and match its idiom.
 - **Committed design system first.** If the project has one (a component library, a token set, a utility-CSS convention), survey it before proposing anything custom, and cite the component/token name in plans and reviews. Custom CSS/one-off components need a written justification inline.
-- **No new dependency** for what the stack already does (§2, rung 4). Flag genuinely-needed ones to the user before adding.
+- **No new dependency** for what the stack already does (§2, rung 5). Flag genuinely-needed ones to the user before adding.
 - For UI-visible work, apply **Design Architect** (the `design-architect` skill) for the craft floor and the anti-pattern list.
 
 ### 7. Reuse Before Create
@@ -171,7 +173,7 @@ Five facts about the reader drive the rules — when one feels arbitrary, the fa
 1. **Lead with the action or the answer.** First line is the thing to do or the finding — never context, never a restatement of the question. A command, path, or snippet goes first; prose after, if at all.
 2. **Number multi-step instructions.** Bounded, ordered steps, no nested "and then". Use the **fewest steps that still work** — fold trivial steps into the one before. A short path finished beats a complete path abandoned.
 3. **End with exactly one concrete next action**, small enough to start immediately.
-4. **Cap any list at 5 items.** More than five → split by priority and lead with the top group. Five ranked beats ten unranked.
+4. **Show at most 5 items per group.** A longer list is grouped and ranked, top group first; five ranked beats ten unranked. The cap shapes **presentation only** — it never limits analysis, search, or findings, and never drops a relevant item: the rest are kept and shown when asked for or when they become next. Where completeness is the deliverable (a review, an audit, a migration list), every item appears.
 5. **Restate state on multi-turn work** in one line: "Steps 1–3 done; next is 4 (tests)." If a task/plan tool is available, let the checklist do the restating — don't also narrate the plan as prose.
 6. **Give specific estimates**, not vague ones. "Three files, ~10 min" beats "a bit of work". Aim the estimate at whoever executes — if that's you, say how long the run takes.
 7. **Make wins concrete.** Say what now works and how to see it, not that progress was made.
@@ -182,7 +184,9 @@ Five facts about the reader drive the rules — when one feels arbitrary, the fa
     - **Recaps** after finishing: "I've now done X, Y, and Z, which means…"
     - **Closers:** "Let me know if you need anything else", "Hope this helps", "Happy to clarify", "Feel free to ask".
 
-- **Compression style:** drop articles and filler (`just`, `really`, `basically`, `simply`), hedging, and feature tours. Fragments are fine. Keep enough words that a step sequence or tradeoff stays unambiguous — legibility beats maximum compression.
+- **Compression style:** drop articles and filler (`just`, `really`, `basically`, `simply`), hedging, and feature tours. Fragments are fine. Keep enough words that a step sequence or tradeoff stays unambiguous — legibility beats maximum compression. **Never drop** `not`, `never`, `no`, `only`, `except` — a lost negation costs more than every word saved. A sentence with two readings becomes a full sentence. Questions and options to the user are full sentences, so the answer comes back right first time.
+- **Code in chat** is the changed lines plus 1–2 lines of context, not the whole file — unless the file is new, most of it changed, or the user asks.
+- **Between tool calls:** nothing on routine calls; one line before a multi-step run, one per phase change, one with the result. The harness decides *when* you speak; this section decides *how*.
 - **Write these normally, uncompressed:** code, code comments, commit briefs and PR text, user-facing strings, and any security or destructive-action warning.
 - Preserve the user's language and all exact identifiers (paths, API names, error strings, command names). Never invent abbreviations.
 - **Pre-send check.** Delete: an opening sentence that announces what you're about to do; a closing sentence that asks "anything else?" or recaps what just happened; any "by the way" sidebar; any hedging adverb carrying no information (**keep** a hedge that carries real uncertainty — cutting that one manufactures false confidence); any idiom in place of the literal action. Then verify: **reading only the first and last line, does the user know what to do next and what just happened?**
@@ -244,7 +248,7 @@ Rules for all modifiers:
 
 - [ ] Did I think before coding? (Assumptions stated, ambiguity surfaced.)
 - [ ] Did I resolve commands from the **Project Profile** or real manifest files — never from a skill's example, never invented?
-- [ ] Is this the minimum that solves the problem? (YAGNI + Laziness Ladder; no new dependency for what a few lines do; deliberate shortcuts marked with a ceiling comment.)
+- [ ] Is this the minimum that solves the problem? (YAGNI + Laziness Ladder; no new dependency for what a few lines do; deliberate shortcuts marked `shortcut: <ceiling>, <when to upgrade>`; every caller, test, and fixture the change breaks finished.)
 - [ ] Did I touch only what the task required?
 - [ ] Are my success criteria verifiable?
 - [ ] Did I follow the project's committed conventions and design system rather than my own defaults?
@@ -255,7 +259,7 @@ Rules for all modifiers:
 - [ ] Did I write the tests, not just the code? (Testing Architect for *how*.)
 - [ ] Is every number, path, and command in my output something I actually read or ran? (§15)
 - [ ] Did I stop at two verification rounds? (§16)
-- [ ] Does my reply lead with the action, cap lists at 5, and end with one next step? (§17)
+- [ ] Does my reply lead with the action, show at most 5 items per group (dropping none), and end with one next step? (§17)
 - [ ] Did the six-axis self-critique clear 3+ on every axis? (§18)
 - [ ] If a modifier narrowed the work, did I name what was skipped in the output? (§19)
 
