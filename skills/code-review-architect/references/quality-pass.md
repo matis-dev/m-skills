@@ -5,6 +5,7 @@
 **Maintainability**
 - Is naming intent-revealing and consistent with local convention?
 - Duplication of an existing artifact (cite paths)? Should this extend rather than duplicate?
+- A fix applied in one caller while the shared function stays broken? A changed signature or return value with callers not updated (grep them)?
 - Is the abstraction level right — premature generalization with one caller, or copy-paste avoiding a needed extraction (3+ near-identical sites)?
 - **YAGNI + one-liners** (Guidelines §2): flag scope built for a future the task didn't ask for (unused params, speculative config, single-caller generalized helpers). Flag multi-line scaffolding where one readable expression fits — but never push a one-liner that hurts readability; that's the opposite finding.
 - Dead code, orphaned imports, leftover debug logging, commented-out blocks, TODO/FIXME without a ticket?
@@ -15,7 +16,8 @@
 
 **Change-Propagation Audit** — if the diff changes shared shape, a public API, or an external origin, load the `module-propagation` skill and run its review-time audit against the diff. Findings of this class are the highest-value output of the whole review, because every one of them passes the gates that were supposed to catch it.
 
-**Performance**
+**Performance** — judged against the expected load (README, deploy config; else state the one you assumed). A `shortcut:` comment is a decision unless that load crosses its ceiling.
+- Fine for one user, wrong for many: check-then-write races, the same work done by every process, per-process state that must be shared, memory or lists that only grow.
 - Hot-path complexity; work repeated per item that could be hoisted.
 - N+1 network/database/storage calls; writes that should be batched.
 - Subscriptions, listeners, timers, file handles: cleaned up on teardown?

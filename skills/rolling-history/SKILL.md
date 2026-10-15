@@ -17,7 +17,7 @@ disable-model-invocation: true
 
 ## Step 0 — Resolve Targets
 
-From the profile's **Documentation Targets** table, note the changelog path and which other docs exist. From **Commit Convention**, note the allowed types, subject case, and header limit — and the config file that enforces them.
+From the profile's **Documentation Targets** table, note the changelog path and which other docs exist. From **Commit Convention**, note the allowed types, subject case, and header limit — and the config file that enforces them. From §Deployment's **Versioning scheme** row, note the scheme, every file the version appears in, and where releases are cut from.
 
 If the profile is absent: find the changelog by looking (`CHANGELOG.md`, `docs/`, `Documentation/`), read the commit convention from the repo's own commitlint/husky config or from `git log --oneline -20`, and **match what the repo already does**. If there is genuinely no changelog, ask before creating one — an unrequested new file at the repo root is scope creep. A changelog row marked `n-a — declined` was already asked: skip Step 2 and don't ask again.
 
@@ -55,6 +55,11 @@ No profile in a project that already has docs → say in one line that `/m-skill
 
 New entries go where the file's existing entries go (bottom of a chronological table, top of a reverse-chronological list — check).
 
+**Bump the version — once per release, never once per session.** Only when the project versions itself: a **Versioning scheme** row, or, with no profile, a `version` field in the manifest. Otherwise skip this silently.
+1. **What this change needs:** a breaking change → major, `feat` → minor, `fix` or `perf` → patch, anything else → none.
+2. **The last released version:** read it, read-only, from where the row says releases are cut (a tag, a release branch, a registry), else from the newest git tag. Unknown → ask once and record it in the row.
+3. **The version still equals it** → move every file the row lists together, and turn the changelog's `Unreleased` heading into that version and today's date in the file's own heading format. **Already past it** (an earlier session bumped) → raise it only when this change needs a bigger bump than the one applied (4.6.0 plus a breaking change → 5.0.0), retitling the heading to match; otherwise leave it and add the entry under that heading. Never bump twice for one release. Other schemes (date, build number) follow the same once-per-release rule.
+
 ---
 
 ## Step 3 — Assess Broader Doc Impact
@@ -88,6 +93,7 @@ Display in chat. **Never run any git command.** This is text the user copies.
   - **Subject case exactly as enforced** — read the rule from the config rather than assuming. Sentence-case and lower-case projects both exist, and the hook rejects the wrong one. Verify the subject before presenting it; if it violates the rule, rewrite it before showing the user.
   - Header within the project's length limit.
   - Scope included only if the project uses scopes.
+- **Version line** — `Version: 4.5.0 → 4.6.0 (feat)`, or `Version: stays 4.6.0 — already bumped since 4.5.0`; omitted when the project has no version.
 - **Detailed summary** — 3–5 bullets on the technical "how".
 - **Command to copy** — render the `git commit -m "…"` line in a fenced block per `module-handover` §4. Do **not** execute it.
 

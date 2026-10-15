@@ -38,6 +38,8 @@ A number either came from a command you ran, a file you read, a search result yo
 
 **A target is not a measurement.** "Cut onboarding drop-off to 15%" is a goal and reads as one. "Onboarding drop-off is 38%" is a claim and needs a source. Never let the second shape carry an invented value.
 
+**Claims carry their status too.** In a write-up, each conclusion is one of: **observed** (you ran it or read it), **inferred** (reasoned from what you observed — say from what), or **unknown** (name what would settle it). Static reading never claims runtime behaviour; a pattern match never claims a cause.
+
 **Never fabricate** a credential, an author, a customer count, a case-study number, a testimonial, a persona quote, or a rating. In a marked-up page or a product document these get quoted onward by people and by models.
 
 ## 3. Never Promise an Outcome

@@ -25,6 +25,7 @@ These are the category's defaults — the shape that appears when nobody decided
 - Monospace as a costume for "technical" → monospace for code, data, and measurement only.
 - The system display face (Impact, Arial Black, the platform sans) as the display voice → choose a display face by tone from `palette-and-type.md` and load it; the closest installed font is a failure, not a fallback.
 - Redrawn UI chrome — a fake browser bar with traffic lights, a fake phone frame, a fake terminal → a real screenshot, or let the content stand alone. One of the strongest "looks generated" tells.
+- Loaded symbols as decoration — emblems tied to militarism, supremacy, or hate movements (the Rising Sun rays, the Confederate battle flag, Nazi-era insignia and their stylised variants) taken from a subject's world as motif or badge → that world's neutral forms. Content documenting such a symbol as fact stays as it is. The brief cannot earn this one back.
 - Decoration with no semantic anchor: a floating cursor, a corner number meaning nothing, an ornament naming nothing → decoration is motivated by the content, or removed.
 - Placeholder names (Jane Doe, Acme, Nexus) and startup-cliché verbs (Unleash, Seamless, Supercharge) → the product's own names and the visitor's own verbs; a labelled placeholder where the user supplied none.
 - Light or dark chosen by category habit → choose from the actual use scene — who, where, under what ambient light (`palette-and-type.md` step 2).

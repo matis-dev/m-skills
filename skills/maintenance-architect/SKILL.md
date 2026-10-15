@@ -101,7 +101,7 @@ Gates prove the code compiles and the tests still pass. Upgrades break things ga
 
 ## Phase 5 — The Rot Sweep
 
-The findings no gate reports, because nothing fails: suppressions, permanently-skipped tests masquerading as coverage, unused dependencies, dead code, stale TODOs, doc drift, config drift, duplicate transitives.
+The findings no gate reports, because nothing fails: suppressions, permanently-skipped tests masquerading as coverage, unused dependencies, dead code, stale TODOs, the `shortcut:` ledger, doc drift, config drift, duplicate transitives.
 
 **Read `${CLAUDE_SKILL_DIR}/references/rot-sweep.md`.** Run it periodically, report per `module-findings`, and **fix only what the user approves** — this phase generates a list, not a rewrite.
 

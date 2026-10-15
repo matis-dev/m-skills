@@ -15,7 +15,7 @@ grep -c '<the atomic answer phrase>' /tmp/geo-page.html
 python3 -c "import sys,html,re;t=re.sub(r'<script.*?</script>|<style.*?</style>','',open('/tmp/geo-page.html').read(),flags=re.S);print(html.unescape(re.sub(r'<[^>]+>',' ',t))[:3000])"
 ```
 
-If the body text is absent from that output, **nothing else in this skill matters for this page.** Fix order, cheapest first: server-render or pre-render the route → static-generate it if content is stable → hydrate on top. Match the project's framework (Profile §Stack); never introduce a rendering library for what the framework already does (Guidelines §2, rung 3).
+If the body text is absent from that output, **nothing else in this skill matters for this page.** Fix order, cheapest first: server-render or pre-render the route → static-generate it if content is stable → hydrate on top. Match the project's framework (Profile §Stack); never introduce a rendering library for what the framework already does (Guidelines §2, rung 4).
 
 Also check in the same pass: real status codes (a soft-404 returning 200 poisons the index), redirect chains, `Content-Type`, whether a bot-mitigation layer or a consent interstitial serves a challenge page to non-browser agents, and whether the canonical URL matches the one you want cited.
 
@@ -78,6 +78,6 @@ Floor per route — each gap is a finding with `url:element`:
 
 Also flag: one site-wide image on every route (a fine default for a small site, a weak card for articles and products — say which applies), and a title or description truncated mid-word in the card.
 
-**Fix** server-side, from the same source as the page's title and description, through the framework's own metadata API (Profile §Stack) — never a second head library (Guidelines §2, rung 3). The image is a designed asset: legible at thumbnail size, text inside a centered safe area — build per-route templates through `design-architect`. **Confirm** by re-running the fetch above, then hand the user each platform's share debugger or post inspector to force a re-scrape: platforms cache cards, so a fixed tag keeps showing the old card until then. Report what the card now shows; never a projected click-through gain (Constraint 1).
+**Fix** server-side, from the same source as the page's title and description, through the framework's own metadata API (Profile §Stack) — never a second head library (Guidelines §2, rung 4). The image is a designed asset: legible at thumbnail size, text inside a centered safe area — build per-route templates through `design-architect`. **Confirm** by re-running the fetch above, then hand the user each platform's share debugger or post inspector to force a re-scrape: platforms cache cards, so a fixed tag keeps showing the old card until then. Report what the card now shows; never a projected click-through gain (Constraint 1).
 
 ---

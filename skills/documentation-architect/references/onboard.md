@@ -80,4 +80,4 @@ Next     /m-skills:rolling-history at the end of your next working session
          /m-skills:docs-audit for the full friction log
 ```
 
-Cap each list at five (Guidelines §17). Say which rows came from files and which from answers — an inferred row is never reported as verified.
+Show at most five items per group, dropping none (Guidelines §17). Say which rows came from files and which from answers — an inferred row is never reported as verified.

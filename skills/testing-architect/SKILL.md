@@ -73,7 +73,7 @@ This applies only when the change actually reaches such a sink; most changes rea
 
 ## 3. Trusting a Green Run
 
-A passing suite is evidence about the suite, not about the feature. The named failure modes — the fake-timer flush illusion, compiler-silenced fixtures, hand-maintained test doubles, gates with structural blind spots, a scan mistaken for accessibility, and a test that passes with the implementation deleted — live in the `module-gate-battery` skill §3. Check them by name before calling a green run proof of anything.
+A passing suite is evidence about the suite, not about the feature. The named failure modes — the fake-timer flush illusion, compiler-silenced fixtures, hand-maintained test doubles, gates with structural blind spots, a scan mistaken for accessibility, a test that passes with the implementation deleted, a run that selected zero tests, a replayed cached pass, and a passing retry — live in the `module-gate-battery` skill §3. Check them by name before calling a green run proof of anything.
 
 ## 4. What to Read, and When
 
