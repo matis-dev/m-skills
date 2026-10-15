@@ -1634,6 +1634,39 @@ if bash "$ROOT/scripts/build-antigravity.sh" "$AGOUT" >/dev/null 2>&1; then
   rule_bytes="$(wc -c < "$RULE" | tr -d ' ')"
   [ "$rule_bytes" -lt 24000 ] && ok "ag rule stays under agy's 24 KB limit" || bad "ag rule stays under agy's 24 KB limit" "$rule_bytes bytes"
 
+  # Windows: agy runs each hook through `cmd /c`, any nonzero exit blocks the tool, and
+  # cmd finds bash.cmd in the plugin root before WSL's bash.exe or a blocked one on PATH
+  AGH="$(cat "$AGOUT/hooks.json" 2>/dev/null)"
+  assert_eq "ag every hook command starts with bash, so bash.cmd catches it on Windows" \
+    "$(grep -c '"command": "bash scripts/' "$AGOUT/hooks.json")" "$(grep -c '"command":' "$AGOUT/hooks.json")"
+  assert_empty "ag every hook gets agy's default 30 s timeout" \
+    "$(printf '%s\n' "$AGH" | grep -o '"timeout": *[0-9]*' | grep -v ': *30$')"
+  [ -f "$AGOUT/bash.cmd" ] && ok "ag ships bash.cmd at the plugin root" || bad "ag ships bash.cmd at the plugin root"
+  assert_eq "ag bash.cmd ends every line with CRLF" \
+    "$(grep -c $'\r$' "$AGOUT/bash.cmd")" "$(wc -l < "$AGOUT/bash.cmd" | tr -d ' ')"
+  assert_empty "ag bash.cmd never exits nonzero" \
+    "$(tr -d '\r' < "$AGOUT/bash.cmd" | grep -iE '(^|[^a-z])exit( |$)' | grep -viE 'exit /b 0$')"
+  assert_contains "ag bash.cmd ends on exit /b 0" "$(tr -d '\r' < "$AGOUT/bash.cmd" | tail -1)" "exit /b 0"
+  assert_empty "ag ships its shell scripts LF" "$(grep -rl $'\r' "$AGOUT/scripts" 2>/dev/null)"
+
+  # A core.autocrlf clone from before .gitattributes: a pull rewrites the build script LF,
+  # every script it leaves unchanged stays CRLF — the sourced lib included
+  CRS="$TMP/crlf-src"
+  mkdir -p "$CRS/scripts/lib" && cp -R "$ROOT/skills" "$ROOT/commands" "$ROOT/.claude-plugin" "$CRS/"
+  cp "$ROOT"/scripts/*.sh "$ROOT"/scripts/*.cmd "$CRS/scripts/" && cp "$ROOT/scripts/lib/hook-json.sh" "$CRS/scripts/lib/"
+  for s in antigravity-adapt.sh guard-mutations.sh guard-outward.sh guard-secrets.sh profile-bootstrap.sh lib/hook-json.sh; do
+    awk '{ printf "%s\r\n", $0 }' "$ROOT/scripts/$s" > "$CRS/scripts/$s"
+  done
+  CRO="$CRS/dist/antigravity/m-skills"
+  if bash "$CRS/scripts/build-antigravity.sh" "$CRO" >/dev/null 2>&1; then
+    assert_empty "ag build strips CRLF from a Windows clone's scripts" "$(grep -rl $'\r' "$CRO/scripts" 2>/dev/null)"
+    out="$(printf '%s' "$(ag_run 'git commit -m x')" \
+      | (cd "$CRO" && CLAUDE_CONFIG_DIR="$TMP/agconfig" bash scripts/antigravity-adapt.sh guard-mutations.sh) 2>/dev/null)"
+    assert_contains "ag built from a CRLF clone still denies git commit" "$out" '"decision":"deny"'
+  else
+    bad "ag build strips CRLF from a Windows clone's scripts" "the build failed on a CRLF clone"
+  fi
+
   touch "$AGOUT/stale-from-last-build"
   bash "$ROOT/scripts/build-antigravity.sh" "$AGOUT" >/dev/null 2>&1
   [ ! -e "$AGOUT/stale-from-last-build" ] && ok "ag rebuild leaves nothing stale" || bad "ag rebuild leaves nothing stale"

@@ -15,10 +15,15 @@
 #     AskUserQuestion       → ask_question   agy's picker tool.
 #   rules/m-skills-guards.md   always_on. Guidelines §9 and §10 and security-architect
 #     constraints 5–6, quoted live, plus the start-only-when-typed gate. It is the only
-#     protection in the IDE, which runs no hooks.
+#     protection wherever agy runs no hooks.
 #   hooks.json   the three guards through antigravity-adapt.sh. agy reads it only at
 #     the plugin root, runs it with the plugin root as cwd, and fires tool events only
-#     when grouped as {matcher, hooks:[…]} — the flat form loads and never fires.
+#     when grouped as {matcher, hooks:[…]} — the flat form loads and never fires. Any
+#     nonzero exit blocks the tool, and Windows starts processes slowly, so each guard
+#     gets agy's default 30 s rather than risk a timeout read the same way.
+#   bash.cmd   from scripts/antigravity-bash.cmd, with CRLF endings. agy 1.3.6 runs hooks
+#     through `cmd /c` on Windows, which finds this file before any bash on PATH; it
+#     starts Git Bash, or steps aside when there is none. Read only by cmd.
 #   scripts/   the lib, the three guards, the adapter, and profile-bootstrap.sh for
 #     /onboard. The advisories and SessionStart hooks stay behind: agy has no event
 #     that could carry them.
@@ -34,8 +39,9 @@ case "$OUT" in
   *) echo "build-antigravity: refusing to clear '$OUT' — the output path must end in /dist/antigravity/m-skills" >&2; exit 1 ;;
 esac
 
+# Read through tr: a clone made before .gitattributes keeps this unchanged file CRLF.
 # shellcheck source=lib/hook-json.sh
-. "$ROOT/scripts/lib/hook-json.sh"
+. <(tr -d '\r' < "$ROOT/scripts/lib/hook-json.sh")
 
 VERSION="$(grep -o '"version": *"[^"]*"' "$ROOT/.claude-plugin/plugin.json" | head -1 | sed 's/.*"\([^"]*\)"$/\1/')"
 [ -n "$VERSION" ] || { echo "build-antigravity: no version in .claude-plugin/plugin.json" >&2; exit 1; }
@@ -47,6 +53,15 @@ cp "$ROOT/scripts/lib/hook-json.sh" "$OUT/scripts/lib/"
 for s in guard-mutations.sh guard-outward.sh guard-secrets.sh antigravity-adapt.sh profile-bootstrap.sh; do
   cp "$ROOT/scripts/$s" "$OUT/scripts/"
 done
+# A CRLF script fails in bash on its first line — exit 2, which agy treats as a block.
+# .gitattributes pins *.sh to LF, but a Windows clone made with core.autocrlf before that
+# file existed keeps CRLF in every script a later pull leaves unchanged. Ship them LF.
+# tr and awk, not sed: BSD sed reads \r as a plain r.
+for f in "$OUT"/scripts/*.sh "$OUT"/scripts/lib/*.sh; do
+  tr -d '\r' < "$f" > "$f.lf" && cat "$f.lf" > "$f" && rm "$f.lf"
+done
+# cmd misreads labels and blocks in an LF-only batch file, so this one ships CRLF.
+awk '{ sub(/\r$/, ""); printf "%s\r\n", $0 }' "$ROOT/scripts/antigravity-bash.cmd" > "$OUT/bash.cmd"
 
 # A route command becomes a skill of the same name. It stays user-only, as a command is
 # in Claude Code: its frontmatter gains the name and the gate, and its body is unchanged.
@@ -70,7 +85,7 @@ find "$OUT" -name '*.bak' -delete
 cat > "$OUT/plugin.json" <<EOF
 {
   "name": "m-skills",
-  "description": "The m-skills pipeline for Antigravity: brainstorm, plan, implement, review, document, plus design, testing, docs, slicing, debugging, release and upkeep when needed. Resolved per project from a PROJECT-PROFILE.md. Git, snapshot, secret and outward guards are enforced by hooks in the agy CLI and stated as a rule in the IDE.",
+  "description": "The m-skills pipeline for Antigravity: brainstorm, plan, implement, review, document, plus design, testing, docs, slicing, debugging, release and upkeep when needed. Resolved per project from a PROJECT-PROFILE.md. Git, snapshot, secret and outward guards are enforced by hooks wherever agy runs them, and stated as an always-on rule everywhere.",
   "version": "$VERSION"
 }
 EOF
@@ -83,14 +98,14 @@ cat > "$OUT/hooks.json" <<'EOF'
       {
         "matcher": "run_command",
         "hooks": [
-          { "type": "command", "command": "bash scripts/antigravity-adapt.sh guard-mutations.sh", "timeout": 10 },
-          { "type": "command", "command": "bash scripts/antigravity-adapt.sh guard-outward.sh", "timeout": 5 }
+          { "type": "command", "command": "bash scripts/antigravity-adapt.sh guard-mutations.sh", "timeout": 30 },
+          { "type": "command", "command": "bash scripts/antigravity-adapt.sh guard-outward.sh", "timeout": 30 }
         ]
       },
       {
         "matcher": "run_command|view_file|write_to_file|replace_file_content|multi_replace_file_content",
         "hooks": [
-          { "type": "command", "command": "bash scripts/antigravity-adapt.sh guard-secrets.sh", "timeout": 5 }
+          { "type": "command", "command": "bash scripts/antigravity-adapt.sh guard-secrets.sh", "timeout": 30 }
         ]
       }
     ]
@@ -128,7 +143,7 @@ ${GATED}— each of these runs only when the user types its slash command. Never
 
 ## Guards
 
-In the agy CLI a hook denies each of these. In the Antigravity IDE nothing checks them: they hold only because you follow them.
+Where agy runs the m-skills hooks, a hook denies each of these. Where it runs none, nothing checks them: they hold only because you follow them.
 
 $(m_skills_section "$GUIDELINES" 9)
 

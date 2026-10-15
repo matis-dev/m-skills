@@ -1,0 +1,5 @@
+# Git for Windows defaults to core.autocrlf=true, which checks the hook scripts out with
+# CRLF; bash then fails on the first line and the host blocks the tool it guards. Pin
+# the endings so every clone — a marketplace install included — gets working scripts.
+*.sh  text eol=lf
+*.cmd text eol=crlf

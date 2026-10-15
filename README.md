@@ -390,12 +390,14 @@ That installs it for one project. For every project, the same folder goes in `~/
 
 | Rule | `agy` CLI | Antigravity IDE |
 |---|---|---|
-| No git writes, no snapshot updates (§9, §10) | denied by a hook | rule text only |
-| No reading or writing secret files | denied by a hook | rule text only |
-| No publishing or deploying | denied by a hook | rule text only |
+| No git writes, no snapshot updates (§9, §10) | denied by a hook | rule text; a hook where the IDE runs one |
+| No reading or writing secret files | denied by a hook | rule text; a hook where the IDE runs one |
+| No publishing or deploying | denied by a hook | rule text; a hook where the IDE runs one |
 | Pipeline skills start only when you type them | enforced — agy honours `disable-model-invocation` | not checked |
 
-The IDE runs no hooks at all ([reproduced on IDE 2.1.1, August 2026](https://discuss.ai.google.dev/t/do-antigravity-ide-2-0-actually-execute-plugin-hooks-pretooluse-posttooluse-or-is-that-cli-only-right-now/176814)), so there the guards are an always-on rule the model follows, not a check. **Use the CLI when the guards matter.**
+The IDE ran no hooks at all as of [IDE 2.1.1, August 2026](https://discuss.ai.google.dev/t/do-antigravity-ide-2-0-actually-execute-plugin-hooks-pretooluse-posttooluse-or-is-that-cli-only-right-now/176814), so there the guards are an always-on rule the model follows. That is changing: agy 1.3.6's own hook guide names the IDE as a hook host, and a Windows IDE install ran them in October 2026. Assume the hooks may run anywhere, and that the rule is the backstop. **Use the CLI when the guards matter.**
+
+**On Windows.** agy runs each hook through `cmd /c`, and any nonzero exit blocks the tool it guards — every file read, write, and shell command. So the build ships `bash.cmd` at the plugin root: cmd finds it before any `bash` on `PATH`, it starts Git Bash, and it exits 0 whatever happens. Without it, `bash` lands on WSL's `C:\Windows\System32\bash.exe`, on nothing, or on a bash that company policy blocks, and every tool fails with `command failed: exit status …`. It looks for Git Bash in `Program Files\Git`, then `%LOCALAPPDATA%\Programs\Git`, then next to `git.exe` on `PATH`. A portable Git elsewhere is named with `setx M_SKILLS_BASH "D:\tools\PortableGit\bin\bash.exe"`. When it finds none, the guards are skipped and `%USERPROFILE%\.claude\m-skills\guards.log` says so. If tools are still blocked, set `"enabled": false` in the plugin's `hooks.json`. The `~/.claude/.m-skills-no-guards` flag file cannot help there, because it is read by the bash that failed to start.
 
 **What is different from Claude Code:**
 
@@ -695,7 +697,10 @@ than blocking.
 **On Windows.** Every hook is started as `bash`, so Git Bash must be on `PATH` before the
 plugin is enabled (`C:\Program Files\Git\bin`, then restart the IDE). If `bash` resolves to
 `C:\Windows\System32\bash.exe` instead, that is WSL: the hooks run on the Linux side and see
-the wrong paths, so put Git's `bin` ahead of it. To switch the guards off, create
+the wrong paths, so put Git's `bin` ahead of it. Antigravity needs neither, because its build
+finds Git Bash itself (see [§ Antigravity](#-antigravity)). On a company laptop `HOME` may point
+at a network drive, and Git Bash then reads `~` from there, not from `%USERPROFILE%`. Check
+with `echo %HOME%` before you rely on a flag file in `~/.claude`. To switch the guards off, create
 `~/.claude/.m-skills-no-guards` (PowerShell: `New-Item -Force ~/.claude/.m-skills-no-guards`),
 or `.claude/.m-skills-no-guards` in one project. Never patch `exit 0` into the scripts: every
 hook sources `scripts/lib/hook-json.sh`, so one edit there silently disables them all.
