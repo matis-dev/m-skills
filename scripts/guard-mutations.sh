@@ -108,7 +108,7 @@ resolve_update_cmd() {
   mkdir -p "$state" 2>/dev/null || return 1
   local resolved
   resolved="$(cd "$root" 2>/dev/null && bash "$DIR/../skills/implementing-architect/check-quality.sh" --list 2>/dev/null \
-              | sed -n 's/^[[:space:]]*Update (user-only)[[:space:]]*//p' | head -1)"
+              | tr -d '\r' | sed -n 's/^[[:space:]]*Update (user-only)[[:space:]]*//p' | head -1)"
   [ "$resolved" = "n-a" ] && resolved=""
   printf '%s' "$resolved" > "$cache" 2>/dev/null
   printf '%s' "$resolved"

@@ -57,7 +57,8 @@ done
 # .gitattributes pins *.sh to LF, but a Windows clone made with core.autocrlf before that
 # file existed keeps CRLF in every script a later pull leaves unchanged. Ship them LF.
 # tr and awk, not sed: BSD sed reads \r as a plain r.
-for f in "$OUT"/scripts/*.sh "$OUT"/scripts/lib/*.sh; do
+for f in "$OUT"/scripts/*.sh "$OUT"/scripts/lib/*.sh "$OUT"/skills/*/*.sh; do
+  [ -f "$f" ] || continue
   tr -d '\r' < "$f" > "$f.lf" && cat "$f.lf" > "$f" && rm "$f.lf"
 done
 # cmd misreads labels and blocks in an LF-only batch file, so this one ships CRLF.
@@ -103,7 +104,7 @@ cat > "$OUT/hooks.json" <<'EOF'
         ]
       },
       {
-        "matcher": "run_command|view_file|write_to_file|replace_file_content|multi_replace_file_content",
+        "matcher": "run_command|view_file|read_file|write_to_file|write_file|replace_file_content|multi_replace_file_content|edit_file|grep_search",
         "hooks": [
           { "type": "command", "command": "bash scripts/antigravity-adapt.sh guard-secrets.sh", "timeout": 30 }
         ]

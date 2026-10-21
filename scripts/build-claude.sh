@@ -15,9 +15,14 @@
 # A subshell function keeps a child process's exit, cd, and variables to itself.
 #
 # What ships: the manifests and icon, skills/, commands/, hooks/hooks.json, the
-# compiled hook scripts, LICENSE, THIRD-PARTY-NOTICES.md, and README.release.md as
-# README.md. Tests, the changelog, the templates, the library, and the build and
-# adapter scripts stay on main: nothing an installed plugin runs needs them.
+# compiled hook scripts, .gitattributes, LICENSE, THIRD-PARTY-NOTICES.md, and
+# README.release.md as README.md. Tests, the changelog, the templates, the library, and
+# the build and adapter scripts stay on main: nothing an installed plugin runs needs them.
+#
+# .gitattributes ships because a marketplace install is a clone of the release branch:
+# without it, Git for Windows' core.autocrlf checks the hooks out CRLF. A compiled hook
+# holds the inlined library, so bash then stops on its first loop with a syntax error —
+# exit 2, which Claude Code reads as a block — and every guarded tool fails.
 
 set -euo pipefail
 
@@ -40,7 +45,9 @@ SP="$ROOT/scripts/skill-preamble.sh"
 PART="$(mktemp -d)"; trap 'rm -rf "$PART"' EXIT
 
 # Comment lines that name a script read to the validator as a call to that script.
-drop_script_comments() { awk '!(/^[[:space:]]*#/ && /[A-Za-z0-9_-]\.sh([^A-Za-z0-9_]|$)/)'; }
+# Every source passes through here or through compile, and both drop CR: a clone made
+# before .gitattributes keeps CRLF in every file a later pull left unchanged.
+drop_script_comments() { awk '{ sub(/\r$/, "") } !(/^[[:space:]]*#/ && /[A-Za-z0-9_-]\.sh([^A-Za-z0-9_]|$)/)'; }
 
 # compile <file> <lib-part-or-empty> <defs-part-or-empty>
 #   inlines the library at its load line, puts the function definitions right after
@@ -48,6 +55,7 @@ drop_script_comments() { awk '!(/^[[:space:]]*#/ && /[A-Za-z0-9_-]\.sh([^A-Za-z0
 compile() {
   awk -v lib="$2" -v defs="$3" '
     function cat(f,   l) { while ((getline l < f) > 0) print l; close(f) }
+    { sub(/\r$/, "") }
     /^[[:space:]]*\. "[^"]*\/lib\/hook-json\.sh" 2>\/dev\/null \|\| (exit|return) 0$/ {
       if (lib != "") cat(lib)
       next
@@ -100,7 +108,7 @@ mkdir -p "$OUT/.claude-plugin" "$OUT/hooks" "$OUT/scripts"
 cp "$ROOT/.claude-plugin/plugin.json" "$ROOT/.claude-plugin/marketplace.json" "$ROOT/.claude-plugin/icon.png" "$OUT/.claude-plugin/"
 cp -R "$ROOT/skills" "$ROOT/commands" "$OUT/"
 cp "$ROOT/hooks/hooks.json" "$OUT/hooks/"
-cp "$ROOT/LICENSE" "$ROOT/THIRD-PARTY-NOTICES.md" "$OUT/"
+cp "$ROOT/LICENSE" "$ROOT/THIRD-PARTY-NOTICES.md" "$ROOT/.gitattributes" "$OUT/"
 cp "$ROOT/README.release.md" "$OUT/README.md"
 
 # Every script hooks.json runs, and nothing else from scripts/.

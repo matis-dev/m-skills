@@ -10,6 +10,7 @@
 #   in   {"toolCall":{"name":"run_command","args":{"CommandLine":…,"Cwd":…}},
 #         "conversationId":…, "workspacePaths":[…], …}
 #        view_file → args.AbsolutePath · write_to_file, replace_file_content → args.TargetFile
+#        read_file, write_file, edit_file → args.Path · grep_search → args.SearchPath
 #   out  {"decision":"deny","reason":…} — agy blocks the call and tells the model
 #        "tool call denied by pre-tool hook: <reason>". No output = no opinion.
 #   cwd  the plugin directory, and no plugin-root variable is exported.
@@ -53,10 +54,14 @@ guard_require_json_engine
 TOOL="$(json_field "$INPUT" "toolCall.name")"
 case "$TOOL" in
   run_command)                  AS=Bash;  FIELD=command;   ARG="$(json_field "$INPUT" "toolCall.args.CommandLine")" ;;
-  view_file)                    AS=Read;  FIELD=file_path; ARG="$(json_field "$INPUT" "toolCall.args.AbsolutePath")" ;;
-  write_to_file)                AS=Write; FIELD=file_path; ARG="$(json_field "$INPUT" "toolCall.args.TargetFile")" ;;
-  replace_file_content|multi_replace_file_content)
-                                AS=Edit;  FIELD=file_path; ARG="$(json_field "$INPUT" "toolCall.args.TargetFile")" ;;
+  view_file|read_file)          AS=Read;  FIELD=file_path; ARG="$(json_field "$INPUT" "toolCall.args.Path")"
+                                [ -z "$ARG" ] && ARG="$(json_field "$INPUT" "toolCall.args.AbsolutePath")" ;;
+  write_to_file|write_file)     AS=Write; FIELD=file_path; ARG="$(json_field "$INPUT" "toolCall.args.Path")"
+                                [ -z "$ARG" ] && ARG="$(json_field "$INPUT" "toolCall.args.TargetFile")" ;;
+  replace_file_content|multi_replace_file_content|edit_file)
+                                AS=Edit;  FIELD=file_path; ARG="$(json_field "$INPUT" "toolCall.args.Path")"
+                                [ -z "$ARG" ] && ARG="$(json_field "$INPUT" "toolCall.args.TargetFile")" ;;
+  grep_search)                  AS=Grep;  FIELD=path;      ARG="$(json_field "$INPUT" "toolCall.args.SearchPath")" ;;
   *) exit 0 ;;
 esac
 
@@ -73,7 +78,7 @@ WS="$(json_field "$INPUT" "workspacePaths.0")"
 PAYLOAD="$(printf '{"tool_name":"%s","tool_input":{"%s":%s},"session_id":%s}' \
   "$AS" "$FIELD" "$(json_string "$ARG")" "$(json_string "$(json_field "$INPUT" "conversationId")")")"
 
-OUT="$(printf '%s' "$PAYLOAD" | bash "$DIR/$GUARD" 2>/dev/null)"
+OUT="$(printf '%s' "$PAYLOAD" | "${BASH:-bash}" "$DIR/$GUARD" 2>/dev/null)"
 [ -z "$OUT" ] && exit 0
 
 DECISION="$(json_field "$OUT" "hookSpecificOutput.permissionDecision")"

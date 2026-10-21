@@ -14,17 +14,21 @@ rem stdout, and a guard that cannot start must step aside, not stop all work. Th
 rem is logged to the same guards.log the adapter uses.
 setlocal
 set "B=%M_SKILLS_BASH%"
+if defined B set "B=%B:"=%"
 if defined B if not exist "%B%" set "B="
-for %%P in ("%ProgramW6432%\Git\bin\bash.exe" "%ProgramFiles%\Git\bin\bash.exe" "%LOCALAPPDATA%\Programs\Git\bin\bash.exe") do (
+for %%P in ("%ProgramW6432%\Git\bin\bash.exe" "%ProgramFiles%\Git\bin\bash.exe" "%ProgramFiles(x86)%\Git\bin\bash.exe" "%LOCALAPPDATA%\Programs\Git\bin\bash.exe" "%USERPROFILE%\scoop\apps\git\current\bin\bash.exe") do (
   if not defined B if exist %%P set "B=%%~P"
 )
 if not defined B for /f "delims=" %%G in ('where git.exe 2^>nul') do (
   if not defined B if exist "%%~dpG..\bin\bash.exe" set "B=%%~dpG..\bin\bash.exe"
+  if not defined B if exist "%%~dpG..\..\bin\bash.exe" set "B=%%~dpG..\..\bin\bash.exe"
+  if not defined B if exist "%%~dpG..\usr\bin\bash.exe" set "B=%%~dpG..\usr\bin\bash.exe"
 )
 if not defined B (
   if not exist "%USERPROFILE%\.claude\m-skills" mkdir "%USERPROFILE%\.claude\m-skills" 2>nul
   >>"%USERPROFILE%\.claude\m-skills\guards.log" echo %DATE% %TIME%	bash.cmd	Git Bash not found; guards skipped. Install Git for Windows or set M_SKILLS_BASH to its bin\bash.exe
   exit /b 0
 )
+for %%D in ("%B%") do set "PATH=%%~dpD;%%~dpD..\usr\bin;%PATH%"
 "%B%" %*
 exit /b 0

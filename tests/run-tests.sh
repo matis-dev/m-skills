@@ -31,6 +31,10 @@ assert_contains() { case "$2" in *"$3"*) ok "$1" ;; *) bad "$1" "expected to con
 assert_missing()  { case "$2" in *"$3"*) bad "$1" "should NOT contain: $3" ;; *) ok "$1" ;; esac; }
 assert_empty()    { if [ -z "$2" ]; then ok "$1"; else bad "$1" "expected no output, got: $(printf '%s' "$2" | head -c 120)"; fi; }
 assert_eq()       { if [ "$2" = "$3" ]; then ok "$1"; else bad "$1" "expected '$3', got '$2'"; fi; }
+# node_row <assert-or-expect> <name> … — the scripts read package.json scripts through
+# node and resolve none without it, so a row that needs a script is skipped, not failed.
+HAVE_NODE=0; command -v node >/dev/null 2>&1 && HAVE_NODE=1
+node_row() { if [ "$HAVE_NODE" = 1 ]; then "$@"; else skip "$2" "node not on PATH"; fi; }
 
 if [ "$ONLY" != behaviour ]; then
 # ─────────────────────────────────────────────────────────────────────────────
@@ -495,18 +499,18 @@ mk_node_project() { # <dir> <lockfile> <scripts-json>
 
 mk_node_project "$TMP/pnpm" pnpm-lock.yaml '{"lint":"x","type-check":"x","test:ci":"x","build":"x","e2e":"x","e2e:a11y":"x","e2e:update":"x"}'
 out="$(cd "$TMP/pnpm" && bash "$CQ" --list)"
-assert_contains "pnpm detected from lockfile"   "$out" "pnpm run lint"
-assert_contains "type-check alias resolved"     "$out" "pnpm run type-check"
-assert_contains "test:ci preferred over test"   "$out" "pnpm run test:ci"
-assert_contains "pnpm audit uses --prod"        "$out" "pnpm audit --prod"
+node_row assert_contains "pnpm detected from lockfile"   "$out" "pnpm run lint"
+node_row assert_contains "type-check alias resolved"     "$out" "pnpm run type-check"
+node_row assert_contains "test:ci preferred over test"   "$out" "pnpm run test:ci"
+node_row assert_contains "pnpm audit uses --prod"        "$out" "pnpm audit --prod"
 assert_contains "absent gate marked n-a"        "$out" "Visual regression  n-a"
-assert_contains "update cmd surfaced not run"   "$out" "pnpm run e2e:update"
+node_row assert_contains "update cmd surfaced not run"   "$out" "pnpm run e2e:update"
 
 mk_node_project "$TMP/npm" package-lock.json '{"lint":"x","test":"x"}'
 out="$(cd "$TMP/npm" && bash "$CQ" --list)"
-assert_contains "npm detected"                  "$out" "npm run lint"
-assert_contains "npm audit uses --omit=dev"     "$out" "npm audit --omit=dev"
-assert_contains "test falls back from test:ci"  "$out" "npm run test"
+node_row assert_contains "npm detected"                  "$out" "npm run lint"
+node_row assert_contains "npm audit uses --omit=dev"     "$out" "npm audit --omit=dev"
+node_row assert_contains "test falls back from test:ci"  "$out" "npm run test"
 
 mkdir -p "$TMP/rust"; printf '[package]\nname="x"\n' > "$TMP/rust/Cargo.toml"
 out="$(cd "$TMP/rust" && bash "$CQ" --list)"
@@ -525,7 +529,7 @@ printf '{"scripts":{"lint":"eslint ."}}' > "$PG/package.json"
 printf '[project]\nname="x"\n' > "$PG/pyproject.toml"
 printf 'test:\n\tpytest\nbuild:\n\tmake dist\n' > "$PG/Makefile"
 out="$(cd "$PG" && bash "$CQ" --list)"
-assert_contains "polyglot: js lint still wins"      "$out" "npm run lint"
+node_row assert_contains "polyglot: js lint still wins"      "$out" "npm run lint"
 assert_contains "polyglot: make test is found"      "$out" "make test"
 assert_contains "polyglot: make build is found"     "$out" "make build"
 assert_contains "polyglot: python typecheck found"  "$out" "mypy"
@@ -554,8 +558,8 @@ PG2="$TMP/polyglot2"; mkdir -p "$PG2"
 printf '{"scripts":{"test":"vitest run"}}' > "$PG2/package.json"
 printf 'test:\n\tpytest\n' > "$PG2/Makefile"
 out="$(cd "$PG2" && bash "$CQ" --list)"
-assert_contains "polyglot: manifest order is precedence" "$out" "npm run test"
-assert_missing  "polyglot: later ecosystem does not clobber" "$out" "make test"
+node_row assert_contains "polyglot: manifest order is precedence" "$out" "npm run test"
+node_row assert_missing "polyglot: later ecosystem does not clobber" "$out" "make test"
 
 # explicit config wins over detection
 mkdir -p "$TMP/conf/.claude"; printf '{"scripts":{"lint":"x"}}' > "$TMP/conf/package.json"
@@ -586,7 +590,7 @@ assert_contains "profile overrides detection"        "$out" "pnpm run lint:stric
 assert_contains "profile supplies test command"      "$out" "pnpm run test:ci"
 assert_contains "profile names its own update cmd"   "$out" "pnpm run snap"
 assert_contains "profile named as the source"        "$out" "PROJECT-PROFILE.md"
-assert_contains "blank profile row falls through"    "$out" "npm run build"
+node_row assert_contains "blank profile row falls through"    "$out" "npm run build"
 # a half-filled profile is the normal state (§5 "progressive, not a questionnaire"):
 # n-a and <placeholder> rows must not become invented commands
 assert_missing  "placeholder row not taken literally" "$out" "<command>"
@@ -628,6 +632,16 @@ assert_contains "conf: double quotes"  "$out" "pnpm run lint"
 assert_contains "conf: single quotes"  "$out" "pnpm run test:ci"
 assert_contains "conf: bare + indent"  "$out" "make"
 assert_contains "conf: empty means n-a" "$out" "Visual regression  n-a"
+
+# A core.autocrlf checkout hands the profile and the conf over CRLF; a \r left on a
+# resolved command makes the gate "command not found" and the update guard miss it.
+mkdir -p "$TMP/crlfconf/.claude"; printf '{"scripts":{}}' > "$TMP/crlfconf/package.json"
+awk '{ printf "%s\r\n", $0 }' "$TMP/prof/.claude/PROJECT-PROFILE.md" > "$TMP/crlfconf/.claude/PROJECT-PROFILE.md"
+printf 'BUILD="make release"\r\n' > "$TMP/crlfconf/.claude/quality-gates.conf"
+out="$(cd "$TMP/crlfconf" && bash "$CQ" --list)"
+assert_contains "CRLF profile: command read"     "$out" "pnpm run lint:strict"
+assert_contains "CRLF conf: assignment read"     "$out" "make release"
+assert_missing  "CRLF profile and conf leave no \\r" "$out" $'\r'
 
 # ─────────────────────────────────────────────────────────────────────────────
 section "3. Behaviour — profile-bootstrap.sh"
@@ -671,10 +685,13 @@ cat > "$DR/.claude/PROJECT-PROFILE.md" <<'PROF'
 - placeholder: `<path/to/x.md>`
 PROF
 assert_empty "accurate profile stays silent" "$(run_bs "$DR")"
+DRC="$TMP/drift-crlf"; cp -R "$DR" "$DRC"
+awk '{ printf "%s\r\n", $0 }' "$DR/.claude/PROJECT-PROFILE.md" > "$DRC/.claude/PROJECT-PROFILE.md"
+assert_empty "a CRLF profile stays silent too" "$(run_bs "$DRC")"
 
 printf '{"scripts":{"lint":"x"}}' > "$DR/package.json"
 out="$(run_bs "$DR")"
-assert_contains "flags a removed script"  "$out" "no longer a script in package.json"
+node_row assert_contains "flags a removed script"  "$out" "no longer a script in package.json"
 assert_missing  "does not flag lint"      "$out" '`npm run lint` is in the profile'
 
 printf '{"scripts":{"lint":"x","build":"x"}}' > "$DR/package.json"; rm "$DR/CHANGELOG.md"
@@ -754,7 +771,7 @@ assert_contains "finds deploy workflow"       "$out" "deploy.yml"
 assert_contains "finds env contract"          "$out" ".env.example"
 assert_contains "finds design tokens"         "$out" "tokens.css"
 assert_contains "detects monorepo shape"      "$out" "monorepo (turbo)"
-assert_contains "detects framework"           "$out" "React"
+node_row assert_contains "detects framework"           "$out" "React"
 assert_contains "instructs investigate-first" "$out" "investigate before you ask"
 assert_contains "brownfield offers kickoff as the one door" "$out" "/m-skills:kickoff reads this repo"
 assert_missing  "brownfield does not make the user pick a door" "$out" "/m-skills:onboard maps"
@@ -1109,6 +1126,46 @@ expect "deny: Read a Windows-path .env"    deny  "$(decision guard-secrets.sh "$
 expect "deny: Write a Windows-path id_rsa" deny  "$(decision guard-secrets.sh "$(write_payload Write 'C:\Users\u\.ssh\id_rsa')")"
 expect "allow: Read a Windows-path .env.example" allow "$(decision guard-secrets.sh "$(write_payload Read 'C:\p\.env.example')")"
 expect "deny: type of a Windows-path .env on Windows" deny "$(OS=Windows_NT sec 'type C:\p\.env')"
+expect "deny: type of a relative Windows-path .env"   deny "$(OS=Windows_NT sec 'type .\.env')"
+expect "allow: escaped .env in a regex on Windows"    allow "$(OS=Windows_NT sec "grep -n '\\.env' README.md")"
+expect "allow: escaped .env in a double-quoted regex on Windows" allow "$(OS=Windows_NT sec 'grep -n "\.env" README.md')"
+# ...but only quoted: unquoted, bash reads \.env as .env
+expect "deny: unquoted \\.env on Windows"             deny "$(OS=Windows_NT sec 'cat \.env')"
+expect "deny: an escaped quote opens no string on Windows" deny "$(OS=Windows_NT sec "cat \\'x \\.env")"
+expect "deny: unquoted \\.env in bash"                deny "$(sec 'cat \.env')"
+# The segment split cannot see double quotes: "x;" must not make \.env look quoted
+expect "deny: a quoted separator does not hide \\.env" deny "$(sec 'cat "x;" \.env')"
+expect "deny: ...nor turn the rest into a search"     deny "$(OS=Windows_NT sec 'cat "a;grep " \.env')"
+expect "allow: a regex beside an ls of .env"          allow "$(sec "ls .env && grep -n '\\.env' README.md")"
+# cmd and PowerShell read a quoted '\.env' at the drive root: a regex only for a search tool
+expect "deny: Get-Content of a quoted \\.env on Windows" deny "$(OS=Windows_NT sec "Get-Content '\\.env'")"
+expect "allow: findstr for \\.env on Windows"          allow "$(OS=Windows_NT sec 'findstr /n "\.env" README.md')"
+expect "allow: a single-quoted alternation on Windows" allow "$(OS=Windows_NT sec "rg '\\.env|secret' src")"
+# An apostrophe bash does not read as a quote must not join `ls x; cat .env` into one ls
+expect "deny: an apostrophe in a comment does not hide cat"  deny "$(sec $'# don\'t touch prod\nls x; cat .env')"
+expect "deny: an apostrophe in a heredoc does not hide cat"  deny "$(sec $'cat <<\'EOF\' > n.txt\nit\'s done\nEOF\nls x | cat .env')"
+expect "deny: \$'\\'' does not hide cat"                      deny "$(sec "ls \$'\\'' ; cat .env ; ls \$'\\''")"
+# A quoted \.env is a regex only for a search tool: these unescape it and read .env
+expect "deny: bash -c with an escaped .env"                deny "$(sec "bash -c 'cat \\.env'")"
+expect "deny: an escaped .env in a quoted substitution"    deny "$(sec 'echo "$(cat \.env)"')"
+expect "deny: node -e with an escaped .env"                deny "$(sec "node -e 'require(\"fs\").readFileSync(\"\\.env\")'")"
+expect "deny: sed runs code, so it is no search tool"      deny "$(OS=Windows_NT sec "sed -n '1e cat \\.env' README.md")"
+# The lexer reads comments and $'…' as bash does, and ;|& inside double quotes as text
+expect "allow: a regex for \\.env beside a comment"        allow "$(sec "grep -n '\\.env' README.md  # refs")"
+expect "allow: a double-quoted alternation on Windows"     allow "$(OS=Windows_NT sec 'grep -n "\.env|x" README.md')"
+expect "allow: an ANSI-C quoted regex for \\.env"          allow "$(sec "grep -n \$'\\\\.env' README.md")"
+expect "allow: .env named only inside a comment"           allow "$(sec 'ls x # cat .env')"
+expect "deny: \$# is no comment"                           deny "$(sec 'echo $#; cat .env')"
+expect "deny: an escaped blank before # is no comment"     deny "$(sec 'ls a\ #x; cat .env')"
+expect "deny: a comment after the read"                    deny "$(sec "cat .env # it's")"
+expect "deny: an escaped quote inside \$'…' closes nothing" deny "$(sec "echo \$'it\\'s' ; cat .env")"
+expect "deny: a separator inside double quotes, then a read" deny "$(sec 'echo "a;b" ; cat .env')"
+# bash joins quoted and escaped pieces into one word
+expect "deny: .env spliced with empty quotes"              deny "$(sec 'cat .en""v')"
+expect "deny: .env spliced from a quoted part"             deny "$(sec "cat '.en'v")"
+expect "deny: .env spliced from mixed quotes"              deny "$(sec "cat \".e\"n'v'")"
+expect "deny: .env spliced with an escaped letter"         deny "$(sec 'cat .e\nv')"
+expect "deny: .env spliced with empty quotes on Windows"   deny "$(OS=Windows_NT sec 'type .en""v')"
 expect "deny: Read id_rsa"                 deny  "$(decision guard-secrets.sh "$(write_payload Read '/home/u/.ssh/id_rsa')")"
 expect "deny: Grep pointed at .env.local"  deny  "$(decision guard-secrets.sh "$(grep_payload path '/p/.env.local')")"
 expect "deny: Grep globbed to .env*"       deny  "$(decision guard-secrets.sh "$(grep_payload glob '.env*')")"
@@ -1251,7 +1308,7 @@ printf '{"scripts":{"test":"vitest run","e2e:update":"playwright test -u"}}' > "
 touch "$UP/package-lock.json"
 (
   export CLAUDE_PROJECT_DIR="$UP" CLAUDE_SESSION_ID="upd-$$"
-  expect "deny: the project's own update command" deny \
+  node_row expect "deny: the project's own update command" deny \
     "$(decision guard-mutations.sh "$(bash_payload 'npm run e2e:update')")"
   expect "allow: a different script in the same project" allow \
     "$(decision guard-mutations.sh "$(bash_payload 'npm run test')")"
@@ -1478,8 +1535,14 @@ expect "ag deny: gh pr create"               deny  "$(ag_decision guard-outward.
 expect "ag deny: view_file .env"             deny  "$(ag_decision guard-secrets.sh "$(ag_file view_file AbsolutePath "$AGWS/.env")")"
 expect "ag allow: view_file .env.example"    allow "$(ag_decision guard-secrets.sh "$(ag_file view_file AbsolutePath "$AGWS/.env.example")")"
 expect "ag allow: view_file src/app.ts"      allow "$(ag_decision guard-secrets.sh "$(ag_file view_file AbsolutePath "$AGWS/src/app.ts")")"
+expect "ag deny: read_file .env"             deny  "$(ag_decision guard-secrets.sh "$(ag_file read_file Path "$AGWS/.env")")"
+expect "ag allow: read_file .env.example"    allow "$(ag_decision guard-secrets.sh "$(ag_file read_file Path "$AGWS/.env.example")")"
 expect "ag deny: write_to_file id_rsa"       deny  "$(ag_decision guard-secrets.sh "$(ag_file write_to_file TargetFile "$AGWS/id_rsa")")"
+expect "ag deny: write_file id_rsa"          deny  "$(ag_decision guard-secrets.sh "$(ag_file write_file Path "$AGWS/id_rsa")")"
 expect "ag deny: replace_file_content .env"  deny  "$(ag_decision guard-secrets.sh "$(ag_file replace_file_content TargetFile "$AGWS/.env")")"
+expect "ag deny: edit_file .env"             deny  "$(ag_decision guard-secrets.sh "$(ag_file edit_file Path "$AGWS/.env")")"
+expect "ag deny: grep_search on .env"        deny  "$(ag_decision guard-secrets.sh "$(ag_file grep_search SearchPath "$AGWS/.env")")"
+expect "ag allow: grep_search on src/"       allow "$(ag_decision guard-secrets.sh "$(ag_file grep_search SearchPath "$AGWS/src")")"
 expect "ag allow: a tool no guard covers"    allow "$(ag_decision guard-secrets.sh "$(ag_payload list_dir '{"DirectoryPath":"/"}')")"
 
 out="$(printf '%s' "$(ag_run 'git commit -m x')" | bash "$ROOT/scripts/antigravity-adapt.sh" guard-mutations.sh 2>/dev/null)"
@@ -1538,6 +1601,12 @@ rm -f "$AGWS/.claude/.m-skills-no-guards"
 mkdir -p "$TMP/noawk"; ln -sf "$WINBIN"/* "$TMP/noawk/" 2>/dev/null; rm -f "$TMP/noawk/awk"
 expect "ag win: no reader at all steps aside" allow \
   "$(win_decision guard-mutations.sh "$(ag_run 'git commit -m x')" "$TMP/noawk")"
+
+# WSL bash on PATH ahead of Git Bash: the adapter must spawn the guard with its own $BASH
+mkdir -p "$TMP/wslbash"; ln -sf "$WINBIN"/* "$TMP/wslbash/" 2>/dev/null; rm -f "$TMP/wslbash/bash"
+printf '#!/bin/sh\nexit 127\n' > "$TMP/wslbash/bash"; chmod +x "$TMP/wslbash/bash"
+out="$(printf '%s' "$(ag_run 'git commit -m x')" | PATH="$TMP/wslbash" "$WINBIN/bash" "$ROOT/scripts/antigravity-adapt.sh" guard-mutations.sh 2>/dev/null)"
+expect "ag win: adapter spawns the guard with \$BASH, not WSL bash on PATH" deny "$(printf '%s' "$out" | verdict)"
 
 if [ -n "$REALJQ" ]; then
   mkdir -p "$TMP/winjq"; ln -sf "$WINBIN"/* "$TMP/winjq/" 2>/dev/null
@@ -1657,9 +1726,10 @@ if bash "$ROOT/scripts/build-antigravity.sh" "$AGOUT" >/dev/null 2>&1; then
   for s in antigravity-adapt.sh guard-mutations.sh guard-outward.sh guard-secrets.sh profile-bootstrap.sh lib/hook-json.sh; do
     awk '{ printf "%s\r\n", $0 }' "$ROOT/scripts/$s" > "$CRS/scripts/$s"
   done
+  awk '{ printf "%s\r\n", $0 }' "$ROOT/skills/implementing-architect/check-quality.sh" > "$CRS/skills/implementing-architect/check-quality.sh"
   CRO="$CRS/dist/antigravity/m-skills"
   if bash "$CRS/scripts/build-antigravity.sh" "$CRO" >/dev/null 2>&1; then
-    assert_empty "ag build strips CRLF from a Windows clone's scripts" "$(grep -rl $'\r' "$CRO/scripts" 2>/dev/null)"
+    assert_empty "ag build strips CRLF from a Windows clone's scripts" "$(grep -rl $'\r' "$CRO/scripts" "$CRO/skills" --include='*.sh' 2>/dev/null)"
     out="$(printf '%s' "$(ag_run 'git commit -m x')" \
       | (cd "$CRO" && CLAUDE_CONFIG_DIR="$TMP/agconfig" bash scripts/antigravity-adapt.sh guard-mutations.sh) 2>/dev/null)"
     assert_contains "ag built from a CRLF clone still denies git commit" "$out" '"decision":"deny"'
@@ -1855,6 +1925,10 @@ if bash "$ROOT/scripts/build-codex.sh" "$CXOUT" >/dev/null 2>&1; then
   for s in codex-adapt.sh guard-mutations.sh guard-outward.sh guard-secrets.sh profile-bootstrap.sh lib/hook-json.sh; do
     [ -f "$CXOUT/scripts/$s" ] && ok "cx ships scripts/$s" || bad "cx ships scripts/$s"
   done
+  # Codex reads exit 2 as a block, and a CRLF script exits 2 on its first function
+  assert_empty "cx ships its shell scripts LF" "$(grep -rl $'\r' "$CXOUT/scripts" 2>/dev/null)"
+  assert_empty "cx every hook gets a 30 s timeout" \
+    "$(printf '%s\n' "$hooks_json" | grep -o '"timeout": *[0-9]*' | grep -v ': *30$')"
 
   # Codex plugins ship no always-on rule, so guidelines-meta — which every architect
   # loads first — carries what the model needs when the hooks are not trusted yet
@@ -1865,6 +1939,28 @@ if bash "$ROOT/scripts/build-codex.sh" "$CXOUT" >/dev/null 2>&1; then
   assert_contains "cx Codex section names the /hooks trust step"  "$gm" '`/hooks`'
   assert_contains "cx Codex section quotes the secrets constraint" "$gm" "Never write a real secret into a tracked file"
   assert_contains "cx Codex section defines <this-skill>"         "$gm" '`<this-skill>` is'
+
+  # A core.autocrlf clone from before .gitattributes: a pull rewrites the build script LF,
+  # every script it leaves unchanged stays CRLF — the sourced lib included
+  CXS="$TMP/cx-crlf-src"
+  mkdir -p "$CXS/scripts/lib" && cp -R "$ROOT/skills" "$ROOT/commands" "$ROOT/.claude-plugin" "$CXS/"
+  cp "$ROOT"/scripts/*.sh "$CXS/scripts/" && cp "$ROOT/scripts/lib/hook-json.sh" "$CXS/scripts/lib/"
+  for s in codex-adapt.sh guard-mutations.sh guard-outward.sh guard-secrets.sh profile-bootstrap.sh lib/hook-json.sh; do
+    awk '{ printf "%s\r\n", $0 }' "$ROOT/scripts/$s" > "$CXS/scripts/$s"
+  done
+  awk '{ printf "%s\r\n", $0 }' "$ROOT/skills/implementing-architect/check-quality.sh" > "$CXS/skills/implementing-architect/check-quality.sh"
+  CXO="$CXS/dist/codex/m-skills"
+  if bash "$CXS/scripts/build-codex.sh" "$CXO" >/dev/null 2>&1; then
+    assert_empty "cx build strips CRLF from a Windows clone's scripts" "$(grep -rl $'\r' "$CXO/scripts" "$CXO/skills" --include='*.sh' 2>/dev/null)"
+    assert_contains "cx built from a CRLF clone still resolves gates" \
+      "$(cd "$CXWS" && bash "$CXO/skills/implementing-architect/check-quality.sh" --list 2>&1)" "Gate resolution"
+    out="$(cx_patch '*** Add File: .env' | (cd "$CXWS" && bash "$CXO/scripts/codex-adapt.sh") 2>/dev/null)"
+    assert_contains "cx built from a CRLF clone still denies a patch to .env" "$out" '"permissionDecision":"deny"'
+    cx_patch '*** Update File: src/a.txt' | (cd "$CXWS" && bash "$CXO/scripts/codex-adapt.sh") >/dev/null 2>&1
+    assert_eq "cx built from a CRLF clone lets an ordinary patch through with exit 0" "$?" "0"
+  else
+    bad "cx build strips CRLF from a Windows clone's scripts" "the build failed on a CRLF clone"
+  fi
 
   touch "$CXOUT/stale-from-last-build"
   bash "$ROOT/scripts/build-codex.sh" "$CXOUT" >/dev/null 2>&1
@@ -1958,6 +2054,39 @@ for f in tests CHANGELOG.md CLAUDE.template.md SKILLS_INDEX.md settings.template
   [ -e "$REL/$f" ] && bad "release leaves out $f" || ok "release leaves out $f"
 done
 
+# A marketplace install clones the release branch. With Git for Windows' core.autocrlf
+# and no .gitattributes there, every compiled hook checks out CRLF and exits 2 on its
+# first loop — a block in Claude Code, so every guarded tool fails.
+[ -f "$REL/.gitattributes" ] && ok "release ships .gitattributes" || bad "release ships .gitattributes"
+assert_contains "release .gitattributes pins *.sh to LF" "$(cat "$REL/.gitattributes" 2>/dev/null)" "*.sh  text eol=lf"
+assert_empty "release ships its hook scripts LF" "$(grep -rl $'\r' "$REL/scripts" 2>/dev/null)"
+if command -v git >/dev/null 2>&1; then
+  RG="$TMP/claude-git"; rm -rf "$RG" "$RG-clone"; cp -R "$REL" "$RG"
+  git -C "$RG" init -q && git -C "$RG" add -A \
+    && git -C "$RG" -c user.name=t -c user.email=t@t -c commit.gpgsign=false commit -qm x \
+    && git -c core.autocrlf=true clone -q "$RG" "$RG-clone" 2>/dev/null
+  assert_empty "a core.autocrlf clone of the release checks the hooks out LF" \
+    "$(grep -rl $'\r' "$RG-clone/scripts" 2>/dev/null)"
+  out="$(printf '%s' '{"tool_name":"Bash","tool_input":{"command":"git commit -m x"}}' \
+    | CLAUDE_CONFIG_DIR="$TMP/claude-git-cfg" CLAUDE_PROJECT_DIR="$RG" bash "$RG-clone/scripts/guard-mutations.sh" 2>/dev/null)"
+  assert_contains "that clone's guard still denies git commit" "$out" '"permissionDecision":"deny"'
+else
+  skip "a core.autocrlf clone of the release checks the hooks out LF" "git not on PATH"
+fi
+# And a CRLF source tree — a clone from before .gitattributes — builds the same release.
+CRS="$TMP/claude-crlf-src"; rm -rf "$CRS"; mkdir -p "$CRS"
+cp -R "$ROOT/.claude-plugin" "$ROOT/skills" "$ROOT/commands" "$ROOT/hooks" "$ROOT/scripts" "$CRS/"
+cp "$ROOT/LICENSE" "$ROOT/THIRD-PARTY-NOTICES.md" "$ROOT/README.release.md" "$ROOT/.gitattributes" "$CRS/"
+find "$CRS/scripts" "$CRS/skills" -name '*.sh' ! -name build-claude.sh | while read -r f; do
+  awk '{ printf "%s\r\n", $0 }' "$f" > "$f.crlf" && mv "$f.crlf" "$f"
+done
+if out="$(bash "$CRS/scripts/build-claude.sh" 2>&1)"; then
+  assert_empty "a CRLF source tree builds the same hook scripts" \
+    "$(diff -r "$REL/scripts" "$CRS/dist/claude/m-skills/scripts" 2>&1)"
+else
+  bad "a CRLF source tree builds the same hook scripts" "$(printf '%s' "$out" | tail -3)"
+fi
+
 # The directory's file limits: at most 512 files, every non-image under 256 KiB.
 n="$(find "$REL" -type f | wc -l | tr -d ' ')"
 [ "$n" -le 512 ] && ok "release holds at most 512 files ($n)" || bad "release holds at most 512 files" "$n files"
@@ -1970,7 +2099,7 @@ plant() { # <what> <lines appended to a hook script> <expected refusal>
   rm -rf "$pl"; mkdir -p "$pl/scripts"
   cp -R "$ROOT/.claude-plugin" "$ROOT/skills" "$ROOT/commands" "$ROOT/hooks" "$pl/"
   cp -R "$ROOT/scripts/." "$pl/scripts/"
-  cp "$ROOT/LICENSE" "$ROOT/THIRD-PARTY-NOTICES.md" "$ROOT/README.release.md" "$pl/"
+  cp "$ROOT/LICENSE" "$ROOT/THIRD-PARTY-NOTICES.md" "$ROOT/README.release.md" "$ROOT/.gitattributes" "$pl/"
   printf '%s\n' "$2" >> "$pl/scripts/resume-progress.sh"
   if out="$(bash "$pl/scripts/build-claude.sh" 2>&1)"; then
     bad "build refuses $1" "it built"

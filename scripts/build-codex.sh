@@ -22,7 +22,10 @@
 #   hooks/hooks.json   the three guards on Bash, which Codex sends in Claude Code's own
 #     shape, and codex-adapt.sh on apply_patch. Hooks run in the session's cwd, so every
 #     command goes through $PLUGIN_ROOT — a relative path exits 127, and Codex runs the
-#     tool anyway when a hook fails. None of them runs until the user trusts it in /hooks.
+#     tool anyway when a hook fails. Exit 2 is the exception: Codex reads it as a block,
+#     and bash exits 2 on a syntax error, so the scripts ship LF. Each guard gets 30 s,
+#     as in Antigravity, because Windows starts processes slowly and a guard that times
+#     out is skipped. None of them runs until the user trusts it in /hooks.
 #   A "Running under Codex" section appended to guidelines-meta, which every architect
 #     loads first: the placeholders, the gated skills and their $ lines, and the guards
 #     restated for a session whose hooks are not trusted yet. Codex plugins ship no
@@ -41,8 +44,9 @@ case "$OUT" in
   *) echo "build-codex: refusing to clear '$OUT' — the output path must end in /dist/codex/m-skills" >&2; exit 1 ;;
 esac
 
+# Read through tr: a clone made before .gitattributes keeps this unchanged file CRLF.
 # shellcheck source=lib/hook-json.sh
-. "$ROOT/scripts/lib/hook-json.sh"
+. <(tr -d '\r' < "$ROOT/scripts/lib/hook-json.sh")
 
 VERSION="$(grep -o '"version": *"[^"]*"' "$ROOT/.claude-plugin/plugin.json" | head -1 | sed 's/.*"\([^"]*\)"$/\1/')"
 [ -n "$VERSION" ] || { echo "build-codex: no version in .claude-plugin/plugin.json" >&2; exit 1; }
@@ -53,6 +57,16 @@ cp -R "$ROOT/skills" "$OUT/"
 cp "$ROOT/scripts/lib/hook-json.sh" "$OUT/scripts/lib/"
 for s in guard-mutations.sh guard-outward.sh guard-secrets.sh codex-adapt.sh profile-bootstrap.sh; do
   cp "$ROOT/scripts/$s" "$OUT/scripts/"
+done
+# A CRLF codex-adapt.sh stops on its first function with a syntax error — exit 2, which
+# Codex treats as a block, so every apply_patch would fail. .gitattributes pins *.sh to
+# LF, but a Windows clone made with core.autocrlf before that file existed keeps CRLF in
+# every script a later pull leaves unchanged. Ship them LF; tr, not sed, for BSD.
+# skills/ too: guard-mutations runs check-quality.sh, and a CRLF copy resolves no
+# update command, so the snapshot guard would go quiet for the whole session.
+for f in "$OUT"/scripts/*.sh "$OUT"/scripts/lib/*.sh "$OUT"/skills/*/*.sh; do
+  [ -f "$f" ] || continue
+  tr -d '\r' < "$f" > "$f.lf" && cat "$f.lf" > "$f" && rm "$f.lf"
 done
 
 # A route command becomes a skill of the same name, user-only as a command is in Claude Code.
@@ -118,15 +132,15 @@ cat > "$OUT/hooks/hooks.json" <<'EOF'
       {
         "matcher": "^Bash$",
         "hooks": [
-          { "type": "command", "command": "bash \"$PLUGIN_ROOT/scripts/guard-mutations.sh\"", "timeout": 10, "statusMessage": "m-skills: checking git and golden-file guards..." },
-          { "type": "command", "command": "bash \"$PLUGIN_ROOT/scripts/guard-outward.sh\"", "timeout": 5, "statusMessage": "m-skills: checking for outward-facing actions..." },
-          { "type": "command", "command": "bash \"$PLUGIN_ROOT/scripts/guard-secrets.sh\"", "timeout": 5, "statusMessage": "m-skills: checking for secret-bearing paths..." }
+          { "type": "command", "command": "bash \"$PLUGIN_ROOT/scripts/guard-mutations.sh\"", "timeout": 30, "statusMessage": "m-skills: checking git and golden-file guards..." },
+          { "type": "command", "command": "bash \"$PLUGIN_ROOT/scripts/guard-outward.sh\"", "timeout": 30, "statusMessage": "m-skills: checking for outward-facing actions..." },
+          { "type": "command", "command": "bash \"$PLUGIN_ROOT/scripts/guard-secrets.sh\"", "timeout": 30, "statusMessage": "m-skills: checking for secret-bearing paths..." }
         ]
       },
       {
         "matcher": "^apply_patch$",
         "hooks": [
-          { "type": "command", "command": "bash \"$PLUGIN_ROOT/scripts/codex-adapt.sh\"", "timeout": 10, "statusMessage": "m-skills: checking patched paths for secrets..." }
+          { "type": "command", "command": "bash \"$PLUGIN_ROOT/scripts/codex-adapt.sh\"", "timeout": 30, "statusMessage": "m-skills: checking patched paths for secrets..." }
         ]
       }
     ]

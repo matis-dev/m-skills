@@ -433,7 +433,9 @@ codex plugin add m-skills@m-skills-local           # installs the plugin
 | No publishing or deploying | denied by a hook | text only |
 | Pipeline skills start only when you type them | enforced: `allow_implicit_invocation: false` hides them from the model | enforced, since this is not a hook |
 
-**A hook that fails to start does not block the call.** Codex ran the tool anyway when a test hook exited 127. That is why every guard writes a deny for each failure it can detect, and every hook command runs from `$PLUGIN_ROOT`.
+**A hook that fails to start does not block the call.** Codex ran the tool anyway when a test hook exited 127. That is why every guard writes a deny for each failure it can detect, and every hook command runs from `$PLUGIN_ROOT`. Exit 2 is the exception: Codex reads it as a block, and bash exits 2 on a script it cannot parse. A script checked out with CRLF endings is one, so the build ships every script LF.
+
+**On Windows, untested.** The hook commands start `bash` and name `$PLUGIN_ROOT`, and the Codex docs do not say which shell runs them there. If it is cmd or PowerShell, or `bash` resolves to WSL, the guards fail to start. Every tool still runs, but nothing is checked and `guards.log` stays empty. Codex offers a Windows-only `commandWindows` override for this, which m-skills does not set yet.
 
 **What is different from Claude Code:**
 
@@ -443,7 +445,7 @@ codex plugin add m-skills@m-skills-local           # installs the plugin
 - **No advisories, no gate preamble, no pick check.** The skip-marker and shared-shape nudges, the resolved gate table injected when a skill starts, and the check that a picked skill was loaded are Claude Code only.
 - **Opt-outs are unchanged.** `.claude/.m-skills-no-guards` in the project, or the same file in `~/.claude/`, still switches the guards off.
 
-**When Codex changes.** The payload shapes were captured from codex-cli 0.159.0. Shell calls arrive in Claude Code's own shape, so the guards read them directly. `scripts/codex-adapt.sh` reads only `apply_patch`. If Codex renames that argument or adds a patch header, the adapter denies the edit rather than letting it through unchecked. Update the adapter and the `cx_*` payload builders in `tests/run-tests.sh` section 8 together.
+**When Codex changes.** The payload shapes were captured from codex-cli 0.159.0. Shell calls arrive in Claude Code's own shape, so the guards read them directly. `scripts/codex-adapt.sh` reads only `apply_patch`. If Codex renames that argument or adds a patch header, the adapter still checks every path it can read, lets the edit through, and writes a line naming what it could not read to `~/.claude/m-skills/guards.log`. Update the adapter and the `cx_*` payload builders in `tests/run-tests.sh` section 8 together.
 
 ---
 

@@ -52,6 +52,7 @@ env_pinned() { case " $ENV_PINNED " in *" $1 "*) return 0 ;; *) return 1 ;; esac
 read_conf() {
   local line gate val
   while IFS= read -r line || [ -n "$line" ]; do
+    line="${line%$'\r'}"
     line="${line#"${line%%[![:space:]]*}"}"
     case "$line" in ''|'#'*) continue ;; esac
     case "$line" in *=*) ;; *) continue ;; esac
@@ -91,12 +92,14 @@ if [ -f "$PROFILE" ]; then
   PROFILE_SET=0
   while IFS="$(printf '\t')" read -r pkey pval; do
     [ -z "$pkey" ] && continue
+    pval="${pval%$'\r'}"
     env_pinned "$pkey" && continue
     case "$pkey" in
       LINT|TYPECHECK|TEST|BUILD|E2E|VISUAL|A11Y|AUDIT|UPDATE_CMD|VISUAL_REPORT)
         printf -v "$pkey" '%s' "$pval"; PROFILE_SET=1 ;;
     esac
   done <<< "$(awk '
+  { sub(/\r$/, "") }
   function clean(c) {
     gsub(/^[ \t]+|[ \t]+$/, "", c); gsub(/`/, "", c)
     gsub(/^[ \t]+|[ \t]+$/, "", c); return c
@@ -152,7 +155,7 @@ detect_pm() {
 # read every script name once — SessionStart bootstrap calls --list, so keep spawns to one
 PKG_SCRIPTS=""
 if [ -f package.json ] && command -v node >/dev/null 2>&1; then
-  PKG_SCRIPTS="$(node -e "const s=require('./package.json').scripts||{};console.log(Object.keys(s).join('\n'))" 2>/dev/null)"
+  PKG_SCRIPTS="$(node -e "const s=require('./package.json').scripts||{};console.log(Object.keys(s).join('\n'))" 2>/dev/null | tr -d '\r')"
 fi
 
 has_script() {

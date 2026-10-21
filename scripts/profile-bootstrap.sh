@@ -38,7 +38,7 @@ m_skills_fingerprint() {
 # package.json script names, one per line; empty without a manifest or node.
 m_skills_pkg_scripts() {
   [ -f package.json ] && command -v node >/dev/null 2>&1 || return 0
-  node -e "const s=require('./package.json').scripts||{};console.log(Object.keys(s).join('\n'))" 2>/dev/null
+  node -e "const s=require('./package.json').scripts||{};console.log(Object.keys(s).join('\n'))" 2>/dev/null | tr -d '\r'
 }
 
 # Greenfield? A repo with a manifest but almost no source is a project about to start,
@@ -193,7 +193,7 @@ if [ -f "$PROFILE" ]; then
   #    profile names is a falsifiable claim. Verify them against the repo as it is now.
   PKG_SCRIPTS="$(m_skills_pkg_scripts)"
   # backticked tokens only — prose is not a claim
-  CLAIMS="$(grep -oE '`[^`]+`' "$PROFILE" 2>/dev/null | tr -d '`' | sort -u)"
+  CLAIMS="$(grep -oE '`[^`]+`' "$PROFILE" 2>/dev/null | tr -d '`\r' | sort -u)"
   while IFS= read -r c; do
     [ -z "$c" ] && continue
     case "$c" in
@@ -269,7 +269,7 @@ PM="unknown"
 
 DEPS=""
 if [ -f package.json ] && command -v node >/dev/null 2>&1; then
-  DEPS="$(node -e "const p=require('./package.json');console.log(Object.keys({...p.dependencies,...p.devDependencies}).join(' '))" 2>/dev/null)"
+  DEPS="$(node -e "const p=require('./package.json');console.log(Object.keys({...p.dependencies,...p.devDependencies}).join(' '))" 2>/dev/null | tr -d '\r')"
 fi
 
 hint() { case " $DEPS " in *" $1 "*) printf '%s ' "$2" ;; esac; }
