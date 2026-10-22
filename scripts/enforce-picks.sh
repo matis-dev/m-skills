@@ -36,7 +36,8 @@ INPUT="$(hook_read_input)"
 
 # Read, Bash, and Stop fire constantly; they only matter while a pick is pending in
 # some session. Decide that with a glob before spending a jq/python3 spawn.
-STATE_BASE="$(dirname "$(m_skills_state_dir probe)")"
+STATE_BASE="$(m_skills_state_dir probe)" || exit 0
+STATE_BASE="$(dirname "$STATE_BASE")"
 case "$INPUT" in
   *AskUserQuestion*) ;;
   *) pending=0
@@ -49,7 +50,8 @@ advisory_require_json_engine
 EVENT="$(json_field "$INPUT" "hook_event_name")"
 TOOL="$(json_field "$INPUT" "tool_name")"
 SESSION="$(json_field "$INPUT" "session_id")"
-PICKS="$(m_skills_state_dir "$SESSION")/pick"
+PICKS="$(m_skills_state_dir "$SESSION")" || exit 0
+PICKS="$PICKS/pick"
 SKILLS="$(cd "$DIR/../skills" 2>/dev/null && pwd)" || exit 0
 
 log_pick() { # <skill> <outcome>

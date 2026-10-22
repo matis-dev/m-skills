@@ -361,7 +361,7 @@ These hold in every skill, in every project:
 | Path | Written by | When |
 |---|---|---|
 | `~/.claude/m-skills/picks.log` | `enforce-picks.sh` | each time you pick a gated skill in the picker — time, session, project path, skill, `loaded` or `NOT loaded` |
-| `$TMPDIR/m-skills-<uid>/<session>/` (`/tmp` when `TMPDIR` is unset) | several hooks | once-per-session markers, so an advisory or the gate preamble fires once |
+| `$TMPDIR/m-skills-<uid>/<session>/` (`/tmp` when `TMPDIR` is unset) | several hooks | once-per-session markers, so an advisory or the gate preamble fires once. Kept at mode 700 and used only when you own it; if another account owns the name, the snapshot-update guard runs uncached and the advisories, gate preamble, and pick check stay silent |
 | `.claude/PROJECT-PROFILE.md` | `profile-bootstrap.sh` | only with `M_SKILLS_AUTOPROFILE=1`; otherwise Claude offers the profile and writes it only when you say yes |
 
 `~/.claude` is `$CLAUDE_CONFIG_DIR` when that is set.

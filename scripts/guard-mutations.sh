@@ -96,21 +96,22 @@ done | grep -q deny && \
 # whole point is that the command is project-specific. Cached per session: the
 # resolution spawns node, and this hook runs on every Bash call.
 resolve_update_cmd() {
-  local state cache root
+  local state cache="" root
   local session; session="$(json_field "$INPUT" "session_id")"
   root="$(git -C "${CLAUDE_PROJECT_DIR:-$(pwd)}" rev-parse --show-toplevel 2>/dev/null || printf '%s' "${CLAUDE_PROJECT_DIR:-$(pwd)}")"
-  state="$(m_skills_state_dir "$session")"
-  cache="$state/updatecmd-$(m_skills_gate_cache_key "$root")"
-  if [ -f "$cache" ]; then
-    cat "$cache"
-    return 0
+  # No usable state dir means no cache, never no check.
+  if state="$(m_skills_state_dir "$session")" && mkdir -p "$state" 2>/dev/null; then
+    cache="$state/updatecmd-$(m_skills_gate_cache_key "$root")"
+    if [ -f "$cache" ]; then
+      cat "$cache"
+      return 0
+    fi
   fi
-  mkdir -p "$state" 2>/dev/null || return 1
   local resolved
   resolved="$(cd "$root" 2>/dev/null && bash "$DIR/../skills/implementing-architect/check-quality.sh" --list 2>/dev/null \
               | tr -d '\r' | sed -n 's/^[[:space:]]*Update (user-only)[[:space:]]*//p' | head -1)"
   [ "$resolved" = "n-a" ] && resolved=""
-  printf '%s' "$resolved" > "$cache" 2>/dev/null
+  [ -n "$cache" ] && printf '%s' "$resolved" > "$cache" 2>/dev/null
   printf '%s' "$resolved"
 }
 

@@ -100,7 +100,8 @@ GUIDELINES="$DIR/../skills/guidelines-meta/SKILL.md"
 # gone and will not re-fire for an already-marked skill. Acceptable — §9 and §10 are
 # enforced by guard-mutations.sh whether or not Claude remembers them, and the gate
 # table is re-derivable from the gate resolver's --list mode.
-MARK="$(m_skills_state_dir "$SESSION")/preamble/$SKILL"
+STATE="$(m_skills_state_dir "$SESSION")" || exit 0
+MARK="$STATE/preamble/$SKILL"
 [ -f "$MARK" ] && exit 0
 mkdir -p "$(dirname "$MARK")" 2>/dev/null || exit 0
 : > "$MARK" 2>/dev/null || exit 0
@@ -109,7 +110,7 @@ mkdir -p "$(dirname "$MARK")" 2>/dev/null || exit 0
 gates() {
   local state cache root
   root="$(git -C "${CLAUDE_PROJECT_DIR:-$(pwd)}" rev-parse --show-toplevel 2>/dev/null || printf '%s' "${CLAUDE_PROJECT_DIR:-$(pwd)}")"
-  state="$(m_skills_state_dir "$SESSION")"
+  state="$(m_skills_state_dir "$SESSION")" || return 1
   cache="$state/gates-$(m_skills_gate_cache_key "$root")"
   if [ -f "$cache" ]; then cat "$cache"; return 0; fi
   mkdir -p "$state" 2>/dev/null || return 1
