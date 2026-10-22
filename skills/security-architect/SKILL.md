@@ -1,7 +1,7 @@
 ---
 name: security-architect
-description: Load when planning a feature that takes untrusted input or changes authorization, when writing an auth check, query, upload handler, or error path, when an advisory arrives, or when a review finding needs a fix. Models trust boundaries, hardens the sink as it is written, remediates with a regression test, triages by reachability. OWASP Top 10:2025.
-argument-hint: "[feature, file, finding, or advisory] [+ mode: model | harden | remediate | triage]"
+description: Load when planning a feature that takes untrusted input or changes authorization, when writing an auth check, query, upload handler, or error path, when an advisory arrives, when a review finding needs a fix, or when the existing codebase should be audited for vulnerabilities. Models trust boundaries, hardens the sink as it is written, remediates with a regression test, triages by reachability, audits the project read-only. OWASP Top 10:2025.
+argument-hint: "[feature, file, finding, advisory, or nothing for the whole project] [+ mode: model | harden | remediate | triage | audit]"
 ---
 
 # Skill: Security Architect — Threat Modelling, Secure Construction, Remediation
@@ -34,8 +34,22 @@ argument-hint: "[feature, file, finding, or advisory] [+ mode: model | harden | 
 | **`harden`** | **Implementation**, while the sink is being written | The secure-by-default construction for this specific sink. Not a review — the correct shape, first time. |
 | **`remediate`** | A confirmed finding (review, scanner, report) | The fix **plus** its regression test. Names the category and, only when certain, the CWE. |
 | **`triage`** | An advisory or a reported vulnerability arrives | Reachability, blast radius, and one of — fix now / fix on the next batch / accept with a revisit condition. Hands the upgrade itself to `maintenance-architect`. |
+| **`audit`** | **An existing codebase** — the security read of what is already written | `references/audit.md`: the boundary map, every sink traced to an entry point, findings by reachability, and what was not covered. Read-only; each finding goes to `remediate`. |
 
-Default when unspecified: infer from what was handed over. A plan or feature description → `model`. A file being written → `harden`. A finding with a location → `remediate`. A CVE or advisory ID → `triage`.
+Default when unspecified: infer from what was handed over. A plan or feature description → `model`. A file being written → `harden`. A finding with a location → `remediate`. A CVE or advisory ID → `triage`. A path, "check the project", or existing code named with "audit", "check", or "scan" ("audit the auth module") → `audit` of that scope, never `model`: `model` is for what is not built yet. Any of these decides the mode — don't ask.
+
+**Nothing handed over** (a bare invocation, no feature, finding, or advisory under discussion) → ask in the picker (Guidelines §17), one sheet:
+
+| Option | Runs |
+|---|---|
+| **Audit the whole project (Recommended)** | `audit` of the repository at `HEAD` — no second question |
+| Audit one part | `audit`, scoped — second sheet: which part, `multiSelect`, the likeliest areas the repo suggests (directories or modules holding entry points) |
+| Threat-model a planned feature | `model` — second sheet: which feature, candidates from open plans and the conversation |
+| Fix a finding or triage an advisory | `remediate` or `triage`, by what is picked — second sheet: which one, candidates from the last review or audit and the project's advisory scan |
+
+Before asking, run `git status --porcelain`. **Uncommitted changes present** → the second option becomes **Audit my uncommitted changes (N files)** — `audit` scoped to `git diff HEAD` plus untracked files, no second question — and the last two rows merge into **Something else**, whose second sheet offers threat-model, fix a finding, or triage an advisory.
+
+Ask the second sheet only when its answer is not already in context, and never a third. `harden` is not offered: implementation cites it mid-run, nobody types it.
 
 ---
 
@@ -49,6 +63,7 @@ The categories mapped to sink shapes, the trust-boundary questions, the secure-c
 | `harden` | its `references/secure-construction.md`, for the sink being written |
 | `remediate` | its §1 to name the category · `references/secure-construction.md` for the correct shape · `references/regression-targets.md` for the test |
 | `triage` | its `references/triage.md` — reachability and blast radius |
+| `audit` | `${CLAUDE_SKILL_DIR}/references/audit.md`, which walks its `references/trust-boundaries.md`, §1, `references/review-sweep.md`, and `references/triage.md` in order |
 
 That module is shared with `code-review-architect`, which verifies a diff against it, and `testing-architect`, which turns the module's regression targets into failing-first specs. One copy is the point: a threat model maintained in three files drifts in three directions.
 
@@ -78,9 +93,10 @@ Run the six-axis pre-emit self-critique (Guidelines §18) first; anything under 
 - [ ] No real secret written anywhere, example code included, and no secret file read (§Constraints 5).
 - [ ] `model` mode: all three trust-boundary questions answered (`module-threat-model` → `references/trust-boundaries.md`), including an explicit "crosses no boundary" where true.
 - [ ] Every security decision in the change fails **closed**, and its failure is logged (A10).
+- [ ] `audit` mode: nothing written; scope, commit, search patterns, and what was not covered all stated; the project never called secure.
 - [ ] Nothing claimed as compliance (`references/not-covered.md`).
 - [ ] Verification stayed within one fix batch (Guidelines §16).
 
 ---
 
-_v1.0 — version history in CHANGELOG.md_
+_v1.1 — version history in CHANGELOG.md_

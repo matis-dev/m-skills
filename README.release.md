@@ -33,7 +33,7 @@ One feature at a time, in this order:
 
 Then you run git yourself. The plugin never does.
 
-The rest wait until you need them: design, testing, documentation, product slicing, debugging, deployment, maintenance, security, accessibility, marketing, and search visibility, plus 16 route commands such as `/m-skills:threat-model` and `/m-skills:rollback` that open an architect in one mode.
+The rest wait until you need them: design, testing, documentation, product slicing, debugging, deployment, maintenance, security, accessibility, marketing, and search visibility, plus 17 route commands such as `/m-skills:threat-model` and `/m-skills:rollback` that open an architect in one mode.
 
 ## Know what the hooks enforce
 

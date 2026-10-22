@@ -127,6 +127,7 @@ Commands below use the plugin form — in copy mode, drop the `m-skills:` prefix
 | Screen or component to design | `/m-skills:design-architect` → visitor mode, direction brief (structure · palette · type · signature moment), craft floor, refuse list |
 | Tests to add or upgrade | `/m-skills:testing-architect` |
 | Untrusted input, auth, secrets, or an advisory | `/m-skills:security-architect` → trust boundaries at plan time, the fix and its regression test after |
+| Is the project as written secure? | `/m-skills:security-audit` (a bare `/m-skills:security-architect` offers it first) → whole-repo audit: boundary map, sinks traced to entry points, findings by reachability, writes nothing |
 | Modal, menu, drag, async status, or an axe log | `/m-skills:accessibility-architect` → the accessible contract before it's built, WCAG 2.2 AA by default |
 | Something is broken | `/m-skills:debugging-architect <symptom>` → reproduce, narrow, one hypothesis at a time, regression test before the fix |
 | Plan is too big to ship in one go | `/m-skills:product-architect — decompose` → vertical slices, INVEST, acceptance criteria |
@@ -154,6 +155,7 @@ Eight architects branch. `/m-skills:product-architect` opens by reading its mode
 | `/m-skills:product-architect — prd` | `/m-skills:prd` | a durable spec |
 | `/m-skills:product-architect — brief` | `/m-skills:brief` | one page: north star and anti-goals |
 | `/m-skills:security-architect <x> — model` | `/m-skills:threat-model` | trust boundaries, read-only, before it's built |
+| `/m-skills:security-architect — audit` | `/m-skills:security-audit` | the whole codebase at `HEAD`, findings by reachability, writes nothing |
 | `/m-skills:accessibility-architect <x> — audit` | `/m-skills:a11y-audit` | WCAG 2.2 AA read with what wasn't tested stated |
 | `/m-skills:design-architect <x> — audit` | `/m-skills:ui-audit` | brief or stamp present, craft floor + refuse list, `path:line`, writes nothing |
 | `/m-skills:design-architect <x> — redesign` | `/m-skills:redesign` | replace the visual world, keep the product truth |
@@ -275,6 +277,7 @@ The verbose prompts you've been pasting still work verbatim — but each maps to
 | "Please use /design-architect to review the UI and audit this screen against the craft floor" | `/m-skills:design-architect <target> — audit` |
 | "Can you threat model this new endpoint and check for authentication or injection risks?" | `/m-skills:security-architect <feature> — model` |
 | "Please fix the SQL injection vulnerability found in review and add a regression test" | `/m-skills:security-architect <finding> — remediate` |
+| "Check the whole project for security vulnerabilities" | `/m-skills:security-audit` |
 | "Please audit this modal component to ensure it complies with WCAG 2.2 AA standards" | `/m-skills:accessibility-architect <screen> — audit` |
 | "Here is the axe scan log with accessibility violations, please fix and remediate them" | `/m-skills:accessibility-architect <log> — remediate` |
 | "The login API is failing with a 500 error, please REPRODUCE and DEBUG the root cause" | `/m-skills:debugging-architect <symptom>` |
@@ -515,7 +518,7 @@ git -C ../m-skills-release push
 | `scripts/build-claude.sh` | Builds the self-contained tree the Claude plugin directory follows into `dist/claude/m-skills/` — see [§ Claude directory release](#-claude-directory-release) | stays put |
 | `README.release.md` | The short listing README; ships as `README.md` in the directory release | stays put |
 | `tests/run-tests.sh` | The pack's own test suite — 903 assertions, no dependencies | stays put |
-| `commands/*.md` | The 16 route commands — thin pre-routed entries into one architect's mode | plugin: stays put · copy-mode: → `<project>/.claude/commands/`, paths rewritten |
+| `commands/*.md` | The 17 route commands — thin pre-routed entries into one architect's mode | plugin: stays put · copy-mode: → `<project>/.claude/commands/`, paths rewritten |
 | `skills/<architect>/SKILL.md` | An architect's spine — constraints, modes, procedure | plugin: stays put · copy-mode: → `<project>/.claude/skills/` |
 | `skills/module-*/` | The 9 shared modules, addressed by name | same |
 | `skills/*/references/*.md` | On-demand material, read via `${CLAUDE_SKILL_DIR}` | same |
@@ -530,7 +533,7 @@ The 17 architects: `guidelines-meta`, `brainstorming-planner`, `planning-archite
 
 The 9 modules: `module-propagation`, `module-threat-model`, `module-gate-battery`, `module-craft-floor`, `module-operability-floor`, `module-findings`, `module-evidence`, `module-handover`, `module-writing-floor`.
 
-The 16 route commands: `kickoff`, `onboard`, `decompose`, `prd`, `brief`, `threat-model`, `a11y-audit`, `ui-audit`, `redesign`, `code-review-architect-uncommitted`, `docs-audit`, `release-notes`, `seo-audit`, `spread`, `advisories`, `rollback`. → [§ Skipping the mode question](#skipping-the-mode-question)
+The 17 route commands: `kickoff`, `onboard`, `decompose`, `prd`, `brief`, `threat-model`, `security-audit`, `a11y-audit`, `ui-audit`, `redesign`, `code-review-architect-uncommitted`, `docs-audit`, `release-notes`, `seo-audit`, `spread`, `advisories`, `rollback`. → [§ Skipping the mode question](#skipping-the-mode-question)
 
 **Who invokes what** — pipeline stages are yours to trigger; knowledge skills load themselves when relevant:
 
