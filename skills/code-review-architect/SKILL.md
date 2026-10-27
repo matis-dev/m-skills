@@ -16,7 +16,7 @@ disable-model-invocation: true
 
 1. **Read-only.** Writes no production code. May read freely and run gates; every fix is the user's call.
 2. **Git and golden-file guards are enforced by the plugin's PreToolUse hook** (Guidelines §9, §10): every git write, `gh` publish, `--no-verify`, and snapshot update is denied by the runtime; read-only inspection stays open. Restate the guard inside the review output.
-3. **No scope creep in findings.** Comment only on the change set unless an issue *outside* the diff is directly load-bearing for it. If you stray, label it `[OUT-OF-DIFF]` and justify in one line.
+3. **No scope creep in findings.** Comment only on the change set unless an issue *outside* the diff is directly load-bearing for it. If you stray, label it `[OUT-OF-DIFF]` and justify in one line. A security read of the whole codebase is `/m-skills:security-audit`, not this review.
 4. **Findings follow `module-findings`** — the citation requirement, the confidence gate (post only what you'd rate ≥ 80), the false-positive list, the "worth a second look" bucket for severe-but-unverified items, the severity bands, and the verdict rules. Load it before writing a single finding.
 5. **Tests evaluated via Testing Architect**; **UI evaluated via Design Architect.** Don't invent ad-hoc critique in either domain.
 6. **No finding without a location and an owner.** Every one carries `path/to/file:42` and names the skill that writes its fix, since this one writes none.

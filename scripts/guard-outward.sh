@@ -390,8 +390,23 @@ m_skills_session_id() {
 # A per-session marker directory, so an advisory can fire once rather than every
 # time the same file is touched. Pass the payload's session_id; two concurrent
 # sessions then never silence each other.
+#
+# The base is a predictable name in a shared /tmp, and the hooks read caches back out
+# of it — the gate table the preamble injects as "use verbatim", the update command the
+# guard denies. Another user who creates the name first would own both, so it is used
+# only when it is ours, private, and not a symlink; otherwise this prints nothing and
+# returns 1. The update-command guard then runs uncached; the advisories, the gate
+# preamble, and the pick check stay silent. Windows skips the check: TEMP is per-user there.
+#
+# mkdir only when the base is missing, and the chmod that tightens a base an older
+# version left at 755 runs once, recorded in .private.
 m_skills_state_dir() {
   local base="${TMPDIR:-/tmp}/m-skills-$(id -u 2>/dev/null || echo 0)"
+  [ -d "$base" ] || mkdir -p -m 700 "$base" 2>/dev/null
+  if [ "${OS:-}" != Windows_NT ]; then
+    [ -d "$base" ] && [ ! -L "$base" ] && [ -O "$base" ] || return 1
+    [ -f "$base/.private" ] || { chmod 700 "$base" 2>/dev/null && : > "$base/.private"; } || return 1
+  fi
   printf '%s/%s' "$base" "$(m_skills_session_id "${1:-}")"
 }
 

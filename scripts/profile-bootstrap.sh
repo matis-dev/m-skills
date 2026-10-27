@@ -69,6 +69,7 @@ env_pinned() { case " $ENV_PINNED " in *" $1 "*) return 0 ;; *) return 1 ;; esac
 read_conf() {
   local line gate val
   while IFS= read -r line || [ -n "$line" ]; do
+    line="${line%$'\r'}"
     line="${line#"${line%%[![:space:]]*}"}"
     case "$line" in ''|'#'*) continue ;; esac
     case "$line" in *=*) ;; *) continue ;; esac
@@ -108,12 +109,14 @@ if [ -f "$PROFILE" ]; then
   PROFILE_SET=0
   while IFS="$(printf '\t')" read -r pkey pval; do
     [ -z "$pkey" ] && continue
+    pval="${pval%$'\r'}"
     env_pinned "$pkey" && continue
     case "$pkey" in
       LINT|TYPECHECK|TEST|BUILD|E2E|VISUAL|A11Y|AUDIT|UPDATE_CMD|VISUAL_REPORT)
         printf -v "$pkey" '%s' "$pval"; PROFILE_SET=1 ;;
     esac
   done <<< "$(awk '
+  { sub(/\r$/, "") }
   function clean(c) {
     gsub(/^[ \t]+|[ \t]+$/, "", c); gsub(/`/, "", c)
     gsub(/^[ \t]+|[ \t]+$/, "", c); return c
@@ -169,7 +172,7 @@ detect_pm() {
 # read every script name once — SessionStart bootstrap calls --list, so keep spawns to one
 PKG_SCRIPTS=""
 if [ -f package.json ] && command -v node >/dev/null 2>&1; then
-  PKG_SCRIPTS="$(node -e "const s=require('./package.json').scripts||{};console.log(Object.keys(s).join('\n'))" 2>/dev/null)"
+  PKG_SCRIPTS="$(node -e "const s=require('./package.json').scripts||{};console.log(Object.keys(s).join('\n'))" 2>/dev/null | tr -d '\r')"
 fi
 
 has_script() {
@@ -295,7 +298,7 @@ m_skills_fingerprint() {
 # package.json script names, one per line; empty without a manifest or node.
 m_skills_pkg_scripts() {
   [ -f package.json ] && command -v node >/dev/null 2>&1 || return 0
-  node -e "const s=require('./package.json').scripts||{};console.log(Object.keys(s).join('\n'))" 2>/dev/null
+  node -e "const s=require('./package.json').scripts||{};console.log(Object.keys(s).join('\n'))" 2>/dev/null | tr -d '\r'
 }
 
 # Greenfield? A repo with a manifest but almost no source is a project about to start,
@@ -715,8 +718,23 @@ m_skills_session_id() {
 # A per-session marker directory, so an advisory can fire once rather than every
 # time the same file is touched. Pass the payload's session_id; two concurrent
 # sessions then never silence each other.
+#
+# The base is a predictable name in a shared /tmp, and the hooks read caches back out
+# of it — the gate table the preamble injects as "use verbatim", the update command the
+# guard denies. Another user who creates the name first would own both, so it is used
+# only when it is ours, private, and not a symlink; otherwise this prints nothing and
+# returns 1. The update-command guard then runs uncached; the advisories, the gate
+# preamble, and the pick check stay silent. Windows skips the check: TEMP is per-user there.
+#
+# mkdir only when the base is missing, and the chmod that tightens a base an older
+# version left at 755 runs once, recorded in .private.
 m_skills_state_dir() {
   local base="${TMPDIR:-/tmp}/m-skills-$(id -u 2>/dev/null || echo 0)"
+  [ -d "$base" ] || mkdir -p -m 700 "$base" 2>/dev/null
+  if [ "${OS:-}" != Windows_NT ]; then
+    [ -d "$base" ] && [ ! -L "$base" ] && [ -O "$base" ] || return 1
+    [ -f "$base/.private" ] || { chmod 700 "$base" 2>/dev/null && : > "$base/.private"; } || return 1
+  fi
   printf '%s/%s' "$base" "$(m_skills_session_id "${1:-}")"
 }
   m_skills_guards_disabled && return 0
@@ -818,7 +836,7 @@ if [ -f "$PROFILE" ]; then
   #    profile names is a falsifiable claim. Verify them against the repo as it is now.
   PKG_SCRIPTS="$(m_skills_pkg_scripts)"
   # backticked tokens only — prose is not a claim
-  CLAIMS="$(grep -oE '`[^`]+`' "$PROFILE" 2>/dev/null | tr -d '`' | sort -u)"
+  CLAIMS="$(grep -oE '`[^`]+`' "$PROFILE" 2>/dev/null | tr -d '`\r' | sort -u)"
   while IFS= read -r c; do
     [ -z "$c" ] && continue
     case "$c" in
@@ -894,7 +912,7 @@ PM="unknown"
 
 DEPS=""
 if [ -f package.json ] && command -v node >/dev/null 2>&1; then
-  DEPS="$(node -e "const p=require('./package.json');console.log(Object.keys({...p.dependencies,...p.devDependencies}).join(' '))" 2>/dev/null)"
+  DEPS="$(node -e "const p=require('./package.json');console.log(Object.keys({...p.dependencies,...p.devDependencies}).join(' '))" 2>/dev/null | tr -d '\r')"
 fi
 
 hint() { case " $DEPS " in *" $1 "*) printf '%s ' "$2" ;; esac; }

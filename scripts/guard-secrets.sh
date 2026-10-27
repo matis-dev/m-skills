@@ -384,8 +384,23 @@ m_skills_session_id() {
 # A per-session marker directory, so an advisory can fire once rather than every
 # time the same file is touched. Pass the payload's session_id; two concurrent
 # sessions then never silence each other.
+#
+# The base is a predictable name in a shared /tmp, and the hooks read caches back out
+# of it — the gate table the preamble injects as "use verbatim", the update command the
+# guard denies. Another user who creates the name first would own both, so it is used
+# only when it is ours, private, and not a symlink; otherwise this prints nothing and
+# returns 1. The update-command guard then runs uncached; the advisories, the gate
+# preamble, and the pick check stay silent. Windows skips the check: TEMP is per-user there.
+#
+# mkdir only when the base is missing, and the chmod that tightens a base an older
+# version left at 755 runs once, recorded in .private.
 m_skills_state_dir() {
   local base="${TMPDIR:-/tmp}/m-skills-$(id -u 2>/dev/null || echo 0)"
+  [ -d "$base" ] || mkdir -p -m 700 "$base" 2>/dev/null
+  if [ "${OS:-}" != Windows_NT ]; then
+    [ -d "$base" ] && [ ! -L "$base" ] && [ -O "$base" ] || return 1
+    [ -f "$base/.private" ] || { chmod 700 "$base" 2>/dev/null && : > "$base/.private"; } || return 1
+  fi
   printf '%s/%s' "$base" "$(m_skills_session_id "${1:-}")"
 }
 
@@ -437,16 +452,111 @@ glob_hits_secret() {
   return 1
 }
 
-# words <text> — one word per line, split on whitespace, quotes, and shell
+# QUOTE_LEX — the quote reading words, segments, and quoting_unsure share, so the
+# three cannot disagree about where a quote ends. lex() classifies $0 at i and moves
+# q: sq, "\"", "a" for $'…' (where \ escapes, as it does not in '…'), or "#" for a
+# comment, which newline() ends. A `#` opens one only at the start of a word, after
+# a blank or an operator; an escape pair leaves p non-blank, so `a\ #x` stays a word.
+# Classes: esc (a pair; i left on its second character), open, close, sep (splits
+# a command), run (`$(` or a backtick inside double quotes), heredoc, lit.
+QUOTE_LEX='
+  function newline() { if (q == "#") q = ""; p = " " }
+  function lex(   c, nx) {
+    c = substr($0, i, 1); nx = substr($0, i + 1, 1)
+    if (q == "#") return "lit"
+    if (c == "\\" && q != sq) { i++; return "esc" }
+    if (q == "") {
+      if (c == sq || c == "\"") { q = c; return "open" }
+      if (c == "$" && nx == sq) { q = "a"; i++; return "open" }
+      if (c == "#" && index(" \t;|&()<>", p)) { q = "#"; return "lit" }
+      if (c == "<" && nx == "<") return "heredoc"
+      return index(";|&(){}`", c) ? "sep" : "lit"
+    }
+    if (c == (q == "a" ? sq : q)) { q = ""; return "close" }
+    if (q == "\"" && (c == "`" || (c == "$" && nx == "("))) return "run"
+    return "lit"
+  }
+  function after(k, t) { p = (k == "esc") ? "x" : substr(t, length(t), 1) }'
+
+# words <text> [blind] — one word per line, split on whitespace, quotes, and shell
 # punctuation, so `--env-file=.env`, `HEAD:.env`, `open('.env')` and `$(<.env)`
-# all surface `.env` as a word of its own. On Windows, where the command runs in
-# PowerShell or cmd, a backslash separates paths and splits too (`C:\proj\.env`);
-# elsewhere it is an escape, and `grep '\.env'` names no file.
-if [ "${OS:-}" = Windows_NT ]; then
-  words() { printf '%s' "$1" | tr -s "[:space:]\"'\`;|&<>(){}=,:@\$\\\\" '\n'; }
-else
-  words() { printf '%s' "$1" | tr -s "[:space:]\"'\`;|&<>(){}=,:@\$" '\n'; }
-fi
+# all surface `.env` as a word of its own. Each line is printed twice: as written,
+# and with its quoting removed, as bash joins it — `.en""v` and `'.en'v` are `.env`.
+# Unquoted, `\.env` is `.env`; a quoted word that starts with `\.` is a regex
+# (`grep '\.env'`) and stays whole, marked with \001 because tr drops the quotes that
+# tell the two apart. `blind` ignores quotes, so no word stays whole, and drops
+# every quote character from the joined copy. On Windows, where `OS=Windows_NT` is
+# set in every process, a backslash also separates paths (`C:\proj\.env`), so it
+# splits unmarked words.
+WIN=0; [ "${OS:-}" = Windows_NT ] && WIN=1
+words() {
+  printf '%s' "$1" | awk -v sq="'" -v win="$WIN" -v blind="${2:-}" "$QUOTE_LEX"'
+    BEGIN { starts = "\"" sq "`;|&<>(){}=,:@$" }
+    { newline(); out = ""; deq = ""
+      for (i = 1; i <= length($0); i++) {
+        s = i; c = substr($0, i, 1); nx = substr($0, i + 1, 1)
+        if (blind == "" && c == "\\" && nx == "." && q != "" && q != "#" && (p ~ /[[:space:]]/ || index(starts, p))) {
+          out = out "\001"; deq = deq "\001"; p = "\001"; continue
+        }
+        if (blind == "") k = lex()
+        else if (c == "\\") { k = "esc"; i++ }
+        else k = (c == sq || c == "\"") ? "open" : "lit"
+        t = substr($0, s, i - s + 1); after(k, t)
+        if (k == "esc") { t = (win || q != "") ? t : substr(t, 2); out = out t; deq = deq t }
+        else if (k == "open" || k == "close") out = out t
+        else { out = out t; deq = deq t }
+      }
+      print out; if (deq != out) print deq }' \
+    | tr -s "[:space:]\"'\`;|&<>(){}=,:@\$" '\n' \
+    | awk -v win="$WIN" 'index($0, "\001.") == 1 { print "\\" substr($0, 2); next } win { gsub(/\\/, "\n") } { print }'
+}
+
+# segments <text> — one command per line, split on ; | & ( ) { } and backticks
+# outside quotes. Inside quotes nothing splits (`rg '\.env|x'`, `grep "a|b"`); a
+# command that runs inside double quotes makes quoting_unsure true instead.
+segments() {
+  printf '%s\n' "$1" | awk -v sq="'" "$QUOTE_LEX"'
+    { newline(); out = ""
+      for (i = 1; i <= length($0); i++) {
+        s = i; k = lex(); t = substr($0, s, i - s + 1); after(k, t)
+        out = out (k == "sep" ? "\n" : t)
+      }
+      print out }'
+}
+
+# quoting_unsure <text> — true when segments() cannot be trusted to read the command
+# as bash does: `$(…)` or a backtick inside double quotes, where bash starts a new
+# quoting context; a heredoc, whose body is not shell syntax; or a quote still open
+# at the end. Any of them can leave the lexer inside a quote bash has closed, and
+# `ls x; cat .env` would then be judged as one `ls`.
+quoting_unsure() {
+  printf '%s\n' "$1" | awk -v sq="'" "$QUOTE_LEX"'
+    { newline()
+      for (i = 1; i <= length($0); i++) {
+        s = i; k = lex(); t = substr($0, s, i - s + 1); after(k, t)
+        if (k == "run" || k == "heredoc") { found = 1; exit }
+      }
+    }
+    END { exit !(found || (q != "" && q != "#")) }'
+}
+
+# search_tool <segment> — its command takes a regex and runs no code, so a quoted
+# `\.env` in it is a pattern. sed and awk take one too, but run code (`sed '1e cat
+# \.env'`). Anywhere else it may be a path: cmd and PowerShell read '\.env' at the
+# drive root.
+search_tool() {
+  local -a w
+  read -r -a w <<< "${1//[\"\']/}"
+  local i=0 t
+  while [ "$i" -lt "${#w[@]}" ] && [[ ${w[$i]} == [A-Za-z_]*=* ]]; do i=$((i + 1)); done
+  t="${w[$i]:-}"; t="${t//\\//}"; t="${t##*/}"
+  t="$(printf '%s' "${t%.[Ee][Xx][Ee]}" | tr '[:upper:]' '[:lower:]')"
+  case "$t" in
+    grep|egrep|fgrep|rg|ag|ack|findstr|select-string|sls) return 0 ;;
+    git) [ "${w[$((i + 1))]:-}" = grep ] ;;
+    *) return 1 ;;
+  esac
+}
 
 # names_only <segment> — commands that name a secret path without printing what
 # is inside it. Anything else that names one counts as a read.
@@ -514,19 +624,30 @@ case "$TOOL" in
   Bash)
     CMD="$(json_field "$INPUT" "tool_input.command")"
     [ -z "$CMD" ] && exit 0
-    # One pass over the whole command; almost every command ends here.
-    HITS="$(words "$CMD" | grep -Ev "$EXAMPLE" | grep -Ev "$BARE_EXT" | grep -E "$GUARDED_RE")"
+    # One pass over the whole command; almost every command ends here. It reads blind,
+    # so a quoted '\.env' is a hit until its segment shows a search tool: `bash -c
+    # 'cat \.env'` and "$(cat \.env)" undo the escape, and cmd and PowerShell read
+    # '\.env' at the drive root.
+    HITS="$(words "$CMD" blind | grep -Ev "$EXAMPLE" | grep -Ev "$BARE_EXT" | grep -E "$GUARDED_RE")"
     while IFS= read -r w; do
       [ -n "$w" ] && glob_hits_secret "$w" shell && HITS="$HITS"$'\n'"$w"
     done <<< "$(words "$CMD" | grep -E '[][*?]')"
     HITS="$(printf '%s' "$HITS" | grep -v '^$')"
     [ -z "$HITS" ] && exit 0
-    # Then per segment, so `ls .env && cat .env` is judged by its cat.
-    SEGMENTS="$(printf '%s\n' "$CMD" | awk '{ gsub(/[;|&(){}`]/, "\n"); print }')"
+    # Then per segment, so `ls .env && cat .env` is judged by its cat. A quoted `\.env`
+    # stays a regex only in a search tool's segment, and only when the quote tracking
+    # can be trusted; otherwise every separator splits, quoted or not.
+    if quoting_unsure "$CMD"; then
+      TRUST=0; SEGMENTS="$(printf '%s\n' "$CMD" | awk '{ gsub(/[;|&(){}`]/, "\n"); print }')"
+    else
+      TRUST=1; SEGMENTS="$(segments "$CMD")"
+    fi
     while IFS= read -r seg; do
+      mode=blind; [ "$TRUST" = 1 ] && search_tool "$seg" && mode=""
       while IFS= read -r h; do
-        [[ $seg == *"$h"* ]] || continue
-        words "$seg" | grep -Fxq -- "$h" || continue
+        # Quotes and backslashes out of both, or `.en""v` and `.e\nv` skip the check.
+        [[ ${seg//[\"\'\\]/} == *"${h//\\/}"* ]] || continue
+        words "$seg" "$mode" | grep -Fxq -- "$h" || continue
         names_only "$seg" || deny_read "$h"
       done <<< "$HITS"
     done <<< "$SEGMENTS"

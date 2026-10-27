@@ -35,6 +35,7 @@ The six phases below are the spine and apply to every run. These are read on dem
 | Read | When |
 |---|---|
 | `${CLAUDE_SKILL_DIR}/references/flaky.md` | The failure is intermittent. Different discipline: you are proving a *rate*, not a state. |
+| `${CLAUDE_SKILL_DIR}/references/slow.md` | The symptom is slowness, or the ask is "make it faster". You are moving a measured number. |
 | `${CLAUDE_SKILL_DIR}/references/unreproducible.md` | It cannot be reproduced. Ship instrumentation, not a guess. |
 | `${CLAUDE_SKILL_DIR}/references/diagnosis-format.md` | Writing up the result. |
 | `module-gate-battery` | Running the gates after the fix — and §3 when a test "passes but the feature is broken". |
