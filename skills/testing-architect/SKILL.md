@@ -51,6 +51,7 @@ Read the profile and write down what actually exists here. Everything below appl
 - **Happy path** — the documented behavior.
 - **Edge cases** — empty input, missing optional fields, boundary values (test *both* sides of every bound).
 - **Error paths** — invalid input, rejection, validator failure, and what the user sees when it happens.
+- **Interleaving and dirty state** — only when the unit has shared state, concurrent callers, or a destructive action: two calls at once, a retry after partial failure, and the action meeting state it didn't expect (a merge over uncommitted changes, a migration over half-migrated rows) must stop and change nothing.
 - **Security regression** — see §2. Only when the change actually reaches such a sink; most changes reach none, and saying so is a complete answer.
 - **Coverage target:** the profile's bar (commonly 100% branch on new functions). If a branch is genuinely untestable (a defensive `never` return), justify it in one inline comment and move on.
 

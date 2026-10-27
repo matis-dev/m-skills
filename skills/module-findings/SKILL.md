@@ -48,7 +48,7 @@ Before listing a finding, self-score your confidence that it is **real**, **intr
 - Anything the linter already catches.
 - A line carrying an explicit "safe because …" justification that actually holds.
 - A `shortcut: <ceiling>, <when to upgrade>` comment (Guidelines §2) — a recorded decision, not a finding, unless the project's expected load already crosses the ceiling it names.
-- An absence claim — "unused", "no callers", "never null" — resting on a search that could not see everything. Before claiming one, search tests, fixtures, config, and string-keyed or dynamic references (reflection, runtime registration, generated code, templates). A bounded search that finds nothing proves nothing past its bounds; state what was searched.
+- An absence claim — "unused", "no callers", "never null" — resting on a search that could not see everything. Before claiming one, search tests, fixtures, config, and string-keyed or dynamic references (reflection, runtime registration, generated code, templates). A bounded search that finds nothing proves nothing past its bounds — including the tool's own defaults: ripgrep skips hidden and gitignored paths (`.github/`, `.webpack/`, generated output) unless given `-uu`. State what was searched.
 
 **The one exception:** a correctness or security item you are under 80 on **but that would be severe if true** is not dropped. List it under a short **"Worth a second look (unverified)"** note, kept separate from the scored findings, with what would confirm it.
 

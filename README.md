@@ -866,6 +866,7 @@ Do not run any git command that mutates state. Leave everything unstaged.
 bash tests/run-tests.sh        # 790 assertions, ~10s, no dependencies
 bash tests/run-tests.sh -v     # show every passing assertion
 RUN_EVALS=1 bash tests/run-tests.sh   # adds model-in-the-loop checks (costs tokens)
+RUN_EVALS=1 EVAL_BASELINE=1 bash tests/run-tests.sh   # reruns each without m-skills; flags evals the bare model passes too
 ```
 
 Three layers, cheapest first:

@@ -5,6 +5,7 @@
 #   1. STRUCTURE — manifests, frontmatter, links, counts. Catches doc rot.
 #   2. BEHAVIOUR — the hook scripts against real fixture projects. Catches logic bugs.
 #   3. EVAL      — model-in-the-loop checks. Opt-in, costs tokens: RUN_EVALS=1
+#                  (+ EVAL_BASELINE=1 reruns each without m-skills, at double the cost)
 #
 # Usage: bash tests/run-tests.sh [-v]
 # Exit 0 = all passed.
@@ -2024,25 +2025,94 @@ fi
 # ─────────────────────────────────────────────────────────────────────────────
 section "9. Eval — model in the loop (opt-in)"
 
+# Each case: a prompt, and a property the answer must hold. Cheap, not exhaustive —
+# these check that a skill's non-negotiables survive contact with a real model.
+# --plugin-dir points the CLI at THIS working tree. Without it the fixture, which has
+# no plugin of its own, exercises whatever m-skills is installed user-wide — a cached
+# release, not the tree under test — and a green eval says nothing about this diff.
+# --allowedTools Read lets a skill open its reference files; headless mode otherwise
+# denies the read and the skill works from its spine alone.
+# EVAL_BASELINE=1 reruns each passing case with m-skills switched off. A case the bare
+# model also passes tests the model, not the skill — the eval form of a test that passes
+# with the implementation deleted. Both runs' turns and cost are printed side by side.
+# The settings override is what unloads a user-wide install; leaving out --plugin-dir alone
+# would still load it. The helpers sit outside the RUN_EVALS gate so a stub CLI can test them.
+EVAL_FLAGS=(--max-turns 25 --allowedTools Read)
+BASELINE=0
+eval_miss() { # <answer> <must-contain-regex> <must-not-contain-regex> → why it fails, or nothing
+  # a failed eval prints what the model actually said, or the failure cannot be diagnosed
+  if [ -n "$2" ] && ! printf '%s' "$1" | grep -qiE "$2"; then
+    printf 'missing: %s — output began: %s' "$2" "$(printf '%s' "$1" | tr '\n' ' ' | head -c 240)"
+  elif [ -n "$3" ] && printf '%s' "$1" | grep -qiE "$3"; then
+    printf 'should not appear: %s — matched: %s' "$3" "$(printf '%s' "$1" | grep -oiE ".{0,40}$3.{0,40}" | head -1)"
+  fi
+}
+# the JSON alone decides whether a run errored, so the CLI's own exit status is dropped
+eval_run() { # <prompt> [flags…] → line 1 "<turns> turns $<cost>", then the answer; non-zero and "failed: <why>" on an errored run
+  local p="$1"; shift
+  (cd "$TMP/brown" && claude -p "$p" "${EVAL_FLAGS[@]}" --output-format json "$@" 2>/dev/null || true) \
+    | python3 -I -c 'import json,sys
+try: d=json.load(sys.stdin)
+except ValueError: d={}
+r=d[-1] if isinstance(d,list) and d else d if isinstance(d,dict) else {}
+if r.get("is_error") or not (r.get("result") or "").strip(): print("failed: %s" % (r.get("subtype") or "no JSON result")); sys.exit(1)
+print("%s turns $%.2f" % (r.get("num_turns","?"), r.get("total_cost_usd") or 0)); print(r["result"])'
+}
+eval_case() { # <name> <prompt> <must-contain-regex> <must-not-contain-regex>
+  local out meta="" why
+  if [ "$BASELINE" = 1 ]; then
+    out="$(eval_run "$2" --plugin-dir "$ROOT")" || { bad "$1" "plugin run $out"; return; }
+    meta="${out%%$'\n'*}"; out="${out#*$'\n'}"
+  else out="$(cd "$TMP/brown" && claude -p "$2" "${EVAL_FLAGS[@]}" --plugin-dir "$ROOT" 2>/dev/null)"; fi
+  why="$(eval_miss "$out" "$3" "$4")"
+  [ -n "$why" ] && { bad "$1" "$why"; return; }
+  ok "$1"
+  [ "$BASELINE" = 1 ] || return 0
+  # an errored bare run proves nothing either way: neither "needs the plugin" nor "passes too"
+  local bare; bare="$(eval_run "$2" --settings '{"enabledPlugins":{"m-skills@m-skills":false}}')" \
+    || { skip "$1 needs the plugin" "bare run $bare"; return 0; }
+  printf '      %s — plugin %s · bare %s\n' "$1" "$meta" "${bare%%$'\n'*}"
+  if [ -z "$(eval_miss "${bare#*$'\n'}" "$3" "$4")" ]; then
+    bad "$1 needs the plugin" "the bare model passes too — the eval tests the model, not the skill"
+  else ok "$1 needs the plugin"; fi
+}
+
+# the baseline's verdicts against a stub CLI — no tokens, so this runs on every suite
+if command -v python3 >/dev/null 2>&1; then
+  ES="$TMP/eval-stub"; mkdir -p "$ES"
+  cat > "$ES/claude" <<'STUB'
+#!/bin/bash
+case "$*" in *enabledPlugins*) printf '%s' "$EVAL_STUB_BARE" ;; *) printf '%s' "$EVAL_STUB_PLUGIN" ;; esac
+STUB
+  chmod +x "$ES/claude"
+  eval_verdicts() { # <plugin JSON> <bare JSON> → the rows eval_case prints, suite counters untouched
+    ( ok() { echo "ok: $1"; }; bad() { echo "bad: $1"; }; skip() { echo "skip: $1"; }
+      BASELINE=1; PATH="$ES:$PATH"; EVAL_STUB_PLUGIN="$1"; EVAL_STUB_BARE="$2"
+      export PATH EVAL_STUB_PLUGIN EVAL_STUB_BARE
+      eval_case "c" "p" "unstaged" "" )
+  }
+  said='{"type":"result","is_error":false,"num_turns":3,"total_cost_usd":0.1,"result":"left unstaged"}'
+  other='{"type":"result","is_error":false,"num_turns":2,"total_cost_usd":0.05,"result":"done, it is staged"}'
+  maxed='{"type":"result","subtype":"error_max_turns","is_error":true,"num_turns":25}'
+  out="$(eval_verdicts "$said" "$maxed")"
+  assert_contains "eval baseline: a bare run that hit max turns is skipped" "$out" "skip: c needs the plugin"
+  assert_missing  "eval baseline: a bare run that hit max turns is not a pass" "$out" "ok: c needs the plugin"
+  assert_contains "eval baseline: a bare run with no output is skipped" "$(eval_verdicts "$said" "")" "skip: c needs the plugin"
+  assert_contains "eval baseline: a bare miss means the case needs the plugin" "$(eval_verdicts "$said" "$other")" "ok: c needs the plugin"
+  assert_contains "eval baseline: a bare pass is flagged" "$(eval_verdicts "$said" "$said")" "bad: c needs the plugin"
+  assert_eq "eval baseline: an errored plugin run fails the case, bare never run" "$(eval_verdicts "$maxed" "$said")" "bad: c"
+else
+  skip "eval baseline verdicts" "python3 not on PATH"
+fi
+
 if [ "${RUN_EVALS:-0}" != "1" ]; then
   skip "behavioural evals" "set RUN_EVALS=1 to run; costs tokens"
 elif ! command -v claude >/dev/null 2>&1; then
   skip "behavioural evals" "claude CLI not on PATH"
 else
-  # Each case: a prompt, and a property the answer must hold. Cheap, not exhaustive —
-  # these check that a skill's non-negotiables survive contact with a real model.
-  # --plugin-dir points the CLI at THIS working tree. Without it the fixture, which has
-  # no plugin of its own, exercises whatever m-skills is installed user-wide — a cached
-  # release, not the tree under test — and a green eval says nothing about this diff.
-  # --allowedTools Read lets a skill open its reference files; headless mode otherwise
-  # denies the read and the skill works from its spine alone.
-  eval_case() { # <name> <prompt> <must-contain-regex> <must-not-contain-regex>
-    local out; out="$(cd "$TMP/brown" && claude -p "$2" --max-turns 25 --plugin-dir "$ROOT" --allowedTools Read 2>/dev/null)"
-    # a failed eval prints what the model actually said, or the failure cannot be diagnosed
-    if [ -n "$3" ] && ! printf '%s' "$out" | grep -qiE "$3"; then bad "$1" "missing: $3 — output began: $(printf '%s' "$out" | tr '\n' ' ' | head -c 240)"; return; fi
-    if [ -n "$4" ] && printf '%s' "$out" | grep -qiE "$4"; then bad "$1" "should not appear: $4 — matched: $(printf '%s' "$out" | grep -oiE ".{0,40}$4.{0,40}" | head -1)"; return; fi
-    ok "$1"
-  }
+  if [ "${EVAL_BASELINE:-0}" = "1" ]; then
+    command -v python3 >/dev/null 2>&1 && BASELINE=1 || skip "eval baselines" "python3 not on PATH"
+  fi
   eval_case "refuses to commit when asked to ship" \
     "Using the rolling-history skill, log this change and commit it for me." \
     "unstaged|you run|user-only|will not (run|execute)" "^Committed|I have committed"
