@@ -1,4 +1,25 @@
-# m-skills — a modular Claude Code plugin
+<div align="center">
+
+<img src=".claude-plugin/icon.png" alt="m-skills logo: a lowercase m followed by an arrow" width="128">
+
+# m-skills
+
+### A modular Claude Code plugin for the everyday dev loop
+
+[![Version](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fmatis-dev%2Fm-skills%2Fmain%2F.claude-plugin%2Fplugin.json&query=%24.version&label=version&labelColor=1f2937&color=b45309)](CHANGELOG.md)
+[![License: MIT](https://img.shields.io/badge/license-MIT-b45309?labelColor=1f2937)](LICENSE)
+[![Claude Code plugin](https://img.shields.io/badge/Claude_Code-plugin-b45309?labelColor=1f2937)](#-install)
+[![Codex build](https://img.shields.io/badge/Codex-build-b45309?labelColor=1f2937)](#-codex)
+[![Antigravity build](https://img.shields.io/badge/Antigravity-build-b45309?labelColor=1f2937)](#-antigravity)
+
+[Install](#-install) · [Daily use](#-using-it-day-to-day) · [Skill catalog](SKILLS_INDEX.md) · [Changelog](CHANGELOG.md)
+
+</div>
+
+```text
+/plugin marketplace add matis-dev/m-skills
+/plugin install m-skills@m-skills
+```
 
 **A plugin for full-stack developers who use Claude to do their actual work.** It gives the everyday loop — brainstorm, plan, build, review, write it down — a fixed shape, so the model stops improvising the process and you stop re-typing the same instructions.
 
@@ -62,7 +83,7 @@ There when you need them:
 /m-skills:marketing-architect
 ```
 
-Plus 16 **route commands** — `/m-skills:decompose`, `/m-skills:rollback`, `/m-skills:code-review-architect-uncommitted` and so on — for when you already know which direction you want and don't need the architect to ask. → [§ Skipping the mode question](#skipping-the-mode-question)
+Plus 17 **route commands** — `/m-skills:decompose`, `/m-skills:rollback`, `/m-skills:code-review-architect-uncommitted` and so on — for when you already know which direction you want and don't need the architect to ask. → [§ Skipping the mode question](#skipping-the-mode-question)
 
 They install at user scope, so they're in every project you open — no per-project copying.
 
@@ -143,7 +164,7 @@ Commands below use the plugin form — in copy mode, drop the `m-skills:` prefix
 
 ### Skipping the mode question
 
-Eight architects branch. `/m-skills:product-architect` opens by reading its mode table and working out whether this run is a decompose, a PRD, a brief, or a research plan — which is exactly what you want when the direction is undecided, and pure friction when it isn't.
+Several architects branch. `/m-skills:product-architect` opens by reading its mode table and working out whether this run is a decompose, a PRD, a brief, or a research plan — which is exactly what you want when the direction is undecided, and pure friction when it isn't.
 
 **Route commands are the second door.** Each one pre-selects a route and starts there. No mode question, no modifier to type.
 
@@ -303,7 +324,7 @@ Three tiers. Which tier a piece of guidance belongs to is decided by one questio
 |---|---|---|---|
 | **Architects** | the skills you invoke — they own a stage of the work and carry its constraints | 17 | on invocation |
 | **Modules** | a block two or more architects would otherwise each restate | 9 | when an architect names one |
-| **References** | material one architect or module needs in *some* runs — a mode's procedure, an evidence table, an output template | 56 files | when the run reaches it |
+| **References** | material one architect or module needs in *some* runs — a mode's procedure, an evidence table, an output template | 59 files | when the run reaches it |
 
 A module is addressed **by name** (`module-propagation`), because a name is the only identifier that resolves identically in a plugin install and a copied one. A reference is a plain markdown file inside its architect's own directory, read with the Read tool.
 
@@ -325,7 +346,12 @@ A module is addressed **by name** (`module-propagation`), because a name is the 
 
 Modules are hidden from the `/` menu (`user-invocable: false`) — you never invoke one directly. They point at each other freely but **never load each other**: one level of composition, so there is no load order to debug.
 
----|---|---|
+### What a run actually loads
+
+Measured, in lines, by adding up the files each invocation reads. Honest in both directions:
+
+| Invocation | Before | Now |
+|---|---|---|
 | `search-optimization-architect` — technical pass | 332 | **222** |
 | `design-architect` — polish | 153 | **144** |
 | `security-architect` — model | 187 | **179** |
@@ -517,7 +543,7 @@ git -C ../m-skills-release push
 | `scripts/codex-adapt.sh` | Runs the secret-file guard over each path a Codex `apply_patch` touches; ships only in the Codex build | stays put |
 | `scripts/build-claude.sh` | Builds the self-contained tree the Claude plugin directory follows into `dist/claude/m-skills/` — see [§ Claude directory release](#-claude-directory-release) | stays put |
 | `README.release.md` | The short listing README; ships as `README.md` in the directory release | stays put |
-| `tests/run-tests.sh` | The pack's own test suite — 903 assertions, no dependencies | stays put |
+| `tests/run-tests.sh` | The pack's own test suite — no dependencies | stays put |
 | `commands/*.md` | The 17 route commands — thin pre-routed entries into one architect's mode | plugin: stays put · copy-mode: → `<project>/.claude/commands/`, paths rewritten |
 | `skills/<architect>/SKILL.md` | An architect's spine — constraints, modes, procedure | plugin: stays put · copy-mode: → `<project>/.claude/skills/` |
 | `skills/module-*/` | The 9 shared modules, addressed by name | same |
@@ -863,7 +889,7 @@ Do not run any git command that mutates state. Leave everything unstaged.
 ## 🧪 Testing the pack itself
 
 ```
-bash tests/run-tests.sh        # 790 assertions, ~10s, no dependencies
+bash tests/run-tests.sh        # no dependencies
 bash tests/run-tests.sh -v     # show every passing assertion
 RUN_EVALS=1 bash tests/run-tests.sh   # adds model-in-the-loop checks (costs tokens)
 RUN_EVALS=1 EVAL_BASELINE=1 bash tests/run-tests.sh   # reruns each without m-skills; flags evals the bare model passes too
@@ -873,7 +899,7 @@ Three layers, cheapest first:
 
 1. **Structure** — frontmatter matches directory names, invocation flags are what they should be, no skill references a sibling by hardcoded path, every internal link resolves, doc counts match reality, manifests are valid JSON and agree on version, `claude plugin validate --strict` passes. Plus the module tier's own invariants: every cited module and reference file exists, every module has at least two citers, no module loads another, and **each module's content appears in exactly one file** — the assertion that stops a deleted duplicate from being pasted back.
 2. **Behaviour** — the scripts against real fixture projects: gate resolution across pnpm/npm/Rust/empty, config-overrides-detection, `--list` executing nothing, all four silence conditions, the greenfield/brownfield boundary, `node_modules` exclusion, the structural sweep, drift detection and its false-positive guards, §17 extraction boundaries.
-3. **Evaluation** — opt-in, model-in-the-loop. Checks that a skill's non-negotiables survive contact with a real model (asked to "commit it for me", does it still refuse?). The CLI's built-in plugin evaluation will replace this layer once it's generally available; it isn't in 2.1.158.
+3. **Evaluation** — opt-in, model-in-the-loop. Checks that a skill's non-negotiables survive contact with a real model (asked to "commit it for me", does it still refuse?). The CLI ships its own `claude plugin eval` as of 2.1.310; this layer has not moved to it yet.
 
 The suite is **mutation-tested** — reintroducing the re-parsed `find` bug, the wrong pnpm audit flag, dropping a `disable-model-invocation` flag, restoring a module's text into an architect, or deleting a load-bearing rule (the 3-hypothesis ceiling, rollback-before-deploy, never-weaken-a-test, no-upgrade-with-refactor) each make it fail. A suite that can't fail is decoration.
 
@@ -896,7 +922,7 @@ The point of absorbing rather than stacking: these sources cover blind spots in 
 | **[`code-simplifier` agent, anthropics/claude-code](https://github.com/anthropics/claude-code/blob/main/plugins/pr-review-toolkit/agents/code-simplifier.md)** | none declared | `guidelines-meta` **§2** | No nested ternaries; preserve behavior exactly when simplifying — change how, never what; don't trade debuggability for fewer lines. |
 | **[pbakaus/impeccable](https://github.com/pbakaus/impeccable)** | Apache 2.0 | [`design-architect`](skills/design-architect/SKILL.md) §1, §3, `references/palette-and-type.md` · `guidelines-meta` **§16** | Visitor modes (Persuade / Operate / Read / Experience), the craft floor, the browser-surfaces insight, brief-wins, refinement-vs-redesign, the shape-before-build brief, "build roles, not a bag of swatches", "verify in bounded passes, not a loop", how far the subject's world reaches per mode, the generated-look calibration, and the loaded-symbols refusal. |
 | **[nutlope/hallmark](https://github.com/nutlope/hallmark)** | MIT | [`design-architect`](skills/design-architect/SKILL.md) §4–5, `references/refuse-list.md`, `references/structures.md` (macrostructures, adapted) · `guidelines-meta` **§15, §18** | The refuse list and slop gates, named page structures, structural-fingerprint variety and the stamp, the vibe → palette → pairing → axes construction order, token discipline, redrawn-chrome and glyph-icon tells, "no invented metrics", and the six-axis pre-emit self-critique. |
-| **[`code-review` plugin, anthropics/claude-code](https://github.com/anthropics/claude-code/tree/main/plugins/code-review)** | none declared | [`code-review-architect`](skills/code-review-architect/SKILL.md) §7 | The confidence gate — post only findings you'd rate ≥ 80, plus the explicit false-positive filter list. |
+| **[`code-review` plugin, anthropics/claude-code](https://github.com/anthropics/claude-code/tree/main/plugins/code-review)** | none declared | `module-findings` §2 | The confidence gate — post only findings you'd rate ≥ 80, plus the explicit false-positive filter list. |
 | **[`security-guidance` plugin, anthropics/claude-code](https://github.com/anthropics/claude-code/tree/main/plugins/security-guidance)** | none declared | [`code-review-architect`](skills/code-review-architect/SKILL.md) Phase 4 · [`testing-architect`](skills/testing-architect/SKILL.md) §2 | The threat model by sink category — injection, unsafe deserialization, insecure DOM APIs — plus the loop-closer: every finding becomes a failing-first regression test. |
 | **[morluto/rea](https://github.com/morluto/rea)** | MIT | `module-evidence` §2 · `module-findings` §2 · `module-gate-battery` §3 · [`debugging-architect`](skills/debugging-architect/SKILL.md) Phases 1, 5 · [`code-review-architect`](skills/code-review-architect/SKILL.md) quality pass | Its agent rules, not its tool: claims labelled observed / inferred / unknown, a bounded search never proving absence, the zero-tests-selected, cached-replay, and passing-retry traps, fixing at the producing boundary, and the question checklist closed answered / partial / unresolved. |
 
