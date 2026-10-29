@@ -9,7 +9,7 @@ disable-model-invocation: true
 # Skill: Rolling History (Continuous Documentation)
 
 > **Apply Guidelines Skill** — load the `guidelines-meta` skill before proceeding.
-> **Profile section owned:** §Documentation Targets and §Commit Convention (Guidelines §5). §Documentation Standards belongs to `documentation-architect` — read it, don't fill it. Fill it on first use per **Guidelines §5.1–§5.4** — read the repo first, ask only what the code cannot say, write it back. If the repo has no changelog or no commit history to infer from, ask which convention to adopt rather than picking one silently.
+> **Profile section owned:** §Documentation Targets and §Commit Convention (Guidelines §5), plus §Deployment's **Versioning scheme** row, shared with `deployment-architect`. §Documentation Standards belongs to `documentation-architect` — read it, don't fill it. Fill it on first use per **Guidelines §5.1–§5.4** — read the repo first, ask only what the code cannot say, write it back. If the repo has no changelog or no commit history to infer from, ask which convention to adopt rather than picking one silently.
 
 **Run only after:** the Implementing Skill's gates have passed **and** the user has manually reviewed (and approved or updated) any failed visual baselines. This skill records what **shipped** — never what's still in flight.
 
@@ -55,7 +55,7 @@ No profile in a project that already has docs → say in one line that `/m-skill
 
 New entries go where the file's existing entries go (bottom of a chronological table, top of a reverse-chronological list — check).
 
-**Bump the version — once per release, never once per session.** Only when the project versions itself: a **Versioning scheme** row, or, with no profile, a `version` field in the manifest. Otherwise skip this silently.
+**Bump the version — once per release, never once per session.** The **Versioning scheme** row decides: filled → use it; `n-a` → skip silently. Missing, `TODO`, or `pending` → fall back to the manifest's `version` field (none, or `"private": true` → skip silently): find every file carrying that version string, ask once for the scheme and where releases are cut, and write the row — `n-a` if the answer is that the project does not version.
 1. **What this change needs:** a breaking change → major, `feat` → minor, `fix` or `perf` → patch, anything else → none.
 2. **The last released version:** read it, read-only, from where the row says releases are cut (a tag, a release branch, a registry), else from the newest git tag. Unknown → ask once and record it in the row.
 3. **The version still equals it** → move every file the row lists together, and turn the changelog's `Unreleased` heading into that version and today's date in the file's own heading format. **Already past it** (an earlier session bumped) → raise it only when this change needs a bigger bump than the one applied (4.6.0 plus a breaking change → 5.0.0), retitling the heading to match; otherwise leave it and add the entry under that heading. Never bump twice for one release. Other schemes (date, build number) follow the same once-per-release rule.

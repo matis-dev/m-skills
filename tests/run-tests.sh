@@ -156,6 +156,15 @@ grep -q "documentation-architect" "$ROOT/skills/rolling-history/SKILL.md" \
 # release must not turn a single minor bump into two
 grep -q "Never bump twice for one release" "$ROOT/skills/rolling-history/SKILL.md" \
   && ok "rolling-history bumps once per release" || bad "rolling-history bumps once per release"
+# an unfilled Versioning row (missing in a greenfield profile, pending after onboard) must
+# not switch the bump off while the manifest carries a version — but an n-a row must
+grep -q "Missing, .TODO., or .pending. → fall back to the manifest" "$ROOT/skills/rolling-history/SKILL.md" \
+  && ! grep -q "with no profile, a .version. field" "$ROOT/skills/rolling-history/SKILL.md" \
+  && ok "rolling-history bumps from the manifest when the row is unfilled" \
+  || bad "rolling-history bumps from the manifest when the row is unfilled"
+grep -q "row decides: filled → use it; .n-a. → skip" "$ROOT/skills/rolling-history/SKILL.md" \
+  && ok "an n-a Versioning row overrides the manifest version" \
+  || bad "an n-a Versioning row overrides the manifest version"
 grep -q "rolling-history. may already have bumped" "$ROOT/skills/deployment-architect/SKILL.md" \
   && ok "deployment-architect does not bump again" || bad "deployment-architect does not bump again"
 
@@ -1799,9 +1808,10 @@ fi
 # which answers without a model turn and spends no quota.
 if command -v agy >/dev/null 2>&1 && [ -d "$AGOUT" ]; then
   out="$(agy plugin validate "$AGOUT" 2>&1 | sed 's/\x1b\[[0-9;]*m//g')"
-  printf '%s' "$out" | grep -Eq "skills +: $AG_SKILLS processed" \
+  # older agy printed "skills : 43 processed"; 1.4.10 prints "skills 43 · … · hooks 1"
+  printf '%s' "$out" | grep -Eq "skills +(: )?$AG_SKILLS( processed| ·|$)" \
     && ok "agy validate: every skill processed" || bad "agy validate: every skill processed" "$(printf '%s' "$out" | tr '\n' ' ' | head -c 240)"
-  printf '%s' "$out" | grep -Eq "hooks +: 1 processed" \
+  printf '%s' "$out" | grep -Eq "hooks +(: )?1( processed| ·|$)" \
     && ok "agy validate: hooks processed" || bad "agy validate: hooks processed"
 
   if command -v python3 >/dev/null 2>&1; then
