@@ -8,7 +8,7 @@ disable-model-invocation: true
 # Skill: Deployment Architect — Release Readiness & Safe Promotion
 
 > **Apply Guidelines Skill** — load the `guidelines-meta` skill before proceeding.
-> **Profile section owned:** §Deployment (Guidelines §5.1–§5.4). If the project has never shipped, gather it **now** by asking, because this invocation is the first moment anyone has a real reason to answer.
+> **Profile section owned:** §Deployment (Guidelines §5.1–§5.4), sharing its **Versioning scheme** row with `rolling-history`, which may already have written it at a version bump. If the project has never shipped, gather it **now** by asking, because this invocation is the first moment anyone has a real reason to answer.
 
 **Why this skill exists:** every earlier gate answers "does the code work?" Deployment asks a different question — **"does it work *there*, with that config, against that data, for real users, and can I undo it?"** Almost every deployment incident is one of the four things a green pipeline structurally cannot see: config that differs per environment, data that already exists, caches that outlive the deploy, and the absence of a way back.
 

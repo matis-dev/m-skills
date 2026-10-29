@@ -586,10 +586,10 @@ So each section is owned by the skill that needs it, and gets filled the first t
 | Design | `design-architect` | first UI work |
 | Security | `security-architect` | first untrusted input, authorization, or secret |
 | Accessibility | `accessibility-architect` | first interactive surface, or first a11y gate run |
-| Documentation Targets, Commit Convention | `rolling-history` | first changelog entry |
+| Documentation Targets, Commit Convention, Deployment's Versioning scheme row | `rolling-history` | first changelog entry; the Versioning row at the first version bump |
 | Documentation Standards | `documentation-architect` | first doc written or audited |
 | Product Definition | `product-architect` | first time work is specified or sliced |
-| Deployment | `deployment-architect` | first deploy, or first "is this ready?" |
+| Deployment, except the Versioning scheme row | `deployment-architect` | first deploy, or first "is this ready?" |
 | Guardrails, Propagation Sites | any skill — chiefly `debugging-architect` | whenever something is learned the hard way |
 | Packages *(monorepos)* | whichever skill first works in a package | resolved from the paths being touched |
 

@@ -453,7 +453,7 @@ skill first needs them — never to a questionnaire up front (Guidelines §5):
 - Writing the first code or tests → \`testing-architect\` / \`implementing-architect\` establish §Conventions.
 - Building the first screen → \`design-architect\` runs in Establish mode and writes §Design.
 - First deploy → \`deployment-architect\` writes §Deployment.
-- First changelog entry → \`rolling-history\` writes §Documentation Targets and §Commit Convention.
+- First changelog entry → \`rolling-history\` writes §Documentation Targets and §Commit Convention, and §Deployment's Versioning row when the manifest carries a version.
 
 So do NOT offer to fill the profile. Offer the conversation instead: OPEN your first reply with this
 ONE line, then answer what the user actually asked (a secret-file warning above still comes first):
