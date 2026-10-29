@@ -232,7 +232,7 @@ Anything not listed does not exist in this project — don't propose edits to it
 
 ## Deployment
 
-*Owner: `deployment-architect` · **do not fill this at install time.** Most projects cannot answer it until the first real deploy is on the table. `pending: first deploy` is the correct value until then.*
+*Owner: `deployment-architect`, except the **Versioning scheme** row, which `rolling-history` shares and writes at the first version bump · **do not fill this at install time.** Most projects cannot answer it until the first real deploy is on the table. `pending: first deploy` is the correct value until then.*
 
 - **Hosting model:** `<static/CDN | serverless | long-running server | container/orchestrator | package registry | app store>`
 - **Environments, in promotion order:** `<local → preview → staging → production>`
