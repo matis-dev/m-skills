@@ -438,29 +438,7 @@ Older IDE builds ([IDE 2.1.1, August 2026](https://discuss.ai.google.dev/t/do-an
 
 **When Antigravity changes.** `scripts/antigravity-adapt.sh` translates Antigravity's `PreToolUse` payload (verified through `agy 1.4.11` / Antigravity 2.0). If a future release renames a tool argument, the call goes through unchecked and `~/.claude/m-skills/guards.log` records the tool name (never the command or path), so a host update never stalls work. Update `scripts/antigravity-adapt.sh` and the `ag_*` builders in `tests/run-tests.sh` Section 7 together when that happens.
 
-**Publish an Antigravity Marketplace release.** Like the Claude directory release, the Antigravity Marketplace expects `plugin.json` at the branch root, so publish `dist/antigravity/m-skills/` to an orphan `antigravity` branch in a sibling worktree (every git step is yours):
-
-```bash
-bash scripts/build-antigravity.sh
-git worktree add --orphan -b antigravity ../m-skills-antigravity
-cp -R dist/antigravity/m-skills/. ../m-skills-antigravity/
-agy plugin validate --strict ../m-skills-antigravity
-git -C ../m-skills-antigravity add -A
-git -C ../m-skills-antigravity commit -m "release: m-skills <version> (antigravity)"
-git -C ../m-skills-antigravity push -u origin antigravity
-```
-
-On later releases, replace the worktree contents before copying so removed files leave the branch too:
-
-```bash
-bash scripts/build-antigravity.sh
-find ../m-skills-antigravity -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
-cp -R dist/antigravity/m-skills/. ../m-skills-antigravity/
-agy plugin validate --strict ../m-skills-antigravity
-git -C ../m-skills-antigravity add -A
-git -C ../m-skills-antigravity commit -m "release: m-skills <version> (antigravity)"
-git -C ../m-skills-antigravity push
-```
+**Publish an Antigravity Marketplace release.** Like the Claude directory release, the Antigravity Marketplace expects `plugin.json` at the branch root, so `dist/antigravity/m-skills/` is published to an orphan `antigravity` branch through the sibling worktree `../m-skills-antigravity`. `scripts/release.sh` builds it, validates it with `agy plugin validate --strict`, and pushes it together with the Claude `release` branch. See [§ Claude directory release](#-claude-directory-release).
 
 Submit the repository via https://antigravity.google/docs/marketplace and note in the submission form that the self-contained Antigravity plugin root lives on the `antigravity` branch.
 
@@ -517,26 +495,33 @@ bash scripts/build-claude.sh   # writes dist/claude/m-skills/; refuses to finish
 
 **Proof it is the same plugin.** Section 10 of `tests/run-tests.sh` runs the hook behaviour sections against the sources and against the build, and requires the same pass count from both.
 
-**Publish a release.** Every git step is yours. The first time, create the branch as an orphan worktree beside this checkout:
+**Publish a release.** One command releases both hosts: it builds, validates, stages, commits, and pushes the `release` branch for the Claude directory and the `antigravity` branch for the Antigravity Marketplace. It runs git writes, so it is yours to fire from a terminal once `main` is ready:
 
 ```bash
-bash scripts/build-claude.sh
-git worktree add --orphan -b release ../m-skills-release
-cp -R dist/claude/m-skills/. ../m-skills-release/
-git -C ../m-skills-release add -A
-git -C ../m-skills-release commit -m "release: m-skills <version>"
-git -C ../m-skills-release push -u origin release
+bash scripts/release.sh --dry-run   # every check and both builds; prints what each branch would get, writes nothing
+bash scripts/release.sh             # the same, then replaces each worktree's contents, commits, and pushes
 ```
 
-Later releases replace the worktree's contents instead of adding to them, so a file the build no longer ships leaves the branch too:
+Each worktree's contents are replaced rather than added to, so a file the build no longer ships leaves its branch too. The commits read `release: m-skills <version>` and `release: m-skills <version> (antigravity)`.
+
+**It refuses before any git write** when:
+
+- this checkout is not a clean `main` at its remote's tip;
+- `plugin.json`, `marketplace.json`, and the newest `CHANGELOG.md` heading name different versions;
+- a worktree is missing, dirty, off its branch, or not at its remote's tip;
+- `claude` or `agy` is not installed;
+- `tests/run-tests.sh` or either `--strict` validator fails;
+- a branch's content would change under the version it already carries;
+- a build holds a secret-shaped file such as `.env` or `id_rsa`.
+
+Both branches are committed before either is pushed, so only a failed push can leave them out of step. When one does, the output names what landed and prints the command that finishes the rest. Without a terminal on stdin, only `--dry-run` runs. `M_SKILLS_RELEASE_NONINTERACTIVE=1` lifts that for unattended runs and the test suite, and the git guard denies any agent command that sets it.
+
+**The script works on two worktrees beside this checkout.** On a fresh clone, where both branches already exist on GitHub, add them once:
 
 ```bash
-bash scripts/build-claude.sh
-find ../m-skills-release -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
-cp -R dist/claude/m-skills/. ../m-skills-release/
-git -C ../m-skills-release add -A
-git -C ../m-skills-release commit -m "release: m-skills <version>"
-git -C ../m-skills-release push
+git fetch origin
+git worktree add ../m-skills-release release
+git worktree add ../m-skills-antigravity antigravity
 ```
 
 **In the developer portal, set Branch or tag to `release`.** A submission that is with a reviewer can't change its tracked branch, so validate `matis-dev/m-skills@release` before you submit.
@@ -567,6 +552,7 @@ git -C ../m-skills-release push
 | `scripts/build-antigravity.sh` | Builds the Antigravity plugin into `dist/antigravity/m-skills/` — see [§ Antigravity](#-antigravity) | stays put |
 | `scripts/antigravity-adapt.sh` | Runs the three guards under Antigravity's hooks; ships only in the Antigravity build | stays put |
 | `scripts/build-codex.sh` | Builds the Codex plugin into `dist/codex/m-skills/` — see [§ Codex](#-codex) | stays put |
+| `scripts/release.sh` | Builds, validates, and pushes the `release` and `antigravity` branches in one run — see [§ Claude directory release](#-claude-directory-release) | stays put |
 | `scripts/codex-adapt.sh` | Runs the secret-file guard over each path a Codex `apply_patch` touches; ships only in the Codex build | stays put |
 | `scripts/build-claude.sh` | Builds the self-contained tree the Claude plugin directory follows into `dist/claude/m-skills/` — see [§ Claude directory release](#-claude-directory-release) | stays put |
 | `README.release.md` | The short listing README; ships as `README.md` in the directory release | stays put |

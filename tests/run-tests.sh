@@ -1066,6 +1066,12 @@ expect "deny: git apply"               deny  "$(decision guard-mutations.sh "$(b
 # read-only git is the review path and must never close
 expect "allow: git merge-base"         allow "$(decision guard-mutations.sh "$(bash_payload 'git merge-base main HEAD')")"
 expect "allow: git describe"           allow "$(decision guard-mutations.sh "$(bash_payload 'git describe --tags')")"
+# release.sh pushes; the variable that lifts its no-terminal refusal is a git write by proxy
+expect "deny: release override prefix" deny  "$(decision guard-mutations.sh "$(bash_payload 'M_SKILLS_RELEASE_NONINTERACTIVE=1 bash scripts/release.sh')")"
+expect "deny: release override export" deny  "$(decision guard-mutations.sh "$(bash_payload 'export M_SKILLS_RELEASE_NONINTERACTIVE=1; bash scripts/release.sh')")"
+expect "deny: release override env"    deny  "$(decision guard-mutations.sh "$(bash_payload 'cd x && env M_SKILLS_RELEASE_NONINTERACTIVE=1 bash scripts/release.sh')")"
+expect "allow: release --dry-run"      allow "$(decision guard-mutations.sh "$(bash_payload 'bash scripts/release.sh --dry-run')")"
+expect "allow: grep for the override"  allow "$(decision guard-mutations.sh "$(bash_payload "grep -n 'M_SKILLS_RELEASE_NONINTERACTIVE=1' scripts/release.sh")")"
 
 # ── catastrophic filesystem operations
 expect "deny: rm -rf ~"                deny  "$(decision guard-mutations.sh "$(bash_payload 'rm -rf ~')")"
@@ -2224,7 +2230,7 @@ done
 # What stays on main: nothing an installed plugin runs needs it.
 for f in tests CHANGELOG.md CLAUDE.template.md SKILLS_INDEX.md settings.template.json README.release.md README.antigravity.md \
          scripts/lib scripts/build-claude.sh scripts/build-codex.sh scripts/build-antigravity.sh \
-         scripts/codex-adapt.sh scripts/antigravity-adapt.sh; do
+         scripts/codex-adapt.sh scripts/antigravity-adapt.sh scripts/release.sh; do
   [ -e "$REL/$f" ] && bad "release leaves out $f" || ok "release leaves out $f"
 done
 
@@ -2379,7 +2385,7 @@ rel_fixture() { # <name> [version already on both branches] → RFD (fixture dir
   git init -q -b main "$RF"
   git -C "$RF" config user.name t; git -C "$RF" config user.email t@t; git -C "$RF" config commit.gpgsign false
   git -C "$RF" remote add origin "$RFD/origin.git"
-  git -C "$RF" add -A && git -C "$RF" commit -qm src && git -C "$RF" push -q -u origin main
+  git -C "$RF" add -A 2>/dev/null && git -C "$RF" commit -qm src && git -C "$RF" push -q -u origin main
   for b in release antigravity; do
     w="$RFD/m-skills-$b"
     man=plugin.json; [ "$b" = release ] && man=.claude-plugin/plugin.json
@@ -2390,7 +2396,7 @@ rel_fixture() { # <name> [version already on both branches] → RFD (fixture dir
     git -C "$w" add -A && git -C "$w" commit -qm "release: $old" && git -C "$w" push -q -u origin "$b"
   done
 }
-rel_sync() { git -C "$RF" add -A && git -C "$RF" commit -qm change && git -C "$RF" push -q origin main; }
+rel_sync() { git -C "$RF" add -A 2>/dev/null && git -C "$RF" commit -qm change && git -C "$RF" push -q origin main; }
 rel_state() { # <fixture dir> → the remote refs plus each worktree's HEAD and status: what a refusal must not move
   git ls-remote "$1/origin.git"
   local w

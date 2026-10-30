@@ -66,6 +66,13 @@ if printf '%s' "$CMD" | grep -Eq '(^|[[:space:]])--(no-verify|no-gpg-sign)([[:sp
   emit_deny "Blocked by m-skills (Guidelines §9): skipping hooks with --no-verify / --no-gpg-sign is forbidden. Fix the root cause the hook is reporting instead. ${OPTOUT_LINE}"
 fi
 
+# scripts/release.sh commits and pushes, and refuses to without a terminal on stdin, which
+# an agent's Bash call never has. This variable lifts that refusal, so setting it is a push.
+# Only the assignment form is matched: a quoted grep for the name stays open.
+if printf '%s' "$CMD" | grep -Eq '(^|[[:space:];&|(])M_SKILLS_RELEASE_NONINTERACTIVE='; then
+  emit_deny "Blocked by m-skills (Guidelines §9): M_SKILLS_RELEASE_NONINTERACTIVE lets the m-skills release script commit and push without a terminal, and a release is the user's to fire. Check it with its --dry-run, then print the release command for the user to run. ${OPTOUT_LINE}"
+fi
+
 # ── §10 — golden / snapshot updates ──────────────────────────────────────────
 # Static patterns first.
 if printf '%s' "$CMD" | grep -Eq -- '(--update-snapshots?|--updateSnapshot|--update-golden|--accept-snapshots?|UPDATE_SNAPSHOTS=|SNAPSHOT_UPDATE=|UPDATE_GOLDEN=|insta[[:space:]]+accept|--snapshot-update)'; then
