@@ -405,37 +405,64 @@ These hold in every skill, in every project:
 
 ## 🪐 Antigravity
 
-**The same pack runs in Google Antigravity, built from this tree.** Nothing is forked: a build script writes an Antigravity plugin from `skills/`, `commands/`, and the three guards, so a rule changed here reaches every host. Commands keep their names — `/m-skills:planning-architect`, `/m-skills:decompose`.
+**The same pack runs in Google Antigravity, built from this tree.** Nothing is forked: a build script writes a Marketplace-ready Antigravity plugin from `skills/`, `commands/`, and the three guards, so a rule changed here reaches every host. The one exception is `guidelines-meta`: to fit Antigravity's 24 KB cap, the build swaps §9, §10, and §17's picker rules for short summaries written in `scripts/build-antigravity.sh`, so edit those alongside the source. Commands appear as `/planning-architect`, `/decompose` in the Antigravity App and IDE, and as `/m-skills:planning-architect`, `/m-skills:decompose` in the `agy` CLI.
 
 ```bash
-bash scripts/build-antigravity.sh                # writes dist/antigravity/m-skills/
-agy plugin validate dist/antigravity/m-skills    # expect skills and hooks processed
-cp -R dist/antigravity/m-skills <your-project>/.agents/plugins/
+bash scripts/build-antigravity.sh                         # writes dist/antigravity/m-skills/
+agy plugin validate --strict dist/antigravity/m-skills    # expect 0 errors, 0 warnings
+agy plugin install ./dist/antigravity/m-skills            # user-wide (~/.gemini/config/plugins/)
 ```
 
-That installs it for one project. For every project, the same folder goes in `~/.gemini/config/plugins/` — replace any older m-skills copy there first. A copy made before this script has its hooks in `hooks/hooks.json`, where agy never looks, so none of its guards ever ran.
+For a single project instead of every project, copy `dist/antigravity/m-skills` into `<your-project>/.agents/plugins/`. Replace any pre-build `m-skills` copy in `~/.gemini/config/plugins/` first: a raw copy of `main` keeps its hooks in `hooks/hooks.json` (where Antigravity never looks) and leaves `guidelines-meta/SKILL.md` above Antigravity's 24 KB skill body cap.
 
 **What is enforced where:**
 
-| Rule | `agy` CLI | Antigravity IDE |
+| Rule | `agy` CLI | Antigravity App / IDE (2.0+) |
 |---|---|---|
-| No git writes, no snapshot updates (§9, §10) | denied by a hook | rule text; a hook where the IDE runs one |
-| No reading or writing secret files | denied by a hook | rule text; a hook where the IDE runs one |
-| No publishing or deploying | denied by a hook | rule text; a hook where the IDE runs one |
-| Pipeline skills start only when you type them | enforced — agy honours `disable-model-invocation` | not checked |
+| No git writes, no snapshot updates (§9, §10) | denied by a hook + rule | denied by a hook where active + always-on rule |
+| No reading or writing secret files (including `grep_search` `Includes` globs) | denied by a hook + rule | denied by a hook where active + always-on rule |
+| No publishing or deploying | denied by a hook + rule | denied by a hook where active + always-on rule |
+| Pipeline skills start only when you invoke or pick them | enforced (`disable-model-invocation` + rule) | enforced (`disable-model-invocation` + rule) |
 
-The IDE ran no hooks at all as of [IDE 2.1.1, August 2026](https://discuss.ai.google.dev/t/do-antigravity-ide-2-0-actually-execute-plugin-hooks-pretooluse-posttooluse-or-is-that-cli-only-right-now/176814), so there the guards are an always-on rule the model follows. That is changing: agy 1.3.6's own hook guide names the IDE as a hook host, and a Windows IDE install ran them in October 2026. Assume the hooks may run anywhere, and that the rule is the backstop. **Use the CLI when the guards matter.**
+Older IDE builds ([IDE 2.1.1, August 2026](https://discuss.ai.google.dev/t/do-antigravity-ide-2-0-actually-execute-plugin-hooks-pretooluse-posttooluse-or-is-that-cli-only-right-now/176814)) ran no hooks at all, so `rules/m-skills-guards.md` (`always_on`) ships every guard in full as the backstop. Antigravity 2.0 and `agy 1.4+` document and run `PreToolUse` hooks across CLI, App, and IDE.
 
-**On Windows.** agy runs each hook through `cmd /c`, and any nonzero exit blocks the tool it guards — every file read, write, and shell command. So the build ships `bash.cmd` at the plugin root: cmd finds it before any `bash` on `PATH`, it starts Git Bash, and it exits 0 whatever happens. Without it, `bash` lands on WSL's `C:\Windows\System32\bash.exe`, on nothing, or on a bash that company policy blocks, and every tool fails with `command failed: exit status …`. It looks for Git Bash in `Program Files\Git`, then `%LOCALAPPDATA%\Programs\Git`, then next to `git.exe` on `PATH`. A portable Git elsewhere is named with `setx M_SKILLS_BASH "D:\tools\PortableGit\bin\bash.exe"`. When it finds none, the guards are skipped and `%USERPROFILE%\.claude\m-skills\guards.log` says so. If tools are still blocked, set `"enabled": false` in the plugin's `hooks.json`. The `~/.claude/.m-skills-no-guards` flag file cannot help there, because it is read by the bash that failed to start.
+**On Windows.** Antigravity runs each hook through `cmd /c`. Older `agy` releases blocked the guarded tool on any nonzero exit (while Antigravity 2.0 treats nonzero exits as fail-open), so the build ships `bash.cmd` at the plugin root: `cmd` finds it before any `bash` on `PATH`, starts Git Bash, and exits `0` whatever happens. Without it, `bash` lands on WSL's `C:\Windows\System32\bash.exe`, on nothing, or on a blocked binary. It checks `Program Files\Git`, then `%LOCALAPPDATA%\Programs\Git`, then next to `git.exe` on `PATH` (or `setx M_SKILLS_BASH "D:\tools\PortableGit\bin\bash.exe"`). When none is found, the hook steps aside and logs one line to `%USERPROFILE%\.claude\m-skills\guards.log`. To disable the hooks outright, set `"enabled": false` in the plugin's `hooks.json` (or `touch .claude/.m-skills-no-guards` per project once bash runs).
 
 **What is different from Claude Code:**
 
-- **Route commands ship as skills.** agy's validator accepts a `commands/` folder but never registers it, so the build turns each one into a user-only skill of the same name.
-- **Nothing runs at session start.** No profile bootstrap, no pointer to an unfinished run, no skill suggestions, no adhd flag. In a new project, run `/onboard` yourself.
-- **No advisories, no gate preamble, no pick check.** The skip-marker and shared-shape nudges, the resolved gate table injected when a skill starts, and the check that a picked skill was loaded are Claude Code only.
-- **Headless `agy -p` refuses any shell command it would normally ask about**, so check the guards in an interactive session.
+- **Route commands ship as skills.** Antigravity's validator accepts `commands/` with a warning and registers none of them at runtime, so the build converts each one into a user-only skill of the same name.
+- **`guidelines-meta` splits §17 into `references/reply-protocol.md` at build time.** Antigravity caps each `SKILL.md` body at 24,000 bytes; the build extracts §17 with native `ask_question` syntax (`is_multi_select`, `(Recommended)`) and replaces §9/§10 with pointers to `rules/m-skills-guards.md` so §18, §19, and `Self-check` load intact.
+- **Nothing runs at session start.** No automatic profile bootstrap, unfinished-run pointer, skill-suggestion hook, or session-wide adhd flag. In an existing repo, run `/onboard` (`/m-skills:onboard` in `agy` CLI).
+- **No advisories, gate preamble, or pick-enforcement hook.** Selecting a gated skill in `ask_question` (`Approve → implementing-architect`) is authorised directly by `rules/m-skills-guards.md`.
+- **Headless `agy -p` refuses shell commands it would prompt for**, so verify interactive guard prompts in a live session.
 
-**When agy changes.** The adapter (`scripts/antigravity-adapt.sh`) translates agy's hook payload using argument names captured from agy 1.2.2. If agy renames one, the call goes through unchecked and `~/.claude/m-skills/guards.log` gets a line naming the tool, so a host update never stops your work. When that line appears, update the adapter and the `ag_*` payload builders in `tests/run-tests.sh` section 7 together. The Codex adapter works the same way for an `apply_patch` it cannot read.
+**When Antigravity changes.** `scripts/antigravity-adapt.sh` translates Antigravity's `PreToolUse` payload (verified through `agy 1.4.11` / Antigravity 2.0). If a future release renames a tool argument, the call goes through unchecked and `~/.claude/m-skills/guards.log` records the tool name (never the command or path), so a host update never stalls work. Update `scripts/antigravity-adapt.sh` and the `ag_*` builders in `tests/run-tests.sh` Section 7 together when that happens.
+
+**Publish an Antigravity Marketplace release.** Like the Claude directory release, the Antigravity Marketplace expects `plugin.json` at the branch root, so publish `dist/antigravity/m-skills/` to an orphan `antigravity` branch in a sibling worktree (every git step is yours):
+
+```bash
+bash scripts/build-antigravity.sh
+git worktree add --orphan -b antigravity ../m-skills-antigravity
+cp -R dist/antigravity/m-skills/. ../m-skills-antigravity/
+agy plugin validate --strict ../m-skills-antigravity
+git -C ../m-skills-antigravity add -A
+git -C ../m-skills-antigravity commit -m "release: m-skills <version> (antigravity)"
+git -C ../m-skills-antigravity push -u origin antigravity
+```
+
+On later releases, replace the worktree contents before copying so removed files leave the branch too:
+
+```bash
+bash scripts/build-antigravity.sh
+find ../m-skills-antigravity -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+cp -R dist/antigravity/m-skills/. ../m-skills-antigravity/
+agy plugin validate --strict ../m-skills-antigravity
+git -C ../m-skills-antigravity add -A
+git -C ../m-skills-antigravity commit -m "release: m-skills <version> (antigravity)"
+git -C ../m-skills-antigravity push
+```
+
+Submit the repository via https://antigravity.google/docs/marketplace and note in the submission form that the self-contained Antigravity plugin root lives on the `antigravity` branch.
 
 ---
 
@@ -543,6 +570,7 @@ git -C ../m-skills-release push
 | `scripts/codex-adapt.sh` | Runs the secret-file guard over each path a Codex `apply_patch` touches; ships only in the Codex build | stays put |
 | `scripts/build-claude.sh` | Builds the self-contained tree the Claude plugin directory follows into `dist/claude/m-skills/` — see [§ Claude directory release](#-claude-directory-release) | stays put |
 | `README.release.md` | The short listing README; ships as `README.md` in the directory release | stays put |
+| `README.antigravity.md` | The Antigravity Marketplace listing README; ships as `README.md` in the Antigravity build | stays put |
 | `tests/run-tests.sh` | The pack's own test suite — no dependencies | stays put |
 | `commands/*.md` | The 17 route commands — thin pre-routed entries into one architect's mode | plugin: stays put · copy-mode: → `<project>/.claude/commands/`, paths rewritten |
 | `skills/<architect>/SKILL.md` | An architect's spine — constraints, modes, procedure | plugin: stays put · copy-mode: → `<project>/.claude/skills/` |

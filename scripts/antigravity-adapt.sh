@@ -5,12 +5,13 @@
 #
 # The guards stay untouched: this translates agy's payload into the shape they read,
 # runs one, and translates its decision back. Shapes captured from agy 1.2.2 on
-# 2026-09-29 (a logging hook in a scratch workspace), not taken from the docs:
+# 2026-09-29 and re-verified on agy 1.4.11 / Antigravity 2.0 on 2026-10-30:
 #
 #   in   {"toolCall":{"name":"run_command","args":{"CommandLine":…,"Cwd":…}},
 #         "conversationId":…, "workspacePaths":[…], …}
 #        view_file → args.AbsolutePath · write_to_file, replace_file_content → args.TargetFile
-#        read_file, write_file, edit_file → args.Path · grep_search → args.SearchPath
+#        read_file, write_file, edit_file → args.Path
+#        grep_search → args.SearchPath (+ optional args.Includes glob array)
 #   out  {"decision":"deny","reason":…} — agy blocks the call and tells the model
 #        "tool call denied by pre-tool hook: <reason>". No output = no opinion.
 #   cwd  the plugin directory, and no plugin-root variable is exported.
@@ -74,11 +75,42 @@ fi
 
 WS="$(json_field "$INPUT" "workspacePaths.0")"
 [ -n "$WS" ] && export CLAUDE_PROJECT_DIR="$WS"
+SESS_JSON="$(json_string "$(json_field "$INPUT" "conversationId")")"
+ARG_JSON="$(json_string "$ARG")"
 
-PAYLOAD="$(printf '{"tool_name":"%s","tool_input":{"%s":%s},"session_id":%s}' \
-  "$AS" "$FIELD" "$(json_string "$ARG")" "$(json_string "$(json_field "$INPUT" "conversationId")")")"
+run_guard() {
+  printf '%s' "$1" | "${BASH:-bash}" "$DIR/$GUARD" 2>/dev/null
+}
 
-OUT="$(printf '%s' "$PAYLOAD" | "${BASH:-bash}" "$DIR/$GUARD" 2>/dev/null)"
+OUT="$(run_guard "$(printf '{"tool_name":"%s","tool_input":{"%s":%s},"session_id":%s}' \
+  "$AS" "$FIELD" "$ARG_JSON" "$SESS_JSON")")"
+
+if [ -z "$OUT" ] && [ "$TOOL" = grep_search ]; then
+  RAW_INC="$(json_field "$INPUT" "toolCall.args.Includes")"
+  if [ -n "$RAW_INC" ] && [ "$RAW_INC" != "[]" ]; then
+    case "$RAW_INC" in
+      \[*)
+        COMMAS="${RAW_INC//[^,]/}"
+        N_MAX=$(( ${#COMMAS} + 1 ))
+        if [ "$N_MAX" -gt 32 ]; then
+          deny "Blocked by m-skills (security-architect constraint 5): grep_search Includes exceeds 32 patterns; narrow the search filter."
+        fi
+        for ((i = 0; i < N_MAX; i++)); do
+          INC="$(json_field "$INPUT" "toolCall.args.Includes.$i")"
+          [ -z "$INC" ] && continue
+          OUT="$(run_guard "$(printf '{"tool_name":"Grep","tool_input":{"path":%s,"glob":%s},"session_id":%s}' \
+            "$ARG_JSON" "$(json_string "$INC")" "$SESS_JSON")")"
+          [ -n "$OUT" ] && break
+        done
+        ;;
+      *)
+        OUT="$(run_guard "$(printf '{"tool_name":"Grep","tool_input":{"path":%s,"glob":%s},"session_id":%s}' \
+          "$ARG_JSON" "$(json_string "$RAW_INC")" "$SESS_JSON")")"
+        ;;
+    esac
+  fi
+fi
+
 [ -z "$OUT" ] && exit 0
 
 DECISION="$(json_field "$OUT" "hookSpecificOutput.permissionDecision")"

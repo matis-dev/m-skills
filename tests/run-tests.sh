@@ -1571,6 +1571,7 @@ ag_payload() { # <tool> <args-json>
 }
 ag_run()  { ag_payload run_command "{\"CommandLine\":$(esc "$1"),\"Cwd\":$(esc "$AGWS")}"; }
 ag_file() { ag_payload "$1" "{\"$2\":$(esc "$3")}"; } # <tool> <arg-name> <path>
+ag_grep_inc() { ag_payload grep_search "{\"SearchPath\":$(esc "$1"),\"Includes\":$2}"; }
 ag_decision() { # <guard> <payload> → "deny" | "ask" | "allow"
   local out; out="$(printf '%s' "$2" | bash "$ROOT/scripts/antigravity-adapt.sh" "$1" 2>/dev/null)"
   [ -z "$out" ] && { echo allow; return; }
@@ -1592,6 +1593,13 @@ expect "ag deny: replace_file_content .env"  deny  "$(ag_decision guard-secrets.
 expect "ag deny: edit_file .env"             deny  "$(ag_decision guard-secrets.sh "$(ag_file edit_file Path "$AGWS/.env")")"
 expect "ag deny: grep_search on .env"        deny  "$(ag_decision guard-secrets.sh "$(ag_file grep_search SearchPath "$AGWS/.env")")"
 expect "ag allow: grep_search on src/"       allow "$(ag_decision guard-secrets.sh "$(ag_file grep_search SearchPath "$AGWS/src")")"
+expect "ag deny: grep_search Includes .env*" deny  "$(ag_decision guard-secrets.sh "$(ag_grep_inc "$AGWS/src" '[".env*"]')")"
+expect "ag deny: grep_search Includes as a bare string" deny "$(ag_decision guard-secrets.sh "$(ag_grep_inc "$AGWS/src" '".env*"')")"
+expect "ag deny: grep_search second Includes hits id_rsa" deny "$(ag_decision guard-secrets.sh "$(ag_grep_inc "$AGWS/src" '["*.ts","id_rsa"]')")"
+expect "ag deny: grep_search empty first Includes then .env*" deny "$(ag_decision guard-secrets.sh "$(ag_grep_inc "$AGWS/src" '["",".env*"]')")"
+expect "ag allow: grep_search Includes *.ts and .env.example" allow "$(ag_decision guard-secrets.sh "$(ag_grep_inc "$AGWS/src" '["*.ts",".env.example"]')")"
+expect "ag deny: grep_search Includes over 32 entries fails closed" deny \
+  "$(ag_decision guard-secrets.sh "$(ag_grep_inc "$AGWS/src" '["a","a","a","a","a","a","a","a","a","a","a","a","a","a","a","a","a","a","a","a","a","a","a","a","a","a","a","a","a","a","a","a","a"]')")"
 expect "ag allow: a tool no guard covers"    allow "$(ag_decision guard-secrets.sh "$(ag_payload list_dir '{"DirectoryPath":"/"}')")"
 
 out="$(printf '%s' "$(ag_run 'git commit -m x')" | bash "$ROOT/scripts/antigravity-adapt.sh" guard-mutations.sh 2>/dev/null)"
@@ -1635,6 +1643,8 @@ expect "ag win: no jq or Python, git status allowed"      allow \
   "$(win_decision guard-mutations.sh "$(ag_run 'git status')")"
 expect "ag win: no jq or Python, view_file .env denied"   deny \
   "$(win_decision guard-secrets.sh "$(ag_file view_file AbsolutePath "$AGWS/.env")")"
+expect "ag win: no jq or Python, grep_search Includes *.pem denied" deny \
+  "$(win_decision guard-secrets.sh "$(ag_grep_inc "$AGWS/src" '["*.ts","*.pem"]')")"
 touch "$CLAUDE_CONFIG_DIR/.m-skills-no-guards"
 expect "ag win: the global opt-out releases a call under agy" allow \
   "$(win_decision guard-mutations.sh "$(ag_run 'git commit -m x')")"
@@ -1695,6 +1705,19 @@ if bash "$ROOT/scripts/build-antigravity.sh" "$AGOUT" >/dev/null 2>&1; then
 
   agv="$(grep -o '"version": *"[^"]*"' "$AGOUT/plugin.json" | head -1 | sed 's/.*"\([^"]*\)"$/\1/')"
   assert_eq "ag plugin.json carries the pack version" "$agv" "$pv"
+  agp="$(cat "$AGOUT/plugin.json" 2>/dev/null)"
+  assert_contains "ag plugin.json declares the Antigravity schema" "$agp" '"$schema": "https://antigravity.google/schemas/v1/plugin.json"'
+  assert_contains "ag plugin.json carries displayName"             "$agp" '"displayName":'
+  assert_contains "ag plugin.json points logo at assets/icon.png"  "$agp" '"logo": "assets/icon.png"'
+  assert_contains "ag plugin.json carries suggestedPrompts"        "$agp" '"suggestedPrompts":'
+  assert_contains "ag plugin.json carries MIT license"             "$agp" '"license": "MIT"'
+  assert_missing  "ag plugin.json omits Claude-only keys"          "$agp" '"documentationUrl"'
+  kw_block() { tr -d '\r,' < "$1" | sed -n '/"keywords"/,/]/p'; }
+  assert_eq "ag plugin.json keywords match the Claude manifest" \
+    "$(kw_block "$AGOUT/plugin.json")" "$(kw_block "$ROOT/.claude-plugin/plugin.json")"
+  for f in README.md LICENSE THIRD-PARTY-NOTICES.md .gitattributes assets/icon.png; do
+    [ -f "$AGOUT/$f" ] && ok "ag ships $f" || bad "ag ships $f"
+  done
   # agy 1.2.2 reads hooks.json at the plugin root only, and fires tool events only in
   # the grouped {matcher, hooks:[…]} form — the flat form loads and silently never runs
   [ -f "$AGOUT/hooks.json" ] && ok "ag hooks.json sits at the plugin root" || bad "ag hooks.json sits at the plugin root"
@@ -1725,6 +1748,25 @@ if bash "$ROOT/scripts/build-antigravity.sh" "$AGOUT" >/dev/null 2>&1; then
   assert_empty "ag: no \${CLAUDE_*} path survives" "$(grep -rl '\${CLAUDE_' "$AGOUT/skills" --include='*.md' 2>/dev/null)"
   assert_empty "ag: no \$ARGUMENTS survives" "$(grep -rl '\$ARGUMENTS' "$AGOUT/skills" --include='*.md' 2>/dev/null)"
   assert_empty "ag: no Claude-only tool name survives" "$(grep -rl 'AskUserQuestion' "$AGOUT/skills" 2>/dev/null)"
+  assert_empty "ag: no ExitPlanMode survives in skills" "$(grep -rl 'ExitPlanMode' "$AGOUT/skills" 2>/dev/null)"
+  assert_empty "ag: no Claude multiSelect survives in skills" "$(grep -rl '`multiSelect`' "$AGOUT/skills" 2>/dev/null)"
+
+  over24k=""
+  for sf in "$AGOUT"/skills/*/SKILL.md; do
+    body_bytes="$(awk 'NR == 1 && /^---$/ { fm = 1; next } fm && /^---$/ { fm = 0; next } !fm { print }' "$sf" | wc -c | tr -d ' ')"
+    [ "$body_bytes" -lt 24000 ] || over24k="$over24k $(basename "$(dirname "$sf")"):${body_bytes}"
+  done
+  assert_empty "ag: every SKILL.md body stays under agy's 24 KB limit" "$over24k"
+  gm="$(cat "$AGOUT/skills/guidelines-meta/SKILL.md" 2>/dev/null)"
+  assert_contains "ag guidelines-meta keeps §18 after split" "$gm" "### 18. Pre-Emit Self-Critique"
+  assert_contains "ag guidelines-meta keeps §19 after split" "$gm" "### 19. Invocation Modifiers"
+  assert_contains "ag guidelines-meta keeps Self-check after split" "$gm" "## Self-check Before Claiming Done"
+  [ -f "$AGOUT/skills/guidelines-meta/references/reply-protocol.md" ] \
+    && ok "ag guidelines-meta ships references/reply-protocol.md" \
+    || bad "ag guidelines-meta ships references/reply-protocol.md"
+  agrp="$(cat "$AGOUT/skills/guidelines-meta/references/reply-protocol.md" 2>/dev/null)"
+  assert_contains "ag reply-protocol uses is_multi_select" "$agrp" "is_multi_select"
+  assert_missing  "ag reply-protocol stops before §18"     "$agrp" "### 18."
 
   missing_ref=""
   while read -r r; do
@@ -1737,15 +1779,22 @@ if bash "$ROOT/scripts/build-antigravity.sh" "$AGOUT" >/dev/null 2>&1; then
   for s in antigravity-adapt.sh guard-mutations.sh guard-outward.sh guard-secrets.sh profile-bootstrap.sh lib/hook-json.sh; do
     [ -f "$AGOUT/scripts/$s" ] && ok "ag ships scripts/$s" || bad "ag ships scripts/$s"
   done
+  nonexec=""
+  for s in "$AGOUT"/scripts/*.sh "$AGOUT"/skills/*/*.sh; do
+    [ -f "$s" ] && [ ! -x "$s" ] && nonexec="$nonexec $(basename "$s")"
+  done
+  assert_empty "ag ships executable .sh scripts" "$nonexec"
 
   RULE="$AGOUT/rules/m-skills-guards.md"
   rule="$(cat "$RULE" 2>/dev/null)"
   assert_contains "ag rule is always on"                 "$rule" "trigger: always_on"
+  assert_contains "ag rule carries frontmatter description" "$rule" "description: "
   assert_contains "ag rule quotes §9 live"               "$rule" "**No staging.**"
   assert_contains "ag rule quotes §10 live"              "$rule" "Never auto-accept a golden-file"
   assert_contains "ag rule quotes the secrets constraint" "$rule" "Never write a real secret into a tracked file"
   assert_contains "ag rule gates the pipeline skills"    "$rule" '`/m-skills:planning-architect`'
   assert_contains "ag rule gates the route commands"     "$rule" '`/m-skills:decompose`'
+  assert_contains "ag rule permits ask_question skill picks" "$rule" 'selects an `ask_question` option'
   assert_contains "ag rule defines <this-skill>"         "$rule" '`<this-skill>` is'
   # agy demotes a rule over 24,000 bytes to an on-demand pointer, which an always-on
   # guard cannot afford
@@ -1771,6 +1820,7 @@ if bash "$ROOT/scripts/build-antigravity.sh" "$AGOUT" >/dev/null 2>&1; then
   # every script it leaves unchanged stays CRLF — the sourced lib included
   CRS="$TMP/crlf-src"
   mkdir -p "$CRS/scripts/lib" && cp -R "$ROOT/skills" "$ROOT/commands" "$ROOT/.claude-plugin" "$CRS/"
+  cp "$ROOT/LICENSE" "$ROOT/THIRD-PARTY-NOTICES.md" "$ROOT/README.antigravity.md" "$ROOT/.gitattributes" "$CRS/"
   cp "$ROOT"/scripts/*.sh "$ROOT"/scripts/*.cmd "$CRS/scripts/" && cp "$ROOT/scripts/lib/hook-json.sh" "$CRS/scripts/lib/"
   for s in antigravity-adapt.sh guard-mutations.sh guard-outward.sh guard-secrets.sh profile-bootstrap.sh lib/hook-json.sh; do
     awk '{ printf "%s\r\n", $0 }' "$ROOT/scripts/$s" > "$CRS/scripts/$s"
@@ -1807,8 +1857,13 @@ fi
 # layout parses. What agy actually registers is read from its /skills listing below,
 # which answers without a model turn and spends no quota.
 if command -v agy >/dev/null 2>&1 && [ -d "$AGOUT" ]; then
-  out="$(agy plugin validate "$AGOUT" 2>&1 | sed 's/\x1b\[[0-9;]*m//g')"
-  # older agy printed "skills : 43 processed"; 1.4.10 prints "skills 43 · … · hooks 1"
+  if raw_out="$(agy plugin validate --strict "$AGOUT" 2>&1)"; then
+    ok "agy validate --strict passes with zero warnings"
+  else
+    bad "agy validate --strict passes with zero warnings" "$(printf '%s' "$raw_out" | sed 's/\x1b\[[0-9;]*m//g' | tr '\n' ' ' | head -c 240)"
+  fi
+  out="$(printf '%s' "$raw_out" | sed 's/\x1b\[[0-9;]*m//g')"
+  # older agy printed "skills : 43 processed"; 1.4.10+ prints "skills 43 · … · hooks 1"
   printf '%s' "$out" | grep -Eq "skills +(: )?$AG_SKILLS( processed| ·|$)" \
     && ok "agy validate: every skill processed" || bad "agy validate: every skill processed" "$(printf '%s' "$out" | tr '\n' ' ' | head -c 240)"
   printf '%s' "$out" | grep -Eq "hooks +(: )?1( processed| ·|$)" \
@@ -2167,7 +2222,7 @@ for f in .claude-plugin/plugin.json .claude-plugin/marketplace.json .claude-plug
   [ -f "$REL/$f" ] && ok "release ships $f" || bad "release ships $f"
 done
 # What stays on main: nothing an installed plugin runs needs it.
-for f in tests CHANGELOG.md CLAUDE.template.md SKILLS_INDEX.md settings.template.json README.release.md \
+for f in tests CHANGELOG.md CLAUDE.template.md SKILLS_INDEX.md settings.template.json README.release.md README.antigravity.md \
          scripts/lib scripts/build-claude.sh scripts/build-codex.sh scripts/build-antigravity.sh \
          scripts/codex-adapt.sh scripts/antigravity-adapt.sh; do
   [ -e "$REL/$f" ] && bad "release leaves out $f" || ok "release leaves out $f"
@@ -2285,7 +2340,184 @@ failed_rows() { tr -d '\033' | sed 's/\[[0-9;]*m//g' | grep '✗' | sort; }
 assert_eq "with no jq or Python, the same behaviour rows pass: $(printf '%s' "$awk_out" | counts)" \
   "$(printf '%s' "$awk_out" | failed_rows)" "$(printf '%s' "$src_out" | failed_rows)"
 
-fi  # sections 7–10 skipped under M_SKILLS_ONLY=behaviour
+section "11. Release script — release.sh"
+
+# The script pushes, so every row runs a copy of it against a fixture: the sources with their
+# own git history, a local bare origin, and the two sibling worktrees — never this repository.
+# tests/run-tests.sh in the copy is a stub (the real suite is the gate the script runs on main),
+# and claude and agy are stubs on PATH; the real validators run on the real builds in sections 7 and 10.
+RELB="$TMP/rel"; mkdir -p "$RELB/bin" "$RELB/bin-agy" "$RELB/bin-claude"
+rel_stub() { # <path> — logs its arguments, fails when STUB_FAIL names it
+  printf '%s\n' '#!/usr/bin/env bash' 'echo "$(basename "$0") $*" >> "$STUB_LOG"' \
+    'if [ "${STUB_FAIL:-}" = "$(basename "$0")" ]; then echo "stub: refused" >&2; exit 1; fi' \
+    'echo "✔ Validation passed"' > "$1"
+  chmod +x "$1"
+}
+rel_stub "$RELB/bin/claude"; rel_stub "$RELB/bin/agy"; rel_stub "$RELB/bin-agy/agy"; rel_stub "$RELB/bin-claude/claude"
+# Every PATH command except the two validators, for the rows where one is not installed.
+RELNO="$RELB/nopath"; mkdir -p "$RELNO"
+IFS=: read -r -a pdirs <<< "$PATH"
+for d in "${pdirs[@]}"; do
+  for f in "$d"/*; do
+    n="${f##*/}"
+    case "$n" in claude|agy) continue ;; esac
+    [ -x "$f" ] && [ ! -e "$RELNO/$n" ] && ln -s "$f" "$RELNO/$n"
+  done
+done
+
+rel_git() { git -c user.name=t -c user.email=t@t -c commit.gpgsign=false "$@"; }
+rel_fixture() { # <name> [version already on both branches] → RFD (fixture dir), RF (source checkout)
+  local old="${2:-0.0.1}" b w man
+  RFD="$RELB/$1"; RF="$RFD/m-skills"
+  rm -rf "$RFD"; mkdir -p "$RF/tests"
+  cp -R "$ROOT/.claude-plugin" "$ROOT/skills" "$ROOT/commands" "$ROOT/hooks" "$ROOT/scripts" "$RF/"
+  cp "$ROOT/LICENSE" "$ROOT/THIRD-PARTY-NOTICES.md" "$ROOT/README.release.md" "$ROOT/README.antigravity.md" \
+     "$ROOT/.gitattributes" "$ROOT/.gitignore" "$RF/"
+  printf '### V%s — 2026-01-01\n' "$pv" > "$RF/CHANGELOG.md"
+  printf '#!/usr/bin/env bash\nexit 0\n' > "$RF/tests/run-tests.sh"
+  git init -q --bare -b main "$RFD/origin.git"
+  git init -q -b main "$RF"
+  git -C "$RF" config user.name t; git -C "$RF" config user.email t@t; git -C "$RF" config commit.gpgsign false
+  git -C "$RF" remote add origin "$RFD/origin.git"
+  git -C "$RF" add -A && git -C "$RF" commit -qm src && git -C "$RF" push -q -u origin main
+  for b in release antigravity; do
+    w="$RFD/m-skills-$b"
+    man=plugin.json; [ "$b" = release ] && man=.claude-plugin/plugin.json
+    git -C "$RF" update-ref "refs/heads/$b" "$(git -C "$RF" commit-tree -m init "$(git -C "$RF" hash-object -t tree /dev/null)")"
+    git -C "$RF" worktree add -q "$w" "$b"
+    mkdir -p "$(dirname "$w/$man")"
+    printf '{"name":"m-skills","version":"%s"}\n' "$old" > "$w/$man"
+    git -C "$w" add -A && git -C "$w" commit -qm "release: $old" && git -C "$w" push -q -u origin "$b"
+  done
+}
+rel_sync() { git -C "$RF" add -A && git -C "$RF" commit -qm change && git -C "$RF" push -q origin main; }
+rel_state() { # <fixture dir> → the remote refs plus each worktree's HEAD and status: what a refusal must not move
+  git ls-remote "$1/origin.git"
+  local w
+  for w in release antigravity; do
+    git -C "$1/m-skills-$w" rev-parse HEAD 2>&1
+    git -C "$1/m-skills-$w" status --porcelain 2>&1
+  done
+}
+REL_FAIL=""; REL_NONINT=1; REL_PATH=""
+rel_run() { # <source checkout> [args…] → $rel_out, $rel_rc — no stdin, so no terminal
+  local f="$1" ni=1; shift
+  [ "$REL_NONINT" = 1 ] || ni=
+  rel_out="$(cd "$f" && PATH="${REL_PATH:-$RELB/bin:$PATH}" STUB_LOG="$RELB/stub.log" STUB_FAIL="$REL_FAIL" \
+    M_SKILLS_RELEASE_NONINTERACTIVE="$ni" bash scripts/release.sh "$@" 2>&1 </dev/null)"
+  rel_rc=$?
+}
+rel_refuses() { # <what> <expected text> — runs the fixture as mutated; a refusal must write nothing
+  local before after
+  before="$(rel_state "$RFD")"; rel_run "$RF"; after="$(rel_state "$RFD")"
+  if [ "$rel_rc" -ne 0 ]; then assert_contains "release refuses $1" "$rel_out" "$2"
+  else bad "release refuses $1" "it exited 0: $(printf '%s' "$rel_out" | tail -3)"; fi
+  assert_eq "release writes nothing when it refuses $1" "$after" "$before"
+}
+rel_tip() { git ls-remote "$RFD/origin.git" "refs/heads/$1" | cut -f1; }
+
+# A dry run is the whole rehearsal — checks, gates, both builds — and needs no terminal.
+rel_fixture dry; : > "$RELB/stub.log"
+before="$(rel_state "$RFD")"; REL_NONINT=0; rel_run "$RF" --dry-run; REL_NONINT=1
+[ "$rel_rc" -eq 0 ] && ok "dry run exits 0 without a terminal" || bad "dry run exits 0 without a terminal" "$rel_out"
+assert_eq "dry run moves no ref and touches no worktree" "$(rel_state "$RFD")" "$before"
+assert_contains "dry run names what it would commit on release" "$rel_out" "would commit on release: release: m-skills $pv"
+assert_contains "dry run names what it would commit on antigravity" "$rel_out" "would commit on antigravity: release: m-skills $pv (antigravity)"
+assert_contains "dry run says it wrote nothing" "$rel_out" "dry run, nothing written"
+assert_contains "dry run summarizes the release branch's diff" "$rel_out" "release: 0.0.1 -> $pv,"
+
+# The full run: both branches on the remote, each the build, subjects as the README promised.
+rel_fixture full; : > "$RELB/stub.log"
+rel_run "$RF"
+[ "$rel_rc" -eq 0 ] && ok "release exits 0" || bad "release exits 0" "$rel_out"
+for b in release antigravity; do
+  w="$RFD/m-skills-$b"; d="$RF/dist/claude/m-skills"; [ "$b" = antigravity ] && d="$RF/dist/antigravity/m-skills"
+  assert_eq "$b: the remote tip is the worktree's commit" "$(rel_tip "$b")" "$(git -C "$w" rev-parse HEAD)"
+  assert_empty "$b: the branch holds exactly the build" "$(diff -r --exclude=.git "$d" "$w" 2>&1)"
+  assert_empty "$b: the worktree is clean after the push" "$(git -C "$w" status --porcelain)"
+done
+assert_eq "release commit subject" "$(git -C "$RFD/m-skills-release" log -1 --format=%s)" "release: m-skills $pv"
+assert_eq "antigravity commit subject" "$(git -C "$RFD/m-skills-antigravity" log -1 --format=%s)" "release: m-skills $pv (antigravity)"
+for f in tests CHANGELOG.md scripts/lib scripts/release.sh; do
+  [ -e "$RFD/m-skills-release/$f" ] && bad "release branch leaves out $f" || ok "release branch leaves out $f"
+done
+assert_contains "release validated the build and then the branch, strictly" "$(cat "$RELB/stub.log")" "claude plugin validate $RFD/m-skills-release/.claude-plugin/plugin.json --strict"
+assert_contains "antigravity was validated in its worktree" "$(cat "$RELB/stub.log")" "agy plugin validate --strict $RFD/m-skills-antigravity"
+assert_contains "the report says validation is not directory acceptance" "$rel_out" "safety scan or policy review"
+
+# Run again: same sources, same builds, nothing new to say.
+before="$(rel_state "$RFD")"; rel_run "$RF"
+[ "$rel_rc" -eq 0 ] && ok "a second release exits 0" || bad "a second release exits 0" "$rel_out"
+assert_contains "a second release has nothing to release" "$rel_out" "nothing to release"
+assert_eq "a second release adds no commit" "$(rel_state "$RFD")" "$before"
+
+# Refusals, each before any write.
+rel_fixture r1; touch "$RF/stray"
+rel_refuses "a checkout with uncommitted changes" "uncommitted changes"
+rel_fixture r1; rel_git -C "$RF" switch -q -c other
+rel_refuses "a checkout that is not on main" "not on main"
+rel_fixture r1; rel_git -C "$RF" commit -q --allow-empty -m unpushed
+rel_refuses "a main that is not pushed" "is not at origin's tip"
+rel_fixture r1; sed -E 's/"version": *"[^"]*"/"version": "9.9.9"/' "$RF/.claude-plugin/marketplace.json" > "$RF/m.new" && mv "$RF/m.new" "$RF/.claude-plugin/marketplace.json"
+rel_refuses "manifests that disagree on the version" "marketplace.json says '9.9.9'"
+rel_fixture r1; printf '### V9.9 — 2026-01-01\n' > "$RF/CHANGELOG.md"
+rel_refuses "a CHANGELOG heading that disagrees with the manifests" "CHANGELOG heading says 9.9.0"
+rel_fixture r1; touch "$RFD/m-skills-release/stray"
+rel_refuses "a dirty worktree" "has uncommitted changes"
+rel_fixture r1; git -C "$RFD/m-skills-antigravity" switch -q --detach
+rel_refuses "a worktree off its branch" "is not on branch antigravity"
+rel_fixture r1; git -C "$RF" worktree remove --force "$RFD/m-skills-release"
+rel_refuses "a missing worktree" "the release worktree is missing"
+rel_fixture r1; git -C "$RFD/m-skills-release" branch -q --unset-upstream
+rel_refuses "a branch with no upstream" "branch release has no upstream"
+rel_fixture r1; git -C "$RFD/m-skills-antigravity" reset -q --hard HEAD~1 2>/dev/null
+rel_refuses "a branch behind its remote" "is not at"
+rel_fixture r1; REL_PATH="$RELB/bin-agy:$RELNO"
+rel_refuses "a machine without claude" "claude is not on PATH"
+REL_PATH="$RELB/bin-claude:$RELNO"
+rel_refuses "a machine without agy" "agy is not on PATH"
+REL_PATH=""
+rel_fixture r1; printf '#!/usr/bin/env bash\necho "1 failed"\nexit 1\n' > "$RF/tests/run-tests.sh"; rel_sync
+rel_refuses "a failing test suite" "tests/run-tests.sh failed"
+rel_fixture r1; REL_FAIL=agy
+rel_refuses "a build agy rejects" "agy plugin validate failed"
+rel_fixture r1; REL_FAIL=claude
+rel_refuses "a build claude rejects" "claude plugin validate failed"
+REL_FAIL=""
+rel_fixture r1 "$pv"
+rel_refuses "changed content under an unchanged version" "version is still $pv"
+rel_fixture r1 99.0.0
+rel_refuses "a version older than the one on the branch" "already carries 99.0.0"
+rel_fixture r1; : > "$RF/skills/guidelines-meta/.env"; rel_sync
+rel_refuses "a secret-shaped file in a build" "must never reach a public repository"
+rel_fixture r1; before="$(rel_state "$RFD")"; REL_NONINT=0; rel_run "$RF"; REL_NONINT=1
+[ "$rel_rc" -ne 0 ] && ok "the writing path refuses without a terminal" || bad "the writing path refuses without a terminal" "it exited 0"
+assert_contains "the no-terminal refusal says why" "$rel_out" "no terminal on stdin"
+assert_eq "the no-terminal refusal writes nothing" "$(rel_state "$RFD")" "$before"
+rel_run "$RF" --bogus
+assert_contains "an unknown argument prints the usage" "$rel_out" "usage: bash scripts/release.sh [--dry-run]"
+
+# A push is the one step that can leave the branches out of step. antigravity's is refused
+# by the origin: release must be on the remote, antigravity must not, and the output must
+# say what landed and how to finish.
+rel_fixture push
+printf '%s\n' '#!/usr/bin/env bash' 'while read -r old new ref; do' \
+  '  [ "$ref" = refs/heads/antigravity ] && { echo "stub: antigravity refused" >&2; exit 1; }' 'done' 'exit 0' \
+  > "$RFD/origin.git/hooks/pre-receive"
+chmod +x "$RFD/origin.git/hooks/pre-receive"
+rel_run "$RF"
+[ "$rel_rc" -ne 0 ] && ok "a refused push exits nonzero" || bad "a refused push exits nonzero" "it exited 0"
+assert_eq "release landed before antigravity was refused" "$(rel_tip release)" "$(git -C "$RFD/m-skills-release" rev-parse HEAD)"
+[ "$(rel_tip antigravity)" != "$(git -C "$RFD/m-skills-antigravity" rev-parse HEAD)" ] \
+  && ok "antigravity did not reach the remote" || bad "antigravity did not reach the remote"
+assert_contains "the refusal names what already landed" "$rel_out" "already pushed:  release"
+assert_contains "the refusal prints the command that finishes the push" "$rel_out" "push origin HEAD:refs/heads/antigravity"
+
+# The script must never force, skip a hook, or set an upstream: those are the user's.
+assert_empty "release.sh never forces, skips hooks, or sets an upstream by push" \
+  "$(grep -nE 'push[[:space:]]+(-f|-u|--force|--set-upstream)|--force|--no-verify' "$ROOT/scripts/release.sh")"
+
+fi  # sections 7–11 skipped under M_SKILLS_ONLY=behaviour
 
 # ─────────────────────────────────────────────────────────────────────────────
 printf '\n\033[1m─────────────────────────────\033[0m\n'
