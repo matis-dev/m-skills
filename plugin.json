@@ -1,0 +1,32 @@
+{
+  "$schema": "https://antigravity.google/schemas/v1/plugin.json",
+  "name": "m-skills",
+  "displayName": "m-skills — portable dev pipeline",
+  "description": "Portable brainstorm-plan-implement-review-document pipeline for any repo, with PreToolUse hooks and always-on guards for git, secrets, and deploys.",
+  "version": "5.1.1",
+  "logo": "assets/icon.png",
+  "suggestedPrompts": [
+    "Run /onboard to inspect this repository and generate .claude/PROJECT-PROFILE.md.",
+    "Run /planning-architect to design an implementation plan before writing code.",
+    "Run /security-audit to review this codebase against OWASP Top 10:2025."
+  ],
+  "author": {
+    "name": "Mateusz Kruszona",
+    "url": "https://github.com/matis-dev"
+  },
+  "homepage": "https://github.com/matis-dev/m-skills",
+  "repository": "https://github.com/matis-dev/m-skills",
+  "license": "MIT",
+  "keywords": [
+    "workflow",
+    "planning",
+    "code-review",
+    "testing",
+    "design",
+    "security",
+    "accessibility",
+    "changelog",
+    "marketing",
+    "documentation"
+  ]
+}
