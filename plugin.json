@@ -3,7 +3,7 @@
   "name": "m-skills",
   "displayName": "m-skills — portable dev pipeline",
   "description": "Portable brainstorm-plan-implement-review-document pipeline for any repo, with PreToolUse hooks and always-on guards for git, secrets, and deploys.",
-  "version": "5.1.1",
+  "version": "5.2.0",
   "logo": "assets/icon.png",
   "suggestedPrompts": [
     "Run /onboard to inspect this repository and generate .claude/PROJECT-PROFILE.md.",
