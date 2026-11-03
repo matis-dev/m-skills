@@ -55,6 +55,8 @@ Two lines carry most of the value and are the ones most often missing:
 
 Do not run the sequence. If a step fails when the user runs it, they come back with the output and you diagnose (`debugging-architect`) — never improvise past a failed step on their behalf, in an environment you cannot see.
 
+Then close with the picker (Guidelines §17 rule 3), offering what comes after the user runs it — `Review it → code-review-architect`, `Update history → rolling-history`, `Stop here`. The command itself is never an option: a pick would have you run it, and the guard denies that.
+
 ## 4. The Short Forms
 
 Not everything needs a full runbook. The same rules apply at smaller scale:

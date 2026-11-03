@@ -65,7 +65,7 @@
     ],
     "PreToolUse": [
       {
-        "matcher": "Bash",
+        "matcher": "Bash|Monitor",
         "hooks": [
           {
             "type": "command",
@@ -84,7 +84,7 @@
         ]
       },
       {
-        "matcher": "Read|Grep|Write|Edit|NotebookEdit|Bash",
+        "matcher": "Read|Grep|Write|Edit|NotebookEdit|Bash|Monitor",
         "hooks": [
           {
             "type": "command",

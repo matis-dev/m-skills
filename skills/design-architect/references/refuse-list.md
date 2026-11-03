@@ -11,6 +11,7 @@ These are the category's defaults — the shape that appears when nobody decided
 - Hero with everything on one centred axis at full viewport height → pick at most two centred elements; break alignment for the rest.
 - The hero-metric template: giant number, small label, supporting stats → lead with the most characteristic element (headline, image, interaction); a bare figure is never the hero's only headline.
 - A modal for a task needing neither interruption nor protected focus → inline disclosure, a side panel, or a new route.
+- A page stripped of ornament and given nothing in its place — thin sections, empty screens → removing ornament leaves space; fill it with scale (the main thing larger), the full content, or a real picture of the subject's world. One deliberate rest per page.
 - Sections separated only by equal whitespace → divide with a rule, a paper shift, an ornament that names something, or a change of rhythm — and vary which.
 
 **Surface habits**

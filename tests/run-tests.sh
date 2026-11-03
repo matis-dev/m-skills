@@ -168,6 +168,34 @@ grep -q "row decides: filled → use it; .n-a. → skip" "$ROOT/skills/rolling-h
 grep -q "rolling-history. may already have bumped" "$ROOT/skills/deployment-architect/SKILL.md" \
   && ok "deployment-architect does not bump again" || bad "deployment-architect does not bump again"
 
+# a next step that is a choice, a skill, a user-only command, or a block ends in the
+# picker; a written "Next action" line alone left the user to type the next move
+grep -q "it ends in the picker (below)" "$ROOT/skills/guidelines-meta/SKILL.md" \
+  && ok "§17 rule 3 ends a next step in the picker" || bad "§17 rule 3 ends a next step in the picker"
+for f in skills/module-handover/SKILL.md skills/debugging-architect/SKILL.md \
+         skills/code-review-architect/references/output-format.md skills/implementing-architect/references/summary-template.md; do
+  grep -q "picker" "$ROOT/$f" && ok "closes with the picker: $f" || bad "closes with the picker: $f"
+done
+
+# Lighthouse joins seo-audit as a labelled, rendered-page block on a production build
+grep -q "^### 7. Lighthouse" "$ROOT/skills/search-optimization-architect/references/technical-readiness.md" \
+  && grep -q "never the dev server" "$ROOT/skills/search-optimization-architect/references/technical-readiness.md" \
+  && ok "technical-readiness §7 runs Lighthouse on the production build" \
+  || bad "technical-readiness §7 runs Lighthouse on the production build"
+grep -q "technical-readiness.md. §7" "$ROOT/commands/seo-audit.md" \
+  && ok "seo-audit points at Lighthouse §7" || bad "seo-audit points at Lighthouse §7"
+
+# taste-skill: the argument, the frame, two-line headings, and the fullness counterweight
+grep -q "each a claim with its proof" "$ROOT/skills/design-architect/SKILL.md" \
+  && ok "design §2 writes the argument first" || bad "design §2 writes the argument first"
+grep -q '^- \*\*Frame\*\*' "$ROOT/skills/module-craft-floor/SKILL.md" \
+  && grep -q "two lines or fewer at every width" "$ROOT/skills/module-craft-floor/SKILL.md" \
+  && grep -q "not the dev server" "$ROOT/skills/module-craft-floor/SKILL.md" \
+  && ok "craft floor checks the frame and headings on the production build" \
+  || bad "craft floor checks the frame and headings on the production build"
+grep -q "removing ornament leaves space" "$ROOT/skills/design-architect/references/refuse-list.md" \
+  && ok "refuse list carries the fullness counterweight" || bad "refuse list carries the fullness counterweight"
+
 # the search skill's evidence table must keep a Source column and a re-verify warning,
 # so no figure in it can be repeated as fact without its provenance and date
 for s in search-optimization-architect security-architect accessibility-architect; do
@@ -436,6 +464,12 @@ if command -v jq >/dev/null 2>&1; then
   done
   # the enforcement claim the skills now make must be wired to a real event
   assert_contains "git guard wired to PreToolUse" "$(jq -r '.hooks.PreToolUse[].hooks[].args[0]' "$HOOKS_JSON")" "guard-mutations.sh"
+  # Monitor runs a shell command too; a matcher without it is a bypass, not a style choice
+  for g in guard-mutations.sh guard-outward.sh guard-secrets.sh; do
+    m="$(jq -r --arg g "$g" '.hooks.PreToolUse[] | select(any(.hooks[].args[0]; endswith($g))) | .matcher' "$HOOKS_JSON")"
+    case "|$m|" in *"|Bash|"*) ;; *) bad "$g matcher includes Bash" "got: $m" ;; esac
+    case "|$m|" in *"|Monitor|"*) ok "$g matcher includes Monitor" ;; *) bad "$g matcher includes Monitor" "got: $m" ;; esac
+  done
   assert_contains "preamble wired to UserPromptExpansion" "$(jq -r '.hooks.UserPromptExpansion[].hooks[].args[0]' "$HOOKS_JSON")" "skill-preamble.sh"
   assert_contains "pick check wired to AskUserQuestion" "$(jq -r '.hooks.PostToolUse[] | select(.matcher == "AskUserQuestion") | .hooks[].args[0]' "$HOOKS_JSON")" "enforce-picks.sh"
   assert_contains "pick check wired to Read and Bash"   "$(jq -r '.hooks.PostToolUse[] | select(.matcher == "Read|Bash") | .hooks[].args[0]' "$HOOKS_JSON")" "enforce-picks.sh"
@@ -1118,6 +1152,23 @@ expect "allow: gh issue list"          allow "$(decision guard-outward.sh "$(bas
 expect "allow: gh run view"            allow "$(decision guard-outward.sh "$(bash_payload 'gh run view 5')")"
 expect "allow: gh api read"            allow "$(decision guard-outward.sh "$(bash_payload 'gh api /repos/x/y')")"
 
+# ── Monitor runs its command in the same shell as Bash, so a Bash-only matcher let
+#    every guarded command through it. The ws form carries no command and must pass.
+monitor_payload() { printf '{"tool_name":"Monitor","tool_input":{"command":%s,"description":"x","timeout_ms":1000}}' "$(esc "$1")"; }
+monitor_ws='{"tool_name":"Monitor","tool_input":{"ws":{"url":"wss://example.com/s"},"description":"x","timeout_ms":1000}}'
+expect "deny: git rm --cached (Bash)"     deny  "$(decision guard-mutations.sh "$(bash_payload 'git rm --cached src/icons.ts')")"
+expect "deny: git rm --cached via Monitor" deny  "$(decision guard-mutations.sh "$(monitor_payload 'git rm --cached src/icons.ts')")"
+expect "deny: release override via Monitor" deny "$(decision guard-mutations.sh "$(monitor_payload 'M_SKILLS_RELEASE_NONINTERACTIVE=1 true')")"
+expect "deny: gh pr create via Monitor"   deny  "$(decision guard-outward.sh "$(monitor_payload 'gh pr create --fill')")"
+expect "deny: tail -f .env via Monitor"   deny  "$(decision guard-secrets.sh "$(monitor_payload 'tail -f .env')")"
+expect "allow: log tail via Monitor"      allow "$(decision guard-mutations.sh "$(monitor_payload 'tail -f app.log | grep --line-buffered ERROR')")"
+expect "allow: log tail via Monitor (outward)" allow "$(decision guard-outward.sh "$(monitor_payload 'tail -f app.log | grep --line-buffered ERROR')")"
+expect "allow: log tail via Monitor (secrets)" allow "$(decision guard-secrets.sh "$(monitor_payload 'tail -f app.log | grep --line-buffered ERROR')")"
+expect "allow: gh pr checks poll via Monitor" allow "$(decision guard-outward.sh "$(monitor_payload 'while true; do gh pr checks 12; sleep 30; done')")"
+expect "allow: Monitor ws form (git)"     allow "$(decision guard-mutations.sh "$monitor_ws")"
+expect "allow: Monitor ws form (outward)" allow "$(decision guard-outward.sh "$monitor_ws")"
+expect "allow: Monitor ws form (secrets)" allow "$(decision guard-secrets.sh "$monitor_ws")"
+
 # ── H5 secrets: writes denied, example files untouched. The example-file exemption
 #    is load-bearing — profile-bootstrap.sh and deployment-architect both read
 #    .env.example, so a guard that blocked it would break the pack itself.
@@ -1608,6 +1659,16 @@ expect "ag deny: grep_search Includes over 32 entries fails closed" deny \
   "$(ag_decision guard-secrets.sh "$(ag_grep_inc "$AGWS/src" '["a","a","a","a","a","a","a","a","a","a","a","a","a","a","a","a","a","a","a","a","a","a","a","a","a","a","a","a","a","a","a","a","a"]')")"
 expect "ag allow: a tool no guard covers"    allow "$(ag_decision guard-secrets.sh "$(ag_payload list_dir '{"DirectoryPath":"/"}')")"
 
+# manage_task send_input types into a running task, which may be an open shell
+ag_task() { ag_payload manage_task "{\"Action\":\"send_input\",\"Input\":$(esc "$1"),\"TaskId\":\"c/task-1\"}"; }
+expect "ag deny: send_input git push"        deny  "$(ag_decision guard-mutations.sh "$(ag_task 'git push')")"
+expect "ag deny: send_input gh pr create"    deny  "$(ag_decision guard-outward.sh "$(ag_task 'gh pr create --fill')")"
+expect "ag deny: send_input cat .env"        deny  "$(ag_decision guard-secrets.sh "$(ag_task 'cat .env')")"
+expect "ag allow: send_input y"              allow "$(ag_decision guard-mutations.sh "$(ag_task 'y')")"
+expect "ag allow: send_input y (secrets)"    allow "$(ag_decision guard-secrets.sh "$(ag_task 'y')")"
+expect "ag allow: manage_task status"        allow "$(ag_decision guard-mutations.sh "$(ag_payload manage_task '{"Action":"status","TaskId":"c/task-1"}')")"
+expect "ag allow: manage_task kill"          allow "$(ag_decision guard-secrets.sh "$(ag_payload manage_task '{"Action":"kill","TaskId":"c/task-1"}')")"
+
 out="$(printf '%s' "$(ag_run 'git commit -m x')" | bash "$ROOT/scripts/antigravity-adapt.sh" guard-mutations.sh 2>/dev/null)"
 assert_contains "ag deny carries the guard's own reason" "$out" "Blocked by m-skills (Guidelines §9)"
 
@@ -1618,6 +1679,19 @@ expect "ag allow: run_command with a renamed argument steps aside" allow \
 glog="$(cat "$CLAUDE_CONFIG_DIR/m-skills/guards.log" 2>/dev/null)"
 assert_contains "ag: the step-aside is logged with the tool name" "$glog" "run_command without the argument"
 case "$glog" in *"git push"*) bad "ag: the log never carries the command" ;; *) ok "ag: the log never carries the command" ;; esac
+case "$glog" in *manage_task*) bad "ag: status and kill write no log line" ;; *) ok "ag: status and kill write no log line" ;; esac
+expect "ag allow: send_input without Input steps aside" allow \
+  "$(ag_decision guard-mutations.sh "$(ag_payload manage_task '{"Action":"send_input","TaskId":"c/task-1"}')")"
+assert_contains "ag: a send_input without Input is logged" \
+  "$(cat "$CLAUDE_CONFIG_DIR/m-skills/guards.log" 2>/dev/null)" "manage_task without the argument"
+# a renamed Action must not read as a status call and slip past silently
+expect "ag deny: send_input with a renamed Action is still guarded" deny \
+  "$(ag_decision guard-mutations.sh "$(ag_payload manage_task '{"Act":"send_input","Input":"git push","TaskId":"c/task-1"}')")"
+n0="$(grep -c 'manage_task without the argument' "$CLAUDE_CONFIG_DIR/m-skills/guards.log" 2>/dev/null)"
+expect "ag allow: manage_task with no Action and no Input steps aside" allow \
+  "$(ag_decision guard-mutations.sh "$(ag_payload manage_task '{"TaskId":"c/task-1"}')")"
+assert_eq "ag: a missing Action is logged, not skipped silently" \
+  "$(grep -c 'manage_task without the argument' "$CLAUDE_CONFIG_DIR/m-skills/guards.log" 2>/dev/null)" "$((n0 + 1))"
 expect "ag deny: an unknown guard name in hooks.json" deny \
   "$(ag_decision guard-nonexistent.sh "$(ag_run 'git status')")"
 
@@ -1773,6 +1847,9 @@ if bash "$ROOT/scripts/build-antigravity.sh" "$AGOUT" >/dev/null 2>&1; then
   agrp="$(cat "$AGOUT/skills/guidelines-meta/references/reply-protocol.md" 2>/dev/null)"
   assert_contains "ag reply-protocol uses is_multi_select" "$agrp" "is_multi_select"
   assert_missing  "ag reply-protocol stops before §18"     "$agrp" "### 18."
+  assert_contains "ag reply-protocol carries rule 3's picker clause" "$agrp" "it ends in the picker (below)"
+  assert_contains "ag §17 summary ends the next step in ask_question" \
+    "$(cat "$AGOUT/skills/guidelines-meta/SKILL.md" 2>/dev/null)" 'in `ask_question` when it is a choice'
 
   missing_ref=""
   while read -r r; do
@@ -1810,6 +1887,7 @@ if bash "$ROOT/scripts/build-antigravity.sh" "$AGOUT" >/dev/null 2>&1; then
   # Windows: agy runs each hook through `cmd /c`, any nonzero exit blocks the tool, and
   # cmd finds bash.cmd in the plugin root before WSL's bash.exe or a blocked one on PATH
   AGH="$(cat "$AGOUT/hooks.json" 2>/dev/null)"
+  assert_eq "ag manage_task reaches both guard groups" "$(grep -c '"matcher": "run_command|manage_task' "$AGOUT/hooks.json")" 2
   assert_eq "ag every hook command starts with bash, so bash.cmd catches it on Windows" \
     "$(grep -c '"command": "bash scripts/' "$AGOUT/hooks.json")" "$(grep -c '"command":' "$AGOUT/hooks.json")"
   assert_empty "ag every hook gets agy's default 30 s timeout" \

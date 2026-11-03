@@ -10,7 +10,7 @@ Lead with status, not narration (Guidelines §17).
 ## 🏁 Implementation Summary
 
 **Status:** <all gates green | N failing | awaiting visual review>
-**Next action:** <the one thing the user does now>
+**Next action:** <the one thing the user does now — also the closing picker's recommended option (Guidelines §17 rule 3)>
 
 - **Plan reference:** <link or filename>
 - **Files Affected:** <list>

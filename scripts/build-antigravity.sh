@@ -142,7 +142,7 @@ awk '
   skip == 9 && /^### 11\. / { skip = 0 }
   /^### 17\. / {
     print "### 17. Reply Protocol (how output is shaped)"
-    print "- **Lead with the action or answer**, number multi-step instructions, show at most 5 items per group (dropping none where completeness is the deliverable), end with one concrete next step, and omit filler openers, recaps, and closing pleasantries."
+    print "- **Lead with the action or answer**, number multi-step instructions, show at most 5 items per group (dropping none where completeness is the deliverable), end with one concrete next step — in `ask_question` when it is a choice, starts a skill, follows a command only the user may run, or the run is blocked on the user — and omit filler openers, recaps, and closing pleasantries."
     print "- **Structured choices use `ask_question`** (`questions: [{question, options, is_multi_select}]`, recommended option first prefixed with `(Recommended) `); ask trivial yes/no questions in plain text. Picking an option that carries a gated skill'\''s exact name (`Approve → implementing-architect`) starts that skill — read `<this-skill>/../<name>/SKILL.md` and run it in full."
     print "- Read `<this-skill>/references/reply-protocol.md` for the full 10-rule protocol, compression discipline, pre-send check, and break-the-rules cases."
     print ""
@@ -196,14 +196,14 @@ cat > "$OUT/hooks.json" <<'EOF'
     "enabled": true,
     "PreToolUse": [
       {
-        "matcher": "run_command",
+        "matcher": "run_command|manage_task",
         "hooks": [
           { "type": "command", "command": "bash scripts/antigravity-adapt.sh guard-mutations.sh", "timeout": 30 },
           { "type": "command", "command": "bash scripts/antigravity-adapt.sh guard-outward.sh", "timeout": 30 }
         ]
       },
       {
-        "matcher": "run_command|view_file|read_file|write_to_file|write_file|replace_file_content|multi_replace_file_content|edit_file|grep_search",
+        "matcher": "run_command|manage_task|view_file|read_file|write_to_file|write_file|replace_file_content|multi_replace_file_content|edit_file|grep_search",
         "hooks": [
           { "type": "command", "command": "bash scripts/antigravity-adapt.sh guard-secrets.sh", "timeout": 30 }
         ]
