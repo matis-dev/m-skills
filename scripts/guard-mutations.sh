@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# m-skills — PreToolUse guard for Bash. Enforces guidelines-meta §9 and §10.
+# m-skills — PreToolUse guard for Bash and Monitor. Enforces guidelines-meta §9 and §10.
 #
 # These two rules are restated in eleven skill files and, before this hook, enforced
 # nowhere: settings.template.json is a template the user must copy, and its prefix

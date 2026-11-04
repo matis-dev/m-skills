@@ -8,7 +8,7 @@
 # Code Review: <branch / PR# / change-set>
 
 **Verdict:** 🟢/🟡/🟠/🔴 **<band>** — <n>/100
-**Next action:** <the single thing the user does now>
+**Next action:** <the single thing the user does now — also the closing picker's recommended option (Guidelines §17 rule 3)>
 
 ## Scope
 - Base `<ref>` → Head `<ref>` (<N> commits, <F> files, +<add>/-<del>)
