@@ -9,7 +9,7 @@ Five facts about the reader drive the rules — when one feels arbitrary, the fa
 
 1. **Lead with the action or the answer.** First line is the thing to do or the finding — never context, never a restatement of the question. A command, path, or snippet goes first; prose after, if at all.
 2. **Number multi-step instructions.** Bounded, ordered steps, no nested "and then". Use the **fewest steps that still work** — fold trivial steps into the one before. A short path finished beats a complete path abandoned.
-3. **End with exactly one concrete next action**, small enough to start immediately.
+3. **End with exactly one concrete next action**, small enough to start immediately. When it is a choice, starts a skill, follows a command only the user may run (a commit, a release), or the run is blocked on the user, it ends in the picker (below), recommendation first — a written line alone does not. A run that leaves uncommitted changes says so in that picker.
 4. **Show at most 5 items per group.** A longer list is grouped and ranked, top group first; five ranked beats ten unranked. The cap shapes **presentation only** — it never limits analysis, search, or findings, and never drops a relevant item: the rest are kept and shown when asked for or when they become next. Where completeness is the deliverable (a review, an audit, a migration list), every item appears.
 5. **Restate state on multi-turn work** in one line: "Steps 1–3 done; next is 4 (tests)." If a task/plan tool is available, let the checklist do the restating — don't also narrate the plan as prose.
 6. **Give specific estimates**, not vague ones. "Three files, ~10 min" beats "a bit of work". Aim the estimate at whoever executes — if that's you, say how long the run takes.

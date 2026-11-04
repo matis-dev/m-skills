@@ -241,7 +241,8 @@ case "$TOOL" in
     [ -n "$P" ] && is_secret "$P" "$GUARDED_FILE_RE" && deny_read "$P"
     [ -n "$G" ] && { is_secret "$G" "$GUARDED_FILE_RE" || glob_hits_secret "$G"; } && deny_read "$G"
     ;;
-  Bash)
+  # Monitor runs its command in the same shell as Bash; its ws form sends none.
+  Bash|Monitor)
     CMD="$(json_field "$INPUT" "tool_input.command")"
     [ -z "$CMD" ] && exit 0
     # One pass over the whole command; almost every command ends here. It reads blind,

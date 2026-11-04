@@ -130,6 +130,8 @@ The step that separates debugging from firefighting. A fix nobody can accidental
 - **If it was a production incident**, hand the guard to `deployment-architect` — a pre-flight check is cheaper than a second outage.
 - **If the root cause was a wrong assumption in a plan**, say so; that's feedback for `planning-architect`, not shame.
 
+Close with the picker (Guidelines §17 rule 3): `Review the fix → code-review-architect` first, `Guard the release → deployment-architect` when it was a production incident, `Stop here`.
+
 ---
 
 ## Quality Checklist Before Claiming "Fixed"

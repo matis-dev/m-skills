@@ -80,4 +80,13 @@ Also flag: one site-wide image on every route (a fine default for a small site, 
 
 **Fix** server-side, from the same source as the page's title and description, through the framework's own metadata API (Profile §Stack) — never a second head library (Guidelines §2, rung 4). The image is a designed asset: legible at thumbnail size, text inside a centered safe area — build per-route templates through `design-architect`. **Confirm** by re-running the fetch above, then hand the user each platform's share debugger or post inspector to force a re-scrape: platforms cache cards, so a fixed tag keeps showing the old card until then. Report what the card now shows; never a projected click-through gain (Constraint 1).
 
+### 7. Lighthouse — rendered, lab, optional
+
+A second opinion on the **rendered** page, never a substitute for §1: Constraint 3 still judges the fetched bytes, so Lighthouse findings are reported in their own block, labelled *rendered · lab*.
+
+- **Run the project's Lighthouse**, if it is on `PATH` or in the manifest's dev dependencies, with Chrome present — `lighthouse <url> --only-categories=seo,accessibility,best-practices`. Never install it for the audit; without it, say "Lighthouse not run — needs <what>" and finish the audit.
+- **Point it at the production build served locally** — the serve or preview command from the profile or manifest — never the dev server, whose unminified, hot-reloading bundle is not what ships. No such command → not run, same line.
+- **Read localhost results with their two caveats:** HTTPS audits fail on `http://localhost`, and canonical, `robots`, and `hreflang` may point at the production domain — check those against production before calling them findings.
+- **Performance is out of scope here.** Local numbers miss the CDN, compression, and caching production has, and vary run to run; slowness belongs to `debugging-architect` (`references/slow.md`).
+
 ---

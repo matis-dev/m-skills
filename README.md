@@ -50,7 +50,7 @@ To turn the hook guards off for one project, create an empty file named `.claude
 
 Every hook is a local bash script inside the plugin (`scripts/antigravity-adapt.sh` calling `guard-mutations.sh`, `guard-outward.sh`, and `guard-secrets.sh`). None of them makes a network call, downloads a package, or sends data anywhere.
 
-- **What the hooks read:** the `PreToolUse` payload for the tool call being checked (`run_command`, file read/write/edit tools, and `grep_search`), plus whether `.m-skills-no-guards` is present in the workspace or `~/.claude/`.
+- **What the hooks read:** the `PreToolUse` payload for the tool call being checked (`run_command`, the input `manage_task` types into a running task, file read/write/edit tools, and `grep_search`), plus whether `.m-skills-no-guards` is present in the workspace or `~/.claude/`.
 - **What the hooks write:** nothing during normal operation. If a future Antigravity update renames a tool argument the adapter checks, one diagnostic line naming the tool (never the command or file path) is appended to `~/.claude/m-skills/guards.log` and the call proceeds.
 - **What `/onboard` runs:** `scripts/profile-bootstrap.sh` inspects your repository's manifests, lockfiles, CI config, and `.gitignore` locally to draft `.claude/PROJECT-PROFILE.md`, writing nothing until you confirm.
 

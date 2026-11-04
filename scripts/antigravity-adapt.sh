@@ -17,6 +17,8 @@
 #   cwd  the plugin directory, and no plugin-root variable is exported.
 #
 # multi_replace_file_content was not captured; TargetFile is inferred from its sibling.
+# manage_task → args.Action, args.Input (send_input) is read from agy transcripts on
+# 2026-11-03, not from a captured hook payload.
 #
 # When agy changes — an argument renamed, so this cannot find what to check — the call
 # goes through and a line naming the tool lands in ~/.claude/m-skills/guards.log. A host
@@ -63,6 +65,11 @@ case "$TOOL" in
                                 AS=Edit;  FIELD=file_path; ARG="$(json_field "$INPUT" "toolCall.args.Path")"
                                 [ -z "$ARG" ] && ARG="$(json_field "$INPUT" "toolCall.args.TargetFile")" ;;
   grep_search)                  AS=Grep;  FIELD=path;      ARG="$(json_field "$INPUT" "toolCall.args.SearchPath")" ;;
+  # send_input types into a running task, which may be a shell; status, kill, and list run nothing.
+  # A missing Action is a rename, not a status call, so it falls through to the check below.
+  manage_task)                  ACTION="$(json_field "$INPUT" "toolCall.args.Action")"
+                                [ -n "$ACTION" ] && [ "$ACTION" != send_input ] && exit 0
+                                AS=Bash;  FIELD=command;   ARG="$(json_field "$INPUT" "toolCall.args.Input")" ;;
   *) exit 0 ;;
 esac
 

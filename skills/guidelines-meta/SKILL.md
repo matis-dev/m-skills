@@ -147,7 +147,7 @@ The profile also carries the project's **conventions**: design system, i18n loca
 - **Two passes is normal. Needing a third means the brief is wrong, not the work** — stop and re-read the request, or ask.
 
 ### 17. Reply Protocol (how output is shaped)
-- **Lead with the action or answer**, number multi-step instructions, show at most 5 items per group (dropping none where completeness is the deliverable), end with one concrete next step, and omit filler openers, recaps, and closing pleasantries.
+- **Lead with the action or answer**, number multi-step instructions, show at most 5 items per group (dropping none where completeness is the deliverable), end with one concrete next step — in `ask_question` when it is a choice, starts a skill, follows a command only the user may run, or the run is blocked on the user — and omit filler openers, recaps, and closing pleasantries.
 - **Structured choices use `ask_question`** (`questions: [{question, options, is_multi_select}]`, recommended option first prefixed with `(Recommended) `); ask trivial yes/no questions in plain text. Picking an option that carries a gated skill's exact name (`Approve → implementing-architect`) starts that skill — read `<this-skill>/../<name>/SKILL.md` and run it in full.
 - Read `<this-skill>/references/reply-protocol.md` for the full 10-rule protocol, compression discipline, pre-send check, and break-the-rules cases.
 
