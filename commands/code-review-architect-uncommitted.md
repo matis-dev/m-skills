@@ -17,6 +17,8 @@ Run `code-review-architect` in **working tree** mode. The scope is already chose
 
 Working-tree scope has no commit messages, so the stated intent for Phase 1 comes from this session. If there is none, the Phase 5 goal trace falls back to "no stated goals — inferred from the diff". Say which one applied.
 
+**Unreached criteria are pending, not missing.** A plan found in this session is still being built. In the requirement trace, a criterion with no code in the diff yet reads **pending (mid-work)**: no finding, no deduction, no requirement cap. A criterion whose code is present but contradicts it is still **partial** at High. The cap for a **missing** criterion applies at branch or PR scope, in `/m-skills:code-review-architect`.
+
 Target: $ARGUMENTS
 
 If a path was given, it filters *within* the uncommitted set (`git diff HEAD -- <path>`) — it never selects a different change set. If nothing was given, review the whole working tree. If `git diff HEAD` is empty, say there is nothing uncommitted to review and stop.
