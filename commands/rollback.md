@@ -10,7 +10,7 @@ Run `deployment-architect` in **Rollback** mode. Go straight to it — skip Phas
 
 The order is fixed and this command does not change it: state the symptom in one line → hand over the resolved rollback command → verify recovery with the health check and critical path → name what rollback did **not** undo → **only then** investigate cause.
 
-**You do not run it.** A rollback is a production write, so it is the user's to fire under Constraint 2, and `guard-outward.sh` denies it at the runtime regardless. Speed comes from the command already being correct, not from you typing it.
+**You do not run it.** A rollback is a production write, so it is the user's to fire under Constraint 2, and the plugin's outward guard denies it at the runtime regardless. Speed comes from the command already being correct, not from you typing it.
 
 Symptom: $ARGUMENTS
 

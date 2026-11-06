@@ -8,7 +8,7 @@ user-invocable: false
 
 **Loaded by:** `implementing-architect` · `testing-architect` · `code-review-architect` · `deployment-architect` · `maintenance-architect` · `debugging-architect`. Read it when a run reaches the gates; do not restate its content in a skill file.
 
-**What this module is not:** it does not resolve the commands. Which command each role maps to comes from the Project Profile (Guidelines §5) and is injected by the plugin's preamble hook. This module holds the *procedure* — order, batching, reporting, and the specific ways a green run can be wrong.
+**What this module is not:** it does not resolve the commands. Which command each role maps to comes from the Project Profile (Guidelines §5, resolution steps 1–4); where the plugin's preamble hook runs, it arrives already resolved. This module holds the *procedure* — order, batching, reporting, and the specific ways a green run can be wrong.
 
 ---
 
@@ -67,7 +67,7 @@ A blind spot found the hard way is written into the profile's §Guardrails → K
 
 ## 4. When a Visual or Golden Gate Reports Diffs
 
-**Stop. Do not run the update command.** This is Guidelines §10 and it is enforced by the plugin's `guard-mutations.sh` hook, which denies the call.
+**Stop. Do not run the update command.** This is Guidelines §10 and it is enforced by the plugin's git and snapshot guard, which denies the call.
 
 Surface the failure literally:
 

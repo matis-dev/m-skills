@@ -485,15 +485,17 @@ codex plugin add m-skills@m-skills-local           # installs the plugin
 
 ## 📮 Claude directory release
 
-**The Claude plugin directory follows a `release` branch, built from this tree.** Its validator follows a hook's script only when the script is self-contained: no library it loads, no other script it runs, no here-document. A script that does any of those holds every version for a reviewer. `main` keeps the commented, multi-file sources; the build compiles each hook script into one file and leaves out what an installed plugin never runs.
+**The Claude plugin directory follows a `release` branch, built from this tree.** Since 2026-11 the directory refuses every hook of type command from an organization that is not Verified, so this edition ships only prompt hooks: the git, outward-action, snapshot, and secret-file guards, judged by Claude Code's background model, each behind an `if` rule. The SessionStart context, the gate preamble, the pick check, and the advisories stay in the self-hosted install, whose `hooks/hooks.json` on `main` keeps every command hook.
+
+The build writes the release `hooks/hooks.json` itself, and ships only the scripts a command tells Claude to run (today `scripts/profile-bootstrap.sh`). The directory's validator follows such a script only when it is self-contained: no library it loads, no other script it runs, no here-document. `main` keeps the commented, multi-file sources; the build compiles each shipped script into one file.
 
 ```bash
-bash scripts/build-claude.sh   # writes dist/claude/m-skills/; refuses to finish if a hook script would hold the plugin
+bash scripts/build-claude.sh   # writes dist/claude/m-skills/; refuses to finish if a script or hook would hold the plugin
 ```
 
-**What changes on the way out.** The library is pasted in where it was loaded. The `check-quality.sh --list` and `skill-preamble.sh` calls become the subshell functions `m_skills_gate_table` and `m_skills_preamble`; the resolver is inlined only up to its `--list` branch, because no hook runs gates. Example commands in hook comments stay generic: two `pnpm run …` examples there blocked the listing as an unpinned launcher, and the build now refuses one. Comment lines that name a `.sh` file are dropped. `README.release.md` ships as the listing's `README.md`. Tests, the changelog, the templates, the library, and the build and adapter scripts stay on `main`.
+**What changes on the way out.** The library is pasted in where it was loaded. The `check-quality.sh --list` and `skill-preamble.sh` calls become the subshell functions `m_skills_gate_table` and `m_skills_preamble`; the resolver is inlined only up to its `--list` branch. Example commands in comments stay generic: two `pnpm run …` examples blocked the listing as an unpinned launcher, and the build now refuses one. Comment lines that name a `.sh` file are dropped. guidelines-meta's adhd paragraph is rewritten, because this edition has no SessionStart hook to read its flag file. `README.release.md` ships as the listing's `README.md`. Tests, the changelog, the templates, the library, the command hooks' scripts, and the build and adapter scripts stay on `main`.
 
-**Proof it is the same plugin.** Section 10 of `tests/run-tests.sh` runs the hook behaviour sections against the sources and against the build, and requires the same pass count from both.
+**Proof it is the same plugin.** Section 10 of `tests/run-tests.sh` runs the behaviour sections for the shipped scripts (2–3) against the sources and against the build, and requires the same pass count from both. It also checks that every release hook is a prompt hook behind an `if` rule, and that no shipped skill or command names a script the release leaves out.
 
 **Publish a release.** One command releases both hosts: it builds, validates, stages, commits, and pushes the `release` branch for the Claude directory and the `antigravity` branch for the Antigravity Marketplace. It runs git writes, so it is yours to fire from a terminal once `main` is ready:
 
