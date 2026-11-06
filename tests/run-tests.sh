@@ -1087,6 +1087,19 @@ expect "deny: cargo insta accept"      deny  "$(decision guard-mutations.sh "$(b
 expect "allow: curl -u"                allow "$(decision guard-mutations.sh "$(bash_payload 'curl -u')")"
 expect "allow: plain test run"         allow "$(decision guard-mutations.sh "$(bash_payload 'npm test')")"
 
+# ── A command past the 64 KB pipe buffer, the denied part first. A writer piped into a
+#    `grep -q` that exits on its first match dies of SIGPIPE, and under pipefail the deny
+#    test read as "no match" — every row below was let through.
+BULK="$(yes 'filler line of a large heredoc body' 2>/dev/null | head -n 8000)"
+BULKW="$(yes word 2>/dev/null | head -n 20000 | tr '\n' ' ')"
+expect "deny: git commit ahead of 280 KB"  deny  "$(decision guard-mutations.sh "$(bash_payload "git commit -m x
+$BULK")")"
+expect "deny: jest -u ahead of 280 KB"     deny  "$(decision guard-mutations.sh "$(bash_payload "jest -u
+$BULK")")"
+expect "deny: npm publish ahead of 280 KB" deny  "$(decision guard-outward.sh "$(bash_payload "npm publish
+$BULK")")"
+expect "deny: cat .env ahead of 100 KB of words" deny "$(decision guard-secrets.sh "$(bash_payload "cat .env $BULKW")")"
+
 # ── §9 is "no git write", not "no four specific verbs". These were denied by the
 #    hook while Guidelines §9 listed only six bullets; the prose now matches, so
 #    pin the breadth against a future narrowing.
@@ -1918,6 +1931,21 @@ if bash "$ROOT/scripts/build-antigravity.sh" "$AGOUT" >/dev/null 2>&1; then
     assert_contains "ag built from a CRLF clone still denies git commit" "$out" '"decision":"deny"'
   else
     bad "ag build strips CRLF from a Windows clone's scripts" "the build failed on a CRLF clone"
+  fi
+
+  # tr piped into a reader that exits early takes SIGPIPE once it has more to write than the
+  # pipe holds; under pipefail that read as a missing anchor and failed ~8% of builds
+  BIG="$TMP/big-src"
+  mkdir -p "$BIG/scripts/lib" && cp -R "$ROOT/skills" "$ROOT/commands" "$ROOT/.claude-plugin" "$BIG/"
+  cp "$ROOT/LICENSE" "$ROOT/THIRD-PARTY-NOTICES.md" "$ROOT/README.antigravity.md" "$ROOT/.gitattributes" "$BIG/"
+  cp "$ROOT"/scripts/*.sh "$ROOT"/scripts/*.cmd "$BIG/scripts/" && cp "$ROOT/scripts/lib/hook-json.sh" "$BIG/scripts/lib/"
+  for f in guidelines-meta security-architect; do
+    yes 'filler past the pipe buffer' 2>/dev/null | head -n 8000 >> "$BIG/skills/$f/SKILL.md"
+  done
+  if out="$(bash "$BIG/scripts/build-antigravity.sh" "$BIG/dist/antigravity/m-skills" 2>&1)"; then
+    ok "ag build reads skill files larger than a pipe buffer"
+  else
+    bad "ag build reads skill files larger than a pipe buffer" "$(printf '%s' "$out" | tail -1)"
   fi
 
   touch "$AGOUT/stale-from-last-build"

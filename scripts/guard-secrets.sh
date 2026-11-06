@@ -268,7 +268,7 @@ case "$TOOL" in
       while IFS= read -r h; do
         # Quotes and backslashes out of both, or `.en""v` and `.e\nv` skip the check.
         [[ ${seg//[\"\'\\]/} == *"${h//\\/}"* ]] || continue
-        words "$seg" "$mode" | grep -Fxq -- "$h" || continue
+        m_skills_has "$(words "$seg" "$mode")" -Fx -- "$h" || continue
         names_only "$seg" || deny_read "$h"
       done <<< "$HITS"
     done <<< "$SEGMENTS"

@@ -100,7 +100,7 @@ find "$OUT" -name '*.bak' -delete
 # the reference, or drop it, with the build still green.
 GM_OUT="$OUT/skills/guidelines-meta/SKILL.md"
 for anchor in '### 9. ' '### 11. ' '### 17. ' '### 18. ' '- **Questions go in the picker, not the chat.**'; do
-  tr -d '\r' < "$GM_OUT" | grep -qF -- "$anchor" \
+  grep -qF -- "$anchor" "$GM_OUT" \
     || { echo "build-antigravity: guidelines-meta/SKILL.md has no '$anchor' line to split on" >&2; exit 1; }
 done
 mkdir -p "$OUT/skills/guidelines-meta/references"
@@ -220,8 +220,8 @@ GATED="$(
   done
   for f in "$ROOT"/commands/*.md; do printf '`/m-skills:%s` ' "$(basename "$f" .md)"; done
 )"
-SECURITY="$(tr -d '\r' < "$ROOT/skills/security-architect/SKILL.md" \
-  | awk '/^## Operational Constraints/ { on = 1 } on && /^---$/ { exit } on && /^[56]\. / { print }')"
+SECURITY="$(awk '{ sub(/\r$/, "") } /^## Operational Constraints/ { on = 1 } on && /^---$/ { exit } on && /^[56]\. / { print }' \
+  "$ROOT/skills/security-architect/SKILL.md")"
 
 cat > "$OUT/rules/m-skills-guards.md" <<EOF
 ---
