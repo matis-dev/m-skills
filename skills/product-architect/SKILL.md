@@ -61,7 +61,7 @@ Also load `module-writing-floor` before emitting — every artifact here is a do
 
 ## Guardrails
 
-1. **No git, ever** (Guidelines §9) — including creating tickets in a tracker. Filing an issue notifies people and is theirs to send, so the deliverable is the ticket **text**, ready to paste (`module-handover` §4). The plugin's `guard-outward.sh` hook denies `gh issue create` for this reason; a tracker with no CLI is the same rule on the honour system.
+1. **No git, ever** (Guidelines §9) — including creating tickets in a tracker. Filing an issue notifies people and is theirs to send, so the deliverable is the ticket **text**, ready to paste (`module-handover` §4). The plugin's outward guard denies `gh issue create` for this reason; a tracker with no CLI is the same rule on the honour system.
 2. **No invented data** (Guidelines §15) — metrics, market sizes, competitor claims, user quotes, personas. Sourced or labelled, with no third option.
 3. **No code.** Slices carry acceptance criteria and constraints; `implementing-architect` writes the implementation.
 4. **Don't re-plan.** If a plan exists, slice along it. Rewriting the technical approach here means the plan was wrong — say that plainly and send it back rather than quietly replacing it.
