@@ -197,6 +197,12 @@ m_skills_lf() { sed $'s/\r$//'; }
 m_skills_jq() { jq "$@" | m_skills_lf; }
 m_skills_py() { "${M_SKILLS_PY[@]}" "$@" | m_skills_lf; }
 
+# m_skills_has <text> <grep args…> — true if a line of <text> matches. grep -c reads to
+# the end: `printf | grep -q` kills printf with SIGPIPE once <text> outgrows the pipe
+# buffer, and under pipefail the match reads as a miss. No here-string: past the pipe
+# size bash writes it to a temp file, and an unwritable TMPDIR would read as a miss too.
+m_skills_has() { local n; n="$(printf '%s' "$1" | grep -c "${@:2}")"; [ "${n:-0}" != 0 ]; }
+
 # Read the entire stdin payload. Call once; stdin is not rewindable.
 hook_read_input() { cat; }
 
