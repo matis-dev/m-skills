@@ -10,7 +10,7 @@ Run `marketing-architect` in **spread** mode — the default depth. The mode is 
 3. If the funnel holds, read `${CLAUDE_PLUGIN_ROOT}/skills/marketing-architect/references/placement.md`: the evergreen directory layer first, then a short ranked channel list.
 4. Load `module-writing-floor` for the drafted posts, `module-handover` for delivering them, and `guidelines-meta`.
 
-Two constraints this command cannot loosen: **rules of entry are read live this run, never recalled** (Constraint 3 — a ban is permanent), and the **baseline is recorded before anything ships** (Constraint 2). This skill drafts and publishes nothing; `guard-outward.sh` enforces that at the runtime.
+Two constraints this command cannot loosen: **rules of entry are read live this run, never recalled** (Constraint 3 — a ban is permanent), and the **baseline is recorded before anything ships** (Constraint 2). This skill drafts and publishes nothing; the plugin's outward guard enforces that at the runtime.
 
 Target: $ARGUMENTS
 

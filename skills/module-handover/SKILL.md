@@ -8,7 +8,7 @@ user-invocable: false
 
 **Loaded by:** `deployment-architect` · `security-architect` · `product-architect` · `rolling-history` · `maintenance-architect` · `debugging-architect` · `marketing-architect`. Read it whenever a run stops at an action it must not perform; do not restate its content in a skill file.
 
-**The rule.** Some actions are the user's to fire, always: anything that writes to version control, deploys, publishes, migrates shared state, rotates a secret, changes a production access rule, or notifies other people. Not because they are forbidden in principle, but because the person accountable for them should be the person who triggers them — and because they are hard to undo. The plugin's `guard-mutations.sh` and `guard-outward.sh` hooks deny these at the runtime, so this is not a rule you can forget your way past.
+**The rule.** Some actions are the user's to fire, always: anything that writes to version control, deploys, publishes, migrates shared state, rotates a secret, changes a production access rule, or notifies other people. Not because they are forbidden in principle, but because the person accountable for them should be the person who triggers them — and because they are hard to undo. The plugin's git and outward guards deny these at the runtime, so this is not a rule you can forget your way past.
 
 **The deliverable is the handover, not a consolation prize.** "I can't run that" is a failure. A resolved, copy-ready sequence with what each step does and how the user knows it worked is the finished work. Getting this right is what makes the constraint useful rather than merely restrictive.
 

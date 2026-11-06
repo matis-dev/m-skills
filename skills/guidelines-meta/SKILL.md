@@ -196,17 +196,10 @@ Five facts about the reader drive the rules — when one feels arbitrary, the fa
   - `multiSelect` when choices aren't exclusive; `preview` to compare mockups, snippets, or direction briefs side by side.
   - A cheap question is still a question: never ask what the repo, the profile, or a sensible default answers (§5.3). In plan mode, plan approval goes through `ExitPlanMode`, not the picker.
   - **No picker available** (a subagent, another harness) → one question in chat, options as a numbered list, recommendation first.
-  - **A pick that names a gated pipeline skill is the user starting it** — in the sheet, or by number from the chat fallback. Read `${CLAUDE_SKILL_DIR}/../<name>/SKILL.md` and run it in full on the work under discussion: no paste line, no second confirm. A remark in chat is not a pick. An option that starts a gated skill carries its exact name (`Approve → implementing-architect`, not `Approve → implement`): the plugin's pick check keys on that name, holds the turn open until the picked `SKILL.md` is loaded, and logs each pick to `~/.claude/m-skills/picks.log`.
+  - **A pick that names a gated pipeline skill is the user starting it** — in the sheet, or by number from the chat fallback. Read `${CLAUDE_SKILL_DIR}/../<name>/SKILL.md` and run it in full on the work under discussion: no paste line, no second confirm. A remark in chat is not a pick. An option that starts a gated skill carries its exact name (`Approve → implementing-architect`, not `Approve → implement`): where the plugin's pick check runs, it keys on that name, holds the turn open until the picked `SKILL.md` is loaded, and logs each pick to `~/.claude/m-skills/picks.log`.
 - **Break these rules when:** the user asks you to explain or teach (explain fully — still no preamble or closer); a destructive action needs a real warning; a genuine ambiguity needs one clarifying question; a debug spiral needs the wrong assumption named instead of another code iteration; **a rule would delete the answer itself** (asked for options, give 2–4 ranked with trade-offs — the options *are* the answer); or **the harness requires otherwise** (its system prompt outranks this section). In every case the constraint wins and the shape stays.
 
-**Scope and persistence.** This section applies whenever any skill in this pack is running, which is most of the time. To apply it to *everything* — ordinary questions, debugging, work that never touches a pipeline skill — create a flag file and the plugin's `SessionStart` hook injects this section every session:
-
-| Flag file | Scope |
-|---|---|
-| `~/.claude/.m-skills-adhd-always` (or `$CLAUDE_CONFIG_DIR/…`) | every project |
-| `.claude/.m-skills-adhd-on` | this project only |
-
-The hook re-fires on `startup`, `resume`, `clear`, and `compact` — a context clear is exactly where a session-only setting lapses unnoticed, which is the working-memory tax this section exists to remove. `"stop adhd mode"` turns it off for the current session without touching the flag; deleting the flag turns it off for good.
+**Scope and persistence.** This section applies whenever any skill in this pack is running, which is most of the time. To apply it to *everything* — ordinary questions, debugging, work that never touches a pipeline skill — ask for it at the start of a session; it holds until the session ends or its context is cleared. This edition runs no `SessionStart` hook, so no flag file can re-apply it; the self-hosted install from matis-dev/m-skills adds one. `"stop adhd mode"` turns it off.
 
 > Derived from [ayghri/i-have-adhd](https://github.com/ayghri/i-have-adhd) (MIT, © 2026 Ayoub Ghriss) — the five facts, the ten rules, the six break-the-rules cases, and the pre-send check are its structure, folded in here rather than shipped as a separate command.
 
