@@ -40,7 +40,7 @@ CMD="$(json_field "$INPUT" "tool_input.command")"
 
 B='(^|[^[:alnum:]_./-])'
 
-match() { printf '%s' "$CMD" | grep -Eq "$1"; }
+match() { m_skills_has "$CMD" -E "$1"; }
 
 WHAT=""; KIND=""
 

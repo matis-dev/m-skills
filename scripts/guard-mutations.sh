@@ -51,9 +51,9 @@ GIT_HARD='(add|stage|commit|push|checkout|switch|reset|rebase|cherry-pick|revert
 GIT_SOFT='(branch[[:space:]]+(-[dDmMcC]([[:space:]]|$)|--(delete|move|copy|set-upstream-to|unset-upstream|edit-description)|[^-[:space:]])|tag[[:space:]]+(-[adsfD]([[:space:]]|$)|--(delete|force|annotate|sign)|[^-[:space:]])|remote[[:space:]]+(add|remove|rm|rename|set-url|set-head|prune)|worktree[[:space:]]+(add|remove|move|prune|lock)|submodule[[:space:]]+(add|update|init|deinit|sync|set-url)|stash([[:space:]]+(push|pop|apply|drop|clear|save|create|store)([[:space:]]|$)|[[:space:]]*$))'
 
 GIT_DENIED=""
-if printf '%s' "$CMD" | grep -Eq "${GIT_PREFIX}${GIT_HARD}([^[:alnum:]_-]|\$)"; then
+if m_skills_has "$CMD" -E "${GIT_PREFIX}${GIT_HARD}([^[:alnum:]_-]|\$)"; then
   GIT_DENIED="$(printf '%s' "$CMD" | grep -Eo "${GIT_PREFIX}${GIT_HARD}([^[:alnum:]_-]|\$)" | grep -Eo "${GIT_HARD}" | head -1)"
-elif printf '%s' "$CMD" | grep -Eq "${GIT_PREFIX}${GIT_SOFT}"; then
+elif m_skills_has "$CMD" -E "${GIT_PREFIX}${GIT_SOFT}"; then
   GIT_DENIED="$(printf '%s' "$CMD" | grep -Eo "${GIT_PREFIX}${GIT_SOFT}" | grep -oE '(branch|tag|remote|worktree|submodule|stash)' | head -1)"
 fi
 
@@ -62,20 +62,20 @@ if [ -n "$GIT_DENIED" ]; then
 fi
 
 # --no-verify / --no-gpg-sign are git-only flags; their presence anywhere is the rule break.
-if printf '%s' "$CMD" | grep -Eq '(^|[[:space:]])--(no-verify|no-gpg-sign)([[:space:]]|=|$)'; then
+if m_skills_has "$CMD" -E '(^|[[:space:]])--(no-verify|no-gpg-sign)([[:space:]]|=|$)'; then
   emit_deny "Blocked by m-skills (Guidelines §9): skipping hooks with --no-verify / --no-gpg-sign is forbidden. Fix the root cause the hook is reporting instead. ${OPTOUT_LINE}"
 fi
 
 # scripts/release.sh commits and pushes, and refuses to without a terminal on stdin, which
 # an agent's Bash call never has. This variable lifts that refusal, so setting it is a push.
 # Only the assignment form is matched: a quoted grep for the name stays open.
-if printf '%s' "$CMD" | grep -Eq '(^|[[:space:];&|(])M_SKILLS_RELEASE_NONINTERACTIVE='; then
+if m_skills_has "$CMD" -E '(^|[[:space:];&|(])M_SKILLS_RELEASE_NONINTERACTIVE='; then
   emit_deny "Blocked by m-skills (Guidelines §9): M_SKILLS_RELEASE_NONINTERACTIVE lets the m-skills release script commit and push without a terminal, and a release is the user's to fire. Check it with its --dry-run, then print the release command for the user to run. ${OPTOUT_LINE}"
 fi
 
 # ── §10 — golden / snapshot updates ──────────────────────────────────────────
 # Static patterns first.
-if printf '%s' "$CMD" | grep -Eq -- '(--update-snapshots?|--updateSnapshot|--update-golden|--accept-snapshots?|UPDATE_SNAPSHOTS=|SNAPSHOT_UPDATE=|UPDATE_GOLDEN=|insta[[:space:]]+accept|--snapshot-update)'; then
+if m_skills_has "$CMD" -E -- '(--update-snapshots?|--updateSnapshot|--update-golden|--accept-snapshots?|UPDATE_SNAPSHOTS=|SNAPSHOT_UPDATE=|UPDATE_GOLDEN=|insta[[:space:]]+accept|--snapshot-update)'; then
   emit_deny "Blocked by m-skills (Guidelines §10): golden and visual-snapshot updates are user-only. Surface the diff and its report path, then stop — \"Diffs detected — review the report at <path>; if intended, run <update-command> manually.\" Auto-updating erases the exact signal the test exists to produce. ${OPTOUT_LINE}"
 fi
 
@@ -91,12 +91,15 @@ fi
 # .m-skills-no-guards, and reaching for it disarms all three guards permanently.
 SNAP_RUNNER='(^|[^[:alnum:]_./-])(jest|vitest|ava|playwright)([^[:alnum:]_-]|$)'
 SNAP_U='(^|[[:space:]])-[a-zA-Z]*u[a-zA-Z]*([[:space:]]|$)'
-printf '%s\n' "$CMD" | tr '|;&' '\n\n\n' | while IFS= read -r seg; do
+# The verdict is the loop's output, not its status: `break` leaves tr with input unread,
+# and under pipefail its SIGPIPE would make a found deny read as none.
+SNAP_DENY="$(printf '%s\n' "$CMD" | tr '|;&' '\n\n\n' | while IFS= read -r seg; do
   printf '%s' "$seg" | grep -Eq "$SNAP_RUNNER" || continue
   printf '%s' "$seg" | grep -Eq "$SNAP_U"      || continue
   printf 'deny\n'
   break
-done | grep -q deny && \
+done)"
+[ -n "$SNAP_DENY" ] && \
   emit_deny "Blocked by m-skills (Guidelines §10): \`-u\` updates snapshots on this test runner, and that is user-only. Report the diffs and let the user run the update themselves. ${OPTOUT_LINE}"
 
 # Then the project's OWN resolved update command. Prose can never do this — §10's
@@ -123,18 +126,18 @@ resolve_update_cmd() {
 }
 
 UPDATE_CMD="$(resolve_update_cmd)"
-if [ -n "$UPDATE_CMD" ] && printf '%s' "$CMD" | grep -qF -- "$UPDATE_CMD"; then
+if [ -n "$UPDATE_CMD" ] && m_skills_has "$CMD" -F -- "$UPDATE_CMD"; then
   emit_deny "Blocked by m-skills (Guidelines §10): \`${UPDATE_CMD}\` is this project's resolved snapshot-update command, and it is user-only. Surface the diffs and the report path, then stop. ${OPTOUT_LINE}"
 fi
 
 # ── Catastrophic filesystem operations (additive scope) ──────────────────────
 # Home counts only as itself, its top-level globs, or its parent: `~/.cache/x` names one
 # directory and passes, while `~/`, `~/*`, `~/.*`, and `~/..` are denied.
-if printf '%s' "$CMD" | grep -Eq '(^|[^[:alnum:]_./-])rm[[:space:]]+(-[a-zA-Z]*[rR][a-zA-Z]*f|-[a-zA-Z]*f[a-zA-Z]*[rR])[a-zA-Z]*[[:space:]]+((/|\.\.|\*)([[:space:]]|/|$)|(~|\$HOME)(/(\*|\.\*|\.\.?)?)?([[:space:];&|]|$))'; then
+if m_skills_has "$CMD" -E '(^|[^[:alnum:]_./-])rm[[:space:]]+(-[a-zA-Z]*[rR][a-zA-Z]*f|-[a-zA-Z]*f[a-zA-Z]*[rR])[a-zA-Z]*[[:space:]]+((/|\.\.|\*)([[:space:]]|/|$)|(~|\$HOME)(/(\*|\.\*|\.\.?)?)?([[:space:];&|]|$))'; then
   emit_deny "Blocked by m-skills: recursive force-delete of a root, home, parent, or bare glob path is unrecoverable. Name the specific directory instead. ${OPTOUT_LINE}"
 fi
 
-if printf '%s' "$CMD" | grep -Eq '(^|[^[:alnum:]_./-])mkfs([.[:space:]]|$)|(^|[^[:alnum:]_./-])dd[[:space:]]+.*of=/dev/'; then
+if m_skills_has "$CMD" -E '(^|[^[:alnum:]_./-])mkfs([.[:space:]]|$)|(^|[^[:alnum:]_./-])dd[[:space:]]+.*of=/dev/'; then
   emit_deny "Blocked by m-skills: this writes directly to a block device. ${OPTOUT_LINE}"
 fi
 

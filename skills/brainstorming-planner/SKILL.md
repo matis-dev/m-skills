@@ -63,6 +63,17 @@ The same is true of the two questions above. If the surface is interactive, name
 
 ---
 
+## Question Rounds
+
+The frameworks above say *what* to ask; this is how the asking runs. Treat the open decisions as a **tree** — each answer settles a branch and opens the decisions that hang off it.
+
+- **A round asks every decision whose prerequisites are settled.** A question that depends on an answer still pending waits for the next round. One `ask_question` call per round, up to 4 questions, your recommendation first (Guidelines §17); more than 4 ready → the 4 that unblock the most.
+- **Facts are yours, decisions are theirs.** What the repo, the profile, or the docs can answer is looked up, never asked (Guidelines §5.3) — a wide read goes to a subagent while the rest of the round is asked; only the questions downstream of it wait.
+- **Recompute after every round.** New answers expose new branches; the frameworks above are where they come from.
+- **Done when no branch is open** — every decision answered, or ruled out into Non-Goals, and nothing silently assumed.
+
+---
+
 ## Strict Guardrails
 
 1. **Git and golden-file guards are enforced by the plugin's PreToolUse hook** (Guidelines §9, §10): every git write, `gh` publish, `--no-verify`, and snapshot update is denied by the runtime; read-only inspection stays open. At this stage that also means never *proposing* a git step: work stays on the active branch, and no plan you emit suggests a new one.
@@ -70,7 +81,7 @@ The same is true of the two questions above. If the surface is interactive, name
 3. **No Over-Engineering (YAGNI)** — only what was asked; no speculative abstractions or future-proofing the user didn't request. Favor the simplest implementation that works (Guidelines §2).
 4. **Tests planned via Testing Architect** — when the prompt mentions tests, defer the *how* to the `testing-architect` skill (cited by the downstream Planning Architect). Same deferral for security and accessibility: surface the boundary and the assistive path here, and let `security-architect` and `accessibility-architect` own the answers downstream.
 5. **No invented facts** (Guidelines §15) — no fabricated benchmarks, user counts, or "industry standard" claims to win an argument.
-6. **One output, once** — emit the Deep-Dive Execution Prompt only when discovery has actually converged. Emitting it early is the main way this skill fails.
+6. **One output, once** — emit the Deep-Dive Execution Prompt only when the question rounds are done: no branch open. Emitting it early is the main way this skill fails.
 
 ---
 

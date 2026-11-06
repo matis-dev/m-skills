@@ -61,6 +61,7 @@ Read the profile and write down what actually exists here. Everything below appl
 - Assertions on implementation details (call counts of private helpers) instead of outcomes.
 - Snapshot-serializing large objects in unit tests to avoid deciding what matters. Visual comparison is the visual layer's job.
 - A test that passes whether or not the feature works. If deleting the implementation doesn't fail the test, the test is decoration.
+- **Tautological assertions** — the expected value is recomputed the way the code computes it (`expect(add(a, b)).toBe(a + b)`, a fixture built by the helper under test, a snapshot derived by the same logic), so the test passes by construction. Expected values come from an independent source: a literal worked by hand, a spec example, a known-good output.
 
 ---
 

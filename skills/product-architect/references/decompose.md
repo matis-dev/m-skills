@@ -22,6 +22,14 @@ Read the plan and identify where value can be cut without leaving something half
 
 **Never cut by layer, by role, or by activity.** "Database slice / API slice / UI slice", "backend dev's part / frontend dev's part", and "build slice / test slice" all produce work that cannot ship on its own.
 
+**The exception: a wide refactor.** One mechanical change whose blast radius spans the codebase — rename a column, retype a shared symbol — has no vertical slice that lands green. Sequence it **expand–contract**:
+
+1. **Expand** — add the new form beside the old; nothing breaks.
+2. **Migrate** — move callers in batches sized by blast radius (per package, per directory), each batch its own slice depending on the expand, green because the old form still exists.
+3. **Contract** — delete the old form, in a slice depending on every batch.
+
+These are the one place a slice may be purely enabling (INVEST's **V**): each lands green and shrinks the old surface. The refactor carries its own justification and ships as its own sequence, never bundled with the feature that wanted it (§4). More batches than the seven-slice limit → group them into rounds, same rule.
+
 ### 2. Apply the slice ceiling
 
 **If a slice cannot be implemented, reviewed, and shipped in one session, cut it again.** Resolve the project's actual ceiling from §Product Definition — if it is unrecorded, read the merged PRs and use what this team actually ships. Two more cuts is normal. A slice you cannot cut further and still cannot finish is a signal the plan is wrong; say that instead of shipping an impossible ticket.

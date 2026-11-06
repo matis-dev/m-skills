@@ -16,6 +16,13 @@
   - <goal>
 - Expected load: <one user running a script | many users and processes — from README / deploy config, or `assumed:`>
 
+## Requirement Trace
+| Acceptance criterion (quoted) | Status | Where |
+|---|---|---|
+| <criterion> | landed / partial / missing | `path:line` or finding # |
+
+> `n-a — no plan or acceptance criteria found` when none exist. Any **missing** row caps the verdict at 🟠 (state it in the verdict line).
+
 ## Static Gates
 <the gate result table — shape in `module-gate-battery` §2>
 

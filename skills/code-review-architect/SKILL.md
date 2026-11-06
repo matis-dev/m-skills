@@ -36,7 +36,7 @@ Every review addresses each dimension explicitly. Silence on one is itself a fin
 5. **Design craft & accessibility** — for UI-visible diffs, `module-craft-floor` and the `design-architect` refuse list, plus `module-operability-floor`. A UI-visible diff with no direction brief or stamp, or whose brief fails the generic test ("could this serve a competitor unchanged?"), is a Design Craft finding.
 6. **Project conventions** — the committed design system, architecture topology, and idioms from the profile.
 7. **Inherited guards** — the change set itself contains no committed git/CI bypasses, no auto-update of golden files, no `--no-verify` traces in scripts.
-8. **Goal trace** — every change line traces to a stated objective. Flag drive-by edits.
+8. **Goal trace, both directions** — every change line traces to a stated objective (drive-bys flagged), and every acceptance criterion of the plan or slice traces to the diff (missing work flagged). Code that is well built but builds the wrong thing fails here and nowhere else.
 9. **One unified verdict** — all dimensions collapse into a single 0–100 score so the user reads one number, not five.
 
 ---
@@ -61,6 +61,7 @@ Every review addresses each dimension explicitly. Silence on one is itself a fin
 - Run, in parallel where independent: `git status`, `git diff <base>...HEAD`, `git log <base>..HEAD --oneline`.
 - Read the full diff. Group by area (module / view / service / test / config / docs).
 - Read commit messages and any PR description for **stated intent**. Record the claimed goals — they anchor Phase 5's goal trace.
+- Find the plan or slice the change implements — in this conversation, linked from the PR or commits, or a path the user passed — and list its **acceptance criteria**: a plan's `Done When` items, a slice's Given/When/Then, an issue's checklist. None found → the requirement trace reads `n-a — no plan or acceptance criteria`, and says so.
 
 ### Phase 2 — Static Gates
 Run them per the `module-gate-battery` skill — its order, its one-batch rule, its result table. Never auto-update a visual baseline (§4 there).
@@ -83,6 +84,7 @@ Load the `module-threat-model` skill and run its `references/review-sweep.md` ov
 
 ### Phase 5 — Synthesis
 - Trace every diff hunk to a stated goal. Drive-bys → Maintainability finding.
+- Trace every acceptance criterion to the diff: **landed** (cite the `path:line` that lands it), **partial**, or **missing**. A partial or missing criterion is a Correctness & Tests finding at **High**, quoting the criterion.
 - Collect Testing Architect and Design Architect findings.
 - Collapse everything into the unified scale.
 
@@ -95,7 +97,7 @@ Load the `module-threat-model` skill and run its `references/review-sweep.md` ov
 | Maintainability | 25 | Readability, reuse, abstraction level, conventions, comment hygiene, dead code, propagation completeness |
 | Performance | 15 | Hot-path cost, leaks, N+1, bundle/asset weight, rendering hygiene |
 | Security | 30 | The Phase 4 threat model, anchored to OWASP Top 10:2025 |
-| Correctness & Tests | 20 | Gates pass, coverage on new code, paired tests, green-but-lying traps |
+| Correctness & Tests | 20 | Gates pass, coverage on new code, paired tests, green-but-lying traps, acceptance criteria landed |
 | Design Craft | 10 | `module-craft-floor`, the refuse list, and `module-operability-floor` on UI-visible changes (**re-weight to Maintainability when the diff has no UI**) |
 | **Total** | **100** | |
 
@@ -104,6 +106,8 @@ Load the `module-threat-model` skill and run its `references/review-sweep.md` ov
 All three are in `module-findings` §3–§4: the five severity levels with their deductions, the four verdict bands, and the **hard override** — any Critical forces 🔴 Block regardless of total, and the override is stated in the verdict line.
 
 A dimension floors at 0. Dimensions sum to `Total / 100`, and every deduction traces to a listed finding.
+
+**Requirement override:** any **missing** acceptance criterion caps the verdict at 🟠 **Needs Revisions** regardless of total — a clean diff that skips a requirement must not read as ship-ready. State the cap in the verdict line, as with the Critical override.
 
 ---
 
@@ -121,7 +125,8 @@ A dimension floors at 0. Dimensions sum to `Total / 100`, and every deduction tr
 - [ ] Design craft **and** accessibility operability assessed for UI-visible diffs (or the dimension re-weighted and said so).
 - [ ] Test findings sourced from Testing Architect patterns.
 - [ ] Coverage numbers and advisory counts copied from real output, never estimated.
-- [ ] Score breakdown sums to total; deductions trace to listed findings; verdict band matches; Critical override stated if applied.
+- [ ] Every acceptance criterion marked landed / partial / missing with a citation — or the trace stated `n-a` with no plan found.
+- [ ] Score breakdown sums to total; deductions trace to listed findings; verdict band matches; Critical override and requirement cap stated if applied.
 - [ ] Verdict and next action lead the document (Guidelines §17).
 - [ ] No code written; no git/CI/golden mutations performed.
 
