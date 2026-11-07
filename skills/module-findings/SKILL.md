@@ -52,6 +52,8 @@ Before listing a finding, self-score your confidence that it is **real**, **intr
 
 **The one exception:** a correctness or security item you are under 80 on **but that would be severe if true** is not dropped. List it under a short **"Worth a second look (unverified)"** note, kept separate from the scored findings, with what would confirm it.
 
+**The verify pass.** A self-score is the author grading their own work, so every Critical, High, or Medium correctness or security finding that cleared the gate is checked once more before it is posted. Where a subagent tool exists, hand each one to a fresh-context verifier given only the claim, its `path:line`, and the change's stated intent — never your reasoning — and ask whether the claim holds in the code as written. Drop what it refutes; what it confirms is still a lead you re-open before posting (Guidelines §15). With no subagent tool, re-open the cited `path:line` yourself and re-read it against the claim. The report states which ran — `verify: fresh context` or `verify: inline`. One pass per finding, inside Guidelines §16's ceiling; Low and Nit findings skip it.
+
 The same gate applies to a diagnosis: before declaring a root cause, score whether it is *proven* or merely *consistent with the evidence*. Below ~80, say so plainly and keep it labelled a theory. A confidently-stated wrong diagnosis is worse than an honest "not certain yet", because the reader acts on it.
 
 ---

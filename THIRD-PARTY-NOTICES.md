@@ -82,7 +82,7 @@ SOFTWARE.
 
 ## nutlope/hallmark — MIT
 
-<https://github.com/nutlope/hallmark> · folded into `design-architect` §3–5 and `guidelines-meta` §15, §18.
+<https://github.com/nutlope/hallmark> · folded into `design-architect` §2–5, `module-craft-floor`, and `guidelines-meta` §15, §18.
 
 ```
 MIT License
@@ -142,7 +142,7 @@ SOFTWARE.
 
 ## pbakaus/impeccable — Apache License 2.0
 
-<https://github.com/pbakaus/impeccable> · folded into `design-architect` §1–2, its refuse list, and `guidelines-meta` §16.
+<https://github.com/pbakaus/impeccable> · folded into `design-architect` §1–2 and §5, its refuse list, `module-craft-floor`, and `guidelines-meta` §16.
 
 ```
 Copyright 2025 Paul Bakaus
@@ -161,8 +161,8 @@ limitations under the License.
 ```
 
 **Changes made:** the visitor modes, craft floor, browser-surfaces insight, bounded-verification
-rule, per-mode limits on the subject's world, generated-look calibration, and loaded-symbols
-refusal were rewritten in this pack's own words and generalised off the stack impeccable ships
+rule, per-mode limits on the subject's world, generated-look calibration, loaded-symbols
+refusal, and line-break rules were rewritten in this pack's own words and generalised off the stack impeccable ships
 for. No source file from impeccable is included here.
 
 ---
@@ -170,8 +170,8 @@ for. No source file from impeccable is included here.
 ## morluto/rea — MIT
 
 <https://github.com/morluto/rea> · folded into `module-evidence` §2, `module-findings` §2,
-`module-gate-battery` §3, `debugging-architect` Phases 1 and 5, and the `code-review-architect`
-quality pass. Only its agent rules were
+`module-gate-battery` §3, `debugging-architect` Phases 1 and 5, `security-architect` constraint 7,
+`documentation-architect` audit mode, and the `code-review-architect` quality pass. Only its agent rules were
 absorbed, restated in this pack's own words; none of its tool or source is included.
 
 ```
@@ -227,10 +227,42 @@ into the reply protocol. No source file from caveman is included here.
 
 ---
 
+## anthropics/claude-plugins-official — Apache License 2.0
+
+<https://github.com/anthropics/claude-plugins-official> · three of its plugins:
+
+- [`code-review`](https://github.com/anthropics/claude-plugins-official/tree/main/plugins/code-review) · folded into `module-findings` §2.
+- [`code-simplifier` agent](https://github.com/anthropics/claude-plugins-official/blob/main/plugins/pr-review-toolkit/agents/code-simplifier.md), `pr-review-toolkit` · folded into `guidelines-meta` §2.
+- [`security-guidance`](https://github.com/anthropics/claude-plugins-official/tree/main/plugins/security-guidance) · folded into `code-review-architect` Phase 4 and `testing-architect` §2.
+
+These were absorbed from anthropics/claude-code, where this file listed them as having no
+declared license. Since 2026-10-26 they live in claude-plugins-official, and each plugin
+directory there ships the Apache License 2.0. That LICENSE names no copyright holder and
+the plugins ship no NOTICE file, so none is reproduced here.
+
+```
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+```
+
+**Changes made:** the review rules, the simplification rules, and the sink-category threat
+model were rewritten in this pack's own words. No source file from these plugins is
+included here.
+
+---
+
 ## Sources with no declared license
 
-These carry no SPDX license, so nothing was copied from them — only the idea, restated
-in this pack's own words. They are credited in the README rather than licensed here:
+This carries no license, so nothing was copied from it — only the idea, restated in this
+pack's own words. It is credited in the README rather than licensed here:
 
-- [`code-simplifier` agent](https://github.com/anthropics/claude-code/blob/main/plugins/pr-review-toolkit/agents/code-simplifier.md), [`code-review`](https://github.com/anthropics/claude-code/tree/main/plugins/code-review), and [`security-guidance`](https://github.com/anthropics/claude-code/tree/main/plugins/security-guidance) plugins, anthropics/claude-code
 - [Andrej Karpathy — notes on agent coding](https://x.com/karpathy/status/2015883857489522876) (public post)
