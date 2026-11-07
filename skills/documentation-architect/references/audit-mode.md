@@ -14,7 +14,7 @@ Triggered by "audit", "review the docs", or a report that someone got stuck. **R
 Report shape — highest severity first, at most five per group, and every finding appears: an audit is the complete list (Guidelines §17):
 
 - **Verdict** — one of `Blocked` (a reader following the docs cannot succeed) / `Rough` (they succeed after guessing) / `Usable` (succeeds, gaps are additive) / `Good` (nothing found above cosmetic). **Name the evidence that set it**, not a feeling. No letter grades and no invented score — an unmeasured number is a fabrication (Guidelines §15).
-- **Friction log** — numbered, in the order the reader hits them, each with the concrete fix.
+- **Friction log** — numbered, in the order the reader hits them, each with the concrete fix. When the friction is the product's own behaviour (a confusing flag, an error that names no recovery), the fix belongs in the product and is labelled so; a doc never compensates for a contract defect.
 - **Drift** — statements the code contradicts, with both locations.
 - **Missing artifacts** — the doc that should exist, and which reader is stranded without it.
 - **Top rewrites** — at most three, in `current → improved` form so the user can judge the voice before you touch anything.

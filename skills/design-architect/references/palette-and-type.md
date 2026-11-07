@@ -41,7 +41,7 @@ Rules that decide the rest:
 - **Hero size by headline length:** up to 50 characters at the largest step; 51–90 one step down; over 90, rewrite it shorter.
 - **Body measure 45–75ch**; line-height rises as the measure widens and again on dark paper.
 - **A scale of five or six steps** with obvious jumps (ratio 1.25–1.333). Every size sits on the scale; none is improvised.
-- **Section labels default off.** A tracked all-caps eyebrow above every heading is a tell; use one only where the content is genuinely a category.
+- **Section labels default off.** An eyebrow above a heading is a tell (`refuse-list.md`); where the content is genuinely a category, its label takes the body face a step smaller, sentence case, untracked.
 - **Monospace is for code, data, and measurement** — never a costume for "technical".
 
 The stamp records the pair: `type: Fraunces / Inter · tone: editorial`.
