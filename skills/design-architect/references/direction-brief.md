@@ -11,6 +11,7 @@ Ten lines. Every field is filled, or the run stops and asks. A blank `world:` me
 surface:   <page/component> · mode: <Persuade|Operate|Read|Experience>
 visitor:   <who arrives, in what state> · task: <the one primary thing>
 world:     <material world — industry, objects, era; 3–5 nouns>
+inventory: real <names, claims, numbers, places, dates supplied> · pictures <what can be shown, and where each comes from> · absent <proofs it will not have>
 structure: <name from structures.md> · weight: <where> · divides: <rule|shift|ornament|space>
 palette:   anchor <hue> · paper <light|dim|dark, by use scene> · accent owns <one region>
 type:      <display> / <body> · tone: <one of 7 families>
@@ -29,6 +30,7 @@ Brief: "Landing page for Kettle & Crane, a two-person coffee roaster selling sub
 surface:   landing page · mode: Persuade
 visitor:   someone who already buys good coffee, on a phone, deciding whether to switch · task: start a subscription
 world:     copper kettle, burlap, chalk board, boatyard timber, tide tables
+inventory: real the name, the boatyard, two roasters, this week's roast date · pictures none supplied, so type and the roast date carry it · absent reviews, subscriber counts, awards
 structure: split-column · weight: left third, the roast-date claim in display type · divides: hairline rule + paper shift per section
 palette:   anchor copper (oklch 62% 0.14 55) · paper light, tinted warm — read outdoors · accent owns the one "Start a subscription" action
 type:      Fraunces / Inter · tone: editorial

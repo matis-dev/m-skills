@@ -227,6 +227,61 @@ grep -q '^- \*\*Frame\*\*' "$ROOT/skills/module-craft-floor/SKILL.md" \
 grep -q "removing ornament leaves space" "$ROOT/skills/design-architect/references/refuse-list.md" \
   && ok "refuse list carries the fullness counterweight" || bad "refuse list carries the fullness counterweight"
 
+# upstream refresh 2026-11: the Anthropic plugins moved, and carry Apache 2.0 where they live now
+for f in README.md THIRD-PARTY-NOTICES.md; do
+  ! grep -qE 'anthropics/claude-code/(blob|tree)/main/plugins' "$ROOT/$f" \
+    && ok "no credit links into the old claude-code plugins path: $f" \
+    || bad "no credit links into the old claude-code plugins path: $f"
+done
+grep -q '^## anthropics/claude-plugins-official — Apache License 2.0' "$ROOT/THIRD-PARTY-NOTICES.md" \
+  && ok "notices license the Anthropic plugins under Apache 2.0" \
+  || bad "notices license the Anthropic plugins under Apache 2.0"
+[ "$(grep -c 'anthropics/claude-plugins-official.*| Apache 2.0 |' "$ROOT/README.md")" -eq 3 ] \
+  && ok "README credits all three Anthropic plugins as Apache 2.0" \
+  || bad "README credits all three Anthropic plugins as Apache 2.0"
+
+# upstream refresh 2026-11: findings and the design review are checked in fresh context
+grep -q '^\*\*The verify pass\.\*\*' "$ROOT/skills/module-findings/SKILL.md" \
+  && grep -q 'verify: inline' "$ROOT/skills/module-findings/SKILL.md" \
+  && ok "module-findings §2 runs a verify pass and labels an inline one" \
+  || bad "module-findings §2 runs a verify pass and labels an inline one"
+[ "$(grep -c 'verify pass' "$ROOT/skills/code-review-architect/SKILL.md")" -ge 2 ] \
+  && ok "code-review-architect restates the verify pass in its constraint and checklist" \
+  || bad "code-review-architect restates the verify pass in its constraint and checklist"
+grep -q 'the final review runs in fresh context' "$ROOT/skills/design-architect/SKILL.md" \
+  && ok "design §5 runs the final review in fresh context" || bad "design §5 runs the final review in fresh context"
+
+# upstream refresh 2026-11: hallmark 2.0, taste-skill 2.5, impeccable 4.8 design gates
+grep -q 'material inventory' "$ROOT/skills/design-architect/SKILL.md" \
+  && grep -q "from the visitor's job" "$ROOT/skills/design-architect/SKILL.md" \
+  && ok "design §2 takes the material inventory and builds sections from the visitor's job" \
+  || bad "design §2 takes the material inventory and builds sections from the visitor's job"
+[ "$(grep -c '^inventory: ' "$ROOT/skills/design-architect/references/direction-brief.md")" -eq 2 ] \
+  && ok "direction brief records the inventory in its template and example" \
+  || bad "direction brief records the inventory in its template and example"
+grep -q 'sentence case, untracked' "$ROOT/skills/design-architect/references/palette-and-type.md" \
+  && ok "palette-and-type agrees with the refuse list on labels" \
+  || bad "palette-and-type agrees with the refuse list on labels"
+for line in '^- The stock close:' '^- The echo:' '^- The eyebrow' '^- Template punctuation:' \
+            '^- The accented word:' 'a built mock of a product that exists' 'confirms success .* with no request behind it'; do
+  grep -q -- "$line" "$ROOT/skills/design-architect/references/refuse-list.md" \
+    && ok "refuse list carries: $line" || bad "refuse list carries: $line"
+done
+grep -q '^- \*\*Consistency\*\*' "$ROOT/skills/module-craft-floor/SKILL.md" \
+  && grep -q 'At 1280×800 the first screen' "$ROOT/skills/module-craft-floor/SKILL.md" \
+  && grep -q 'text-wrap: balance' "$ROOT/skills/module-craft-floor/SKILL.md" \
+  && grep -q 'reads with scripting off' "$ROOT/skills/module-craft-floor/SKILL.md" \
+  && ok "craft floor checks consistency, the 1280×800 fold, line breaks, and content without scripting" \
+  || bad "craft floor checks consistency, the 1280×800 fold, line breaks, and content without scripting"
+
+# upstream refresh 2026-11: rea's sibling sweep, speculative-hardening ask, and product-first doc fixes
+grep -q 'check sibling paths that do the same job' "$ROOT/skills/debugging-architect/SKILL.md" \
+  && ok "debugging Phase 5 sweeps sibling paths" || bad "debugging Phase 5 sweeps sibling paths"
+grep -q "built only on the user's yes" "$ROOT/skills/security-architect/SKILL.md" \
+  && ok "security asks before speculative hardening" || bad "security asks before speculative hardening"
+grep -q 'a doc never compensates for a contract defect' "$ROOT/skills/documentation-architect/references/audit-mode.md" \
+  && ok "docs audit fixes the product, not the doc" || bad "docs audit fixes the product, not the doc"
+
 # the search skill's evidence table must keep a Source column and a re-verify warning,
 # so no figure in it can be repeated as fact without its provenance and date
 for s in search-optimization-architect security-architect accessibility-architect; do

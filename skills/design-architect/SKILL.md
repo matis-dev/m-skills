@@ -58,7 +58,7 @@ State the mode in one line: `mode: Operate — a settings screen; scanability ou
 
 The mode says what wins; this says what the page *is*. Six steps, in order, producing a ten-line brief that is emitted before any markup.
 
-1. **Ground in the subject.** From the brief and the codebase: who arrives, in what state; the one primary task; and the product's **material world** — its industry, its objects, its era — in three to five nouns. The aesthetic comes from those nouns, never from the category's habit. **How far that world reaches is set by the mode:**
+1. **Ground in the subject.** From the brief and the codebase: who arrives, in what state; the one primary task; and the product's **material world** — its industry, its objects, its era — in three to five nouns. The aesthetic comes from those nouns, never from the category's habit. Then take the **material inventory** in one line: *real* (the names, claims, numbers, places, and dates the brief and the repo supply), *pictures* (what the surface can show and where each comes from — the user's own, a screenshot of the running product, the product built), *absent* (every proof it will not have). The shape follows it: a surface with pictures leads with them, one without carries type and facts, and an absent proof stays absent (Guidelines §15). **How far that world reaches is set by the mode:**
 
    | Mode | The world may | The world never |
    |---|---|---|
@@ -67,7 +67,7 @@ The mode says what wins; this says what the page *is*. Six steps, in order, prod
    | **Persuade / Experience** | Carry and structure the page; its material is the ground and the major surfaces | Become a painted picture with no working parts. On Persuade the primary action shows in its **working form** — the route-and-dates search, not a link to it |
 
    On Operate and Read, draw the world from the audience's publishing and graphic traditions, **never from the tools they operate** — a terminal, a cockpit, a control panel comes back as a costume of that tool on a working screen. A grey screen with one accent is the category default without its polish, not restraint.
-2. **Write the argument, then pick a structure by name.** On Persuade and Read, list the sections first, each a claim with its proof, one line apiece; a section with no claim is deleted. The claims set which sections exist and their order — that is what stops hero → features → testimonial → CTA arriving by default. Then pick from `references/structures.md`. Say where the weight sits and what divides sections. It must differ from the last stamp in this project.
+2. **Write the argument, then pick a structure by name.** On Persuade and Read, list the sections first, each a claim with its proof, one line apiece; a section with no claim is deleted. The sections come from the visitor's job (book, buy, subscribe, install) and from what pages of this kind are built around — a restaurant's menu, a festival's lineup, a library's changelog — never from a default run of features, steps, and an email band. The claims set which sections exist and their order — that is what stops hero → features → testimonial → CTA arriving by default. Then pick from `references/structures.md`. Say where the weight sits and what divides sections. It must differ from the last stamp in this project.
 3. **Derive the palette and choose the type pairing** per `references/palette-and-type.md`: anchor hue from the material world, paper lightness from the use scene, roles not swatches; a display face chosen by tone, a body face chosen by measure.
 4. **Name the signature moment** — the one thing a visitor would describe afterwards, concretely enough that the build can find it (service health drawn as a transit map, not "transit vibes"). One per surface. Motion, accent, and the largest type are spent on it and nowhere else; the other regions hold still in the world's material. Busy is louder, not bolder.
 5. **Emit the brief** in the template at `references/direction-brief.md`. Establish writes it to the profile's §Design; Study fills it from the reference.
@@ -99,7 +99,7 @@ Variety is scored on structure first, then palette and type. A color swap alone 
 
 ## 5. Before Emitting — Gate Sweep
 
-Run the six-axis pre-emit self-critique (Guidelines §18) **first**; anything under 3 gets one revision pass. Then confirm every line below is clean:
+Run the six-axis pre-emit self-critique (Guidelines §18) **first**; anything under 3 gets one revision pass. Then confirm every line below is clean. Where a subagent tool exists, the final review runs in fresh context: the reviewer gets the built result, the brief, and this list — not your build notes — and returns `fix` with findings or `ship`; act on it inside the Guidelines §16 ceiling. Without one, run the list yourself and say it ran inline.
 
 - [ ] Mode stated, and the design serves it (§1).
 - [ ] Direction brief emitted before code; every field filled; generic test passed (§2).
