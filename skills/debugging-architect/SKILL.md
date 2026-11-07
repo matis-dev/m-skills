@@ -119,7 +119,7 @@ Before fixing, close the loop both ways:
 
 1. **Explain the whole symptom.** A cause that explains most of it is usually adjacent to the real one. Unexplained residue means you're not done.
 2. **Make it appear and disappear on demand.** Toggle the cause; the symptom must follow. That's proof, not correlation.
-3. **Explain the "why now"** — if this code is old, what changed to expose it? Skipping this is how the same bug returns in a different shape.
+3. **Explain the "why now"** — if this code is old, what changed to expose it? Skipping this is how the same bug returns in a different shape. Code that looks wrong on purpose: check the file the profile's **Decisions** row names before treating it as the bug.
 
 ---
 

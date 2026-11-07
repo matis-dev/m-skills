@@ -181,11 +181,12 @@ Adjust if this project's order differs. Cheap-and-fast first; the slow gate that
 
 ## Documentation Targets
 
-*Owner: `rolling-history` · filled at the first changelog entry. A doc that doesn't exist is omitted, not invented.*
+*Owner: `rolling-history` · filled at the first changelog entry. A doc that doesn't exist is omitted, not invented. The Decisions row is set by kickoff, onboard, or the first run with a user decision to log — a path, or `n-a — declined`.*
 
 | File | Path | Updated when |
 |---|---|---|
 | Changelog | `<path>` | every session (Rolling History) |
+| Decisions | `<path>` | a user decision in a question round — appended in the file's header format |
 | README | `<path>` | setup/scripts/feature-list changes |
 | Architecture | `<path>` | structural facts change |
 | Deployment | `<path>` | build/ship/runtime/env changes |

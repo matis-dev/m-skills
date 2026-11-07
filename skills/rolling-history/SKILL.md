@@ -9,7 +9,7 @@ disable-model-invocation: true
 # Skill: Rolling History (Continuous Documentation)
 
 > **Apply Guidelines Skill** — load the `guidelines-meta` skill before proceeding.
-> **Profile section owned:** §Documentation Targets and §Commit Convention (Guidelines §5), plus §Deployment's **Versioning scheme** row, shared with `deployment-architect`. §Documentation Standards belongs to `documentation-architect` — read it, don't fill it. Fill it on first use per **Guidelines §5.1–§5.4** — read the repo first, ask only what the code cannot say, write it back. If the repo has no changelog or no commit history to infer from, ask which convention to adopt rather than picking one silently.
+> **Profile section owned:** §Documentation Targets and §Commit Convention (Guidelines §5), plus §Deployment's **Versioning scheme** row, shared with `deployment-architect`. The §Documentation Targets **Decisions** row is shared with kickoff, onboard, `brainstorming-planner`, and `planning-architect`. §Documentation Standards belongs to `documentation-architect` — read it, don't fill it. Fill it on first use per **Guidelines §5.1–§5.4** — read the repo first, ask only what the code cannot say, write it back. If the repo has no changelog or no commit history to infer from, ask which convention to adopt rather than picking one silently.
 
 **Run only after:** the Implementing Skill's gates have passed **and** the user has manually reviewed (and approved or updated) any failed visual baselines. This skill records what **shipped** — never what's still in flight.
 
@@ -81,6 +81,7 @@ Rules:
 - **This skill produces the verdict; `documentation-architect` produces the prose.** When a verdict is anything other than `no change`, hand that doc to the `documentation-architect` skill — it carries the reader-and-type selection, the ground-truth check that every cited command and path is real, and the drift rules. The changelog is the exception and stays here: it is this skill's file alone.
 - If every doc is `no change`, say so in one line and move on.
 - Docs the profile doesn't list don't exist here — don't propose edits to them.
+- **Decisions safety net.** A choice the user made this session that is not yet in the file the profile's **Decisions** row names — an implementing *Ask Before* stop, a debugging fix choice, a deployment pick — is appended in that file's format. This skill checks that file; it does not own it. Row absent or `n-a — declined` → skip.
 
 ---
 

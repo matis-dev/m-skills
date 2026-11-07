@@ -18,7 +18,7 @@ disable-model-invocation: true
 Skim, in this order, and spend no more than a couple of minutes:
 
 1. **Project Profile** — stack, design system, test layers, known blind spots. This is what makes "reuse what's there" a real suggestion rather than a platitude.
-2. **The project's changelog / recent history** — prior decisions, removed features, hidden logic. The most common brainstorming failure is proposing something the project already tried and dropped.
+2. **The project's changelog / recent history** — prior decisions, removed features, hidden logic. The most common brainstorming failure is proposing something the project already tried and dropped. Then the file the profile's **Decisions** row names: a direction logged as rejected is not proposed again without saying so.
 
 If neither exists, **this is probably a new project — switch to Kickoff Mode below** rather than brainstorming a feature against a codebase that isn't there. If the project simply lacks a profile but has code, say so in one line and proceed.
 
@@ -94,6 +94,8 @@ After the session, provide — five bullets maximum per section (Guidelines §17
 - **♻️ Reusable Foundation** — existing artifacts to leverage, with paths.
 - **🚫 Explicit Non-Goals** — what was ruled out, and why. (This is the section that saves the most time later.)
 - **🔭 Future Coordinates** — how the feature is positioned for evolution, *without* building for it now.
+
+**Log the user's decisions first.** Each choice the user made in a question round gets an entry in the file the profile's **Decisions** row names, in that file's own format, shown in the reply — whatever is picked next, since a direction dropped at `Stop here` is the one most worth keeping. No row → ask once, then record the path or `n-a — declined`; declined → skip. Nothing decided → nothing written. In plan mode, list them under *Decisions to log* and append them once plan mode ends.
 
 Then put the next step in the picker (Guidelines §17) — `Plan it → planning-architect` · `Keep refining` · `Stop here`. Picking `Plan it → planning-architect` starts it on the Deep-Dive Execution Prompt in this session; pasting the prompt into a fresh or stronger-model session stays open to the user.
 
