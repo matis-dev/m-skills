@@ -143,8 +143,8 @@ Commands below use the plugin form — in copy mode, drop the `m-skills:` prefix
 
 | Situation | Command |
 |---|---|
-| Starting out, new project or existing | `/m-skills:kickoff` → looks first: a new repo gets what to build, first slice, foundational decisions routed to their owners; an existing one is onboarded, then steered to the next run |
-| First run in a project that already exists | `/m-skills:onboard` → profile written from the repo, existing docs adopted as targets, changelog baseline offered |
+| Starting out, new project or existing | `/m-skills:kickoff` → looks first: a new repo gets what to build, first slice, foundational decisions routed to their owners, a decisions log offered; an existing one is onboarded, then steered to the next run |
+| First run in a project that already exists | `/m-skills:onboard` → profile written from the repo, existing docs adopted as targets, changelog baseline and decisions log offered |
 | Screen or component to design | `/m-skills:design-architect` → visitor mode, direction brief (structure · palette · type · signature moment), craft floor, refuse list |
 | Tests to add or upgrade | `/m-skills:testing-architect` |
 | Untrusted input, auth, secrets, or an advisory | `/m-skills:security-architect` → trust boundaries at plan time, the fix and its regression test after |
@@ -565,11 +565,13 @@ git worktree add ../m-skills-antigravity antigravity
 | `skills/module-*/` | The 9 shared modules, addressed by name | same |
 | `skills/*/references/*.md` | On-demand material, read via `${CLAUDE_SKILL_DIR}` | same |
 | `skills/guidelines-meta/PROJECT-PROFILE.template.md` | The profile the skills fill in as you work | → `<project>/.claude/PROJECT-PROFILE.md` |
+| `skills/guidelines-meta/DECISIONS.template.md` | The decisions log kickoff or onboard offers: why the project is built as it is, rejected options included | → `<project>/DECISIONS.md`, only on a yes |
 | `CLAUDE.template.md` | Always-on guards, loaded every session | → `<project>/CLAUDE.md` |
 | `settings.template.json` | Permission allowlist + git denylist | → `<project>/.claude/settings.local.json` |
 | `skills/implementing-architect/check-quality.sh` | Runnable gate pipeline (profile → conf → auto-detect) | ships inside `skills/` |
 | `SKILLS_INDEX.md` | Architect and module catalog, pipeline diagram, provenance | reference |
 | [`CHANGELOG.md`](CHANGELOG.md) | Release history, and the per-skill version notes that used to sit at the foot of each `SKILL.md` | reference |
+| [`DECISIONS.md`](DECISIONS.md) | Why the pack is built the way it is, including the directions it rejected | reference |
 
 The 17 architects: `guidelines-meta`, `brainstorming-planner`, `planning-architect`, `product-architect`, `design-architect`, `testing-architect`, `security-architect`, `accessibility-architect`, `implementing-architect`, `debugging-architect`, `code-review-architect`, `documentation-architect`, `rolling-history`, `deployment-architect`, `maintenance-architect`, `search-optimization-architect`, `marketing-architect`.
 

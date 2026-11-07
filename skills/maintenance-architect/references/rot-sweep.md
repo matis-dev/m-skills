@@ -11,6 +11,7 @@ Findings no gate reports, because nothing fails. Run it periodically, report per
 - **Unused dependencies** — in the manifest, imported nowhere. Removal is the cheapest possible upgrade.
 - **Dead code** — unreferenced exports, unreachable branches, files nothing imports. "Unreferenced" means searched past imports too — tests, fixtures, config, string-keyed and dynamic references (`module-findings` §2). Propose removal; do not delete pre-existing dead code unasked (Guidelines §3).
 - **Shortcut ledger** — every `shortcut:` comment (Guidelines §2), one row each: `<file>:<line> · ceiling: <limit> · upgrade: <trigger>`. Find them with `git grep -nE '(#|//|/[*]|--) ?shortcut:'`, plus the stack's other comment prefixes. Tag a row naming no upgrade trigger `no-trigger` — those are the deferrals that rot. Flag any whose ceiling the project's current load already crosses. End with `<N> shortcuts, <M> no-trigger`.
+- **Decision triggers** — every entry in the file the profile's **Decisions** row names whose `revisit if:` is not `never`, one row each: `<heading> · trigger: <text> · fired: yes | no | unknown`. A fired trigger reopens the decision with the user; it is not a fix to make.
 - **Stale TODO/FIXME** — with no ticket and no date. Either it matters and gets tracked, or it doesn't and goes.
 - **Doc drift** — the profile's doc targets describing a version of the system that no longer exists. `rolling-history` owns the fix.
 - **Config drift** — settings for tools no longer used, env vars nothing reads.

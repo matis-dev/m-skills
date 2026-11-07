@@ -169,6 +169,38 @@ grep -q "row decides: filled → use it; .n-a. → skip" "$ROOT/skills/rolling-h
 grep -q "rolling-history. may already have bumped" "$ROOT/skills/deployment-architect/SKILL.md" \
   && ok "deployment-architect does not bump again" || bad "deployment-architect does not bump again"
 
+# the decisions log only keeps rejected directions if the runs that ask the user write
+# to it and the runs that judge work read it — one skill losing the line drops its half
+DT="$ROOT/skills/guidelines-meta/DECISIONS.template.md"
+[ -f "$DT" ] && grep -q "Supersedes:" "$DT" && grep -q "revisit if:" "$DT" \
+  && ok "decisions template carries the entry shape and supersede rule" \
+  || bad "decisions template carries the entry shape and supersede rule"
+for f in skills/brainstorming-planner/SKILL.md skills/brainstorming-planner/references/kickoff.md \
+         skills/planning-architect/SKILL.md skills/rolling-history/SKILL.md \
+         skills/documentation-architect/SKILL.md skills/documentation-architect/references/onboard.md \
+         skills/code-review-architect/SKILL.md skills/code-review-architect/references/quality-pass.md \
+         skills/maintenance-architect/references/rot-sweep.md skills/debugging-architect/SKILL.md \
+         skills/guidelines-meta/PROJECT-PROFILE.template.md; do
+  grep -q '\*\*Decisions\*\* row\|^| Decisions |' "$ROOT/$f" \
+    && ok "names the Decisions row: $f" || bad "names the Decisions row: $f"
+done
+# a direction dropped at "Stop here" is the one most worth keeping
+grep -q "whatever is picked next" "$ROOT/skills/brainstorming-planner/SKILL.md" \
+  && ok "brainstorming logs decisions whatever is picked next" \
+  || bad "brainstorming logs decisions whatever is picked next"
+grep -q "Decisions safety net" "$ROOT/skills/rolling-history/SKILL.md" \
+  && ok "rolling-history catches unlogged decisions" || bad "rolling-history catches unlogged decisions"
+grep -q "no back-filled entries" "$ROOT/skills/documentation-architect/references/onboard.md" \
+  && ok "onboard starts the decisions log empty" || bad "onboard starts the decisions log empty"
+grep -q "\*\*Medium\*\* finding that cites the entry" "$ROOT/skills/code-review-architect/references/quality-pass.md" \
+  && ok "review reports a contradicted decision as Medium" \
+  || bad "review reports a contradicted decision as Medium"
+# plan mode blocks file writes until ExitPlanMode, so a rejected plan would drop its decisions
+for f in skills/brainstorming-planner/SKILL.md skills/planning-architect/SKILL.md; do
+  grep -q "Decisions to log" "$ROOT/$f" \
+    && ok "plan mode defers the decisions append: $f" || bad "plan mode defers the decisions append: $f"
+done
+
 # a next step that is a choice, a skill, a user-only command, or a block ends in the
 # picker; a written "Next action" line alone left the user to type the next move
 grep -q "it ends in the picker (below)" "$ROOT/skills/guidelines-meta/SKILL.md" \

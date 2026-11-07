@@ -32,6 +32,8 @@ Say plainly which of these you are deferring and to when. **Deferring is the def
 ### 3. Seed the profile with what was actually decided
 Write only the rows this conversation genuinely settled, and mark the rest `pending: <when>` (Guidelines §5). No `assumed:` values in a greenfield profile — an unchallenged guess recorded on day one becomes a fact nobody remembers choosing.
 
+Then offer the decisions log, once: create `DECISIONS.md` at the root from `${CLAUDE_SKILL_DIR}/../guidelines-meta/DECISIONS.template.md`, with the decisions the user made in this kickoff as its first entries. Record the profile's **Decisions** row as its path, or `n-a — declined`.
+
 ### 4. Then run Active Discovery on the first slice
 Kickoff ends where the normal skill begins: take the smallest useful thing from step 1 and pressure-test it below. The emitted Deep-Dive Execution Prompt is for **that slice**, not for the whole product.
 
