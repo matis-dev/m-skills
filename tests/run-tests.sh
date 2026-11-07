@@ -16,9 +16,7 @@ VERBOSE=0; [ "${1:-}" = "-v" ] && VERBOSE=1
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
 
 # Sections 2–6 run the hook scripts from PLUGIN_UT: this tree, or a built copy.
-# M_SKILLS_ONLY=behaviour runs sections 2–6 alone; M_SKILLS_ONLY=shipped runs 2–3, the
-# scripts the directory release still ships. Section 10 points PLUGIN_UT at that build
-# under shipped, to prove its compiled scripts behave exactly like these sources.
+# M_SKILLS_ONLY=behaviour runs sections 2–6 alone.
 PLUGIN_UT="${M_SKILLS_PLUGIN:-$ROOT}"
 ONLY="${M_SKILLS_ONLY:-}"
 
@@ -945,8 +943,6 @@ assert_empty    "a tracked .env.example is fine"      "$(run_sec "$S5")"
 S6="$TMP/sec-nogit"; mkdir -p "$S6/.claude"; touch "$S6/.claude/PROJECT-PROFILE.md" "$S6/.env"
 assert_empty    "no git, no report"                   "$(run_sec "$S6")"
 
-# The directory release ships no command hooks, so M_SKILLS_ONLY=shipped stops here.
-if [ "$ONLY" != shipped ]; then
 # ─────────────────────────────────────────────────────────────────────────────
 section "4. Behaviour — adhd-always-on.sh"
 
@@ -1657,7 +1653,6 @@ agree "a lone surrogate elsewhere hides nothing" '{"tool_input":{"command":"git 
 
 rm -rf "${TMPDIR:-/tmp}/m-skills-$(id -u 2>/dev/null || echo 0)/$CLAUDE_SESSION_ID"
 unset CLAUDE_SESSION_ID CLAUDE_PROJECT_DIR CLAUDE_CONFIG_DIR
-fi  # sections 4–6 skipped under M_SKILLS_ONLY=shipped
 
 if [ -z "$ONLY" ]; then
 # ─────────────────────────────────────────────────────────────────────────────
@@ -2365,90 +2360,78 @@ fi
 # What ships: what an installed plugin loads, and the two files the directory requires.
 for f in .claude-plugin/plugin.json .claude-plugin/marketplace.json .claude-plugin/icon.png \
          hooks/hooks.json README.md LICENSE THIRD-PARTY-NOTICES.md \
-         skills/guidelines-meta/SKILL.md skills/implementing-architect/check-quality.sh commands/onboard.md \
-         scripts/profile-bootstrap.sh; do
+         skills/guidelines-meta/SKILL.md skills/implementing-architect/SKILL.md commands/onboard.md commands/kickoff.md; do
   [ -f "$REL/$f" ] && ok "release ships $f" || bad "release ships $f"
 done
-# What stays on main: nothing an installed plugin runs needs it.
+# What stays on main: nothing an installed plugin runs needs it, and no script at all.
 for f in tests CHANGELOG.md CLAUDE.template.md SKILLS_INDEX.md settings.template.json README.release.md README.antigravity.md \
-         scripts/lib scripts/build-claude.sh scripts/build-codex.sh scripts/build-antigravity.sh \
-         scripts/codex-adapt.sh scripts/antigravity-adapt.sh scripts/release.sh \
-         scripts/guard-mutations.sh scripts/guard-outward.sh scripts/guard-secrets.sh scripts/enforce-picks.sh \
-         scripts/skill-preamble.sh scripts/suggest-skills.sh scripts/resume-progress.sh scripts/adhd-always-on.sh \
-         scripts/warn-test-weakening.sh scripts/advise-propagation.sh; do
+         scripts skills/implementing-architect/check-quality.sh .gitattributes; do
   [ -e "$REL/$f" ] && bad "release leaves out $f" || ok "release leaves out $f"
 done
 
-# A marketplace install clones the release branch. With Git for Windows' core.autocrlf
-# and no .gitattributes there, every compiled hook checks out CRLF and exits 2 on its
-# first loop — a block in Claude Code, so every guarded tool fails.
-[ -f "$REL/.gitattributes" ] && ok "release ships .gitattributes" || bad "release ships .gitattributes"
-assert_contains "release .gitattributes pins *.sh to LF" "$(cat "$REL/.gitattributes" 2>/dev/null)" "*.sh  text eol=lf"
-assert_empty "release ships its scripts LF" "$(grep -rl $'\r' "$REL/scripts" 2>/dev/null)"
-if command -v git >/dev/null 2>&1; then
-  RG="$TMP/claude-git"; rm -rf "$RG" "$RG-clone"; cp -R "$REL" "$RG"
-  git -C "$RG" init -q && git -C "$RG" add -A \
-    && git -C "$RG" -c user.name=t -c user.email=t@t -c commit.gpgsign=false commit -qm x \
-    && git -c core.autocrlf=true clone -q "$RG" "$RG-clone" 2>/dev/null
-  assert_empty "a core.autocrlf clone of the release checks the scripts out LF" \
-    "$(grep -rl $'\r' "$RG-clone/scripts" 2>/dev/null)"
-  out="$(cd "$RG-clone" && bash scripts/profile-bootstrap.sh --shape 2>/dev/null)"
-  assert_contains "that clone's profile sweep still runs" "$out" "field"
-else
-  skip "a core.autocrlf clone of the release checks the scripts out LF" "git not on PATH"
-fi
-# And a CRLF source tree — a clone from before .gitattributes — builds the same release.
-CRS="$TMP/claude-crlf-src"; rm -rf "$CRS"; mkdir -p "$CRS"
-cp -R "$ROOT/.claude-plugin" "$ROOT/skills" "$ROOT/commands" "$ROOT/hooks" "$ROOT/scripts" "$CRS/"
-cp "$ROOT/LICENSE" "$ROOT/THIRD-PARTY-NOTICES.md" "$ROOT/README.release.md" "$ROOT/.gitattributes" "$CRS/"
-find "$CRS/scripts" "$CRS/skills" -name '*.sh' ! -name build-claude.sh | while read -r f; do
-  awk '{ printf "%s\r\n", $0 }' "$f" > "$f.crlf" && mv "$f.crlf" "$f"
+# From an organization that is not Verified the directory accepts only Markdown, text,
+# JSON, YAML, and images (2026-11): no script, no #! line, no package-manager config,
+# and no allowed-tools entry beyond Read, Grep, Glob, and LS.
+assert_empty "release holds only the file types the directory accepts" \
+  "$(cd "$REL" && find . -type f | sed 's|^\./||' | grep -vE '\.(md|txt|json|ya?ml|png|jpe?g|gif|webp|ico)$' | grep -vxE 'LICENSE|README|\.gitignore')"
+assert_empty "no release file starts with #!" \
+  "$(find "$REL" -type f | while read -r f; do [ "$(head -c2 "$f")" = '#!' ] && echo "$f"; done)"
+assert_empty "release allows no tool beyond Read, Grep, Glob, and LS" \
+  "$(grep -rnE '^[[:space:]]*"?(allowed-tools|allowedTools)"?:' "$REL" | grep -vE ':[[:space:]]*\[?[[:space:]]*((Read|Grep|Glob|LS)[[:space:]]*,?[[:space:]]*)+\]?[[:space:]]*$')"
+assert_empty "release commands run no plugin script" "$(grep -rn 'CLAUDE_PLUGIN_ROOT}/scripts\|CLAUDE_SKILL_DIR}/[a-z-]*\.sh' "$REL")"
+for f in commands/kickoff.md commands/onboard.md; do
+  assert_contains "release $f says this edition ships no scripts" "$(cat "$REL/$f")" "edition ships no scripts"
 done
-if out="$(bash "$CRS/scripts/build-claude.sh" 2>&1)"; then
-  assert_empty "a CRLF source tree builds the same scripts" \
-    "$(diff -r "$REL/scripts" "$CRS/dist/claude/m-skills/scripts" 2>&1)"
-else
-  bad "a CRLF source tree builds the same scripts" "$(printf '%s' "$out" | tail -3)"
-fi
+# The by-hand sweep keeps the two secret checks the bootstrap ran: env files once
+# committed, and the deny-rule offer README.release.md promises and the Grep gap relies on.
+assert_contains "release onboard asks git for env files once committed" "$(cat "$REL/commands/onboard.md")" "--diff-filter=A"
+assert_contains "release onboard offers the Read deny rule" "$(cat "$REL/commands/onboard.md")" '`permissions.deny` entry `Read(./<file>)`'
 
 # The directory's file limits: at most 512 files, every non-image under 256 KiB.
 n="$(find "$REL" -type f | wc -l | tr -d ' ')"
 [ "$n" -le 512 ] && ok "release holds at most 512 files ($n)" || bad "release holds at most 512 files" "$n files"
 assert_empty "no release file over 256 KiB" "$(find "$REL" -type f ! -name '*.png' -size +256k)"
 
-# The build is the guard against an unfollowable script, so each refusal is tested on
-# a planted copy: if a check were deleted from the build, its row here goes red.
-plant() { # <what> <lines appended to a hook script> <expected refusal>
+# The build is the guard against a file the directory refuses, so each refusal is tested
+# on a planted copy: if a check were deleted from the build, its row here goes red. The
+# copy carries no script but the build itself, so a build that needs one fails here too.
+plant_tree() { # <dir>
+  rm -rf "$1"; mkdir -p "$1/scripts"
+  cp -R "$ROOT/.claude-plugin" "$ROOT/skills" "$ROOT/commands" "$1/"
+  cp "$ROOT/scripts/build-claude.sh" "$1/scripts/"
+  cp "$ROOT/LICENSE" "$ROOT/THIRD-PARTY-NOTICES.md" "$ROOT/README.release.md" "$1/"
+}
+plant() { # <what> <file under the tree> <bytes, printf %b> <expected refusal>
   local pl="$TMP/plant"
-  rm -rf "$pl"; mkdir -p "$pl/scripts"
-  cp -R "$ROOT/.claude-plugin" "$ROOT/skills" "$ROOT/commands" "$ROOT/hooks" "$pl/"
-  cp -R "$ROOT/scripts/." "$pl/scripts/"
-  cp "$ROOT/LICENSE" "$ROOT/THIRD-PARTY-NOTICES.md" "$ROOT/README.release.md" "$ROOT/.gitattributes" "$pl/"
-  printf '%s\n' "$2" >> "$pl/scripts/profile-bootstrap.sh"
+  plant_tree "$pl"
+  mkdir -p "$(dirname "$pl/$2")"; printf '%b' "$3" >> "$pl/$2"
   if out="$(bash "$pl/scripts/build-claude.sh" 2>&1)"; then
     bad "build refuses $1" "it built"
   else
     case "$out" in
-      *"$3"*) ok "build refuses $1" ;;
-      *) bad "build refuses $1" "expected '$3', got: $(printf '%s' "$out" | tr '\n' ' ' | cut -c1-300)" ;;
+      *"$4"*) ok "build refuses $1" ;;
+      *) bad "build refuses $1" "expected '$4', got: $(printf '%s' "$out" | tr '\n' ' ' | cut -c1-300)" ;;
     esac
   fi
 }
-plant "a here-document"          "$(printf 'cat <<EOF\nx\nEOF')" "here-document"
-plant "a file loaded with ."     '. "$PLUGIN/extra"'             "loads a file"
-plant "a call to another script" 'bash "$PLUGIN/extra"'          "runs a script"
-plant "a script named in text"   'echo "see other.sh"'           "names a script"
-plant "a computed command"       'bash -o pipefail -c "$cmd"'    "runs a computed command"
-plant "an unpinned launcher"     'RUNNER="uv run"'               "names an unpinned package launcher"
-plant "a launcher in a comment"  '#   | `<lint>` | pnpm run lint |' "names a package manager in a comment"
+plant "a program"                skills/planted/run.py              'print(1)\n'                            "not a type the directory accepts"
+plant "a script in a skill"      skills/planted/run.sh              'echo 1\n'                              "not a type the directory accepts"
+plant "a #! line"                skills/planted/notes.md            '#!/bin/sh\necho 1\n'                   "starts with #!"
+plant "a package-manager config" skills/planted/pnpm-workspace.yaml 'packages: []\n'                        "package-manager config"
+plant "a NUL byte"               skills/planted/notes.md            'a\0b\n'                                "NUL byte"
+plant "text that is not UTF-8"   skills/planted/notes.md            'caf\xe9\n'                             "not UTF-8"
+plant "a Bash allowed-tools"     skills/planted/SKILL.md            '---\nname: planted\nallowed-tools: Bash(ls:*)\n---\n' "allowed-tools"
+plant "an allowed-tools path"    skills/planted/SKILL.md            '---\nname: planted\nallowed-tools: Read(${CLAUDE_SKILL_DIR}/x)\n---\n' "allowed-tools"
+plant "an allowedTools list"     skills/planted/SKILL.md            '---\nname: planted\nallowedTools:\n  - Bash\n---\n' "allowed-tools"
+pl="$TMP/plant"; plant_tree "$pl"; mkdir -p "$pl/skills/planted"
+printf -- '---\nname: planted\nallowed-tools: Read, Grep, Glob, LS\n---\n' > "$pl/skills/planted/SKILL.md"
+if out="$(bash "$pl/scripts/build-claude.sh" 2>&1)"; then ok "build keeps allowed-tools of Read, Grep, Glob, and LS"
+else bad "build keeps allowed-tools of Read, Grep, Glob, and LS" "$(printf '%s' "$out" | tail -3)"; fi
 # The hook refusals. hooks.json is generated by the build itself, so the defect is planted
 # in a copy of the build script.
 plant_build() { # <what> <sed expression applied to the copied build> <expected refusal>
   local pl="$TMP/plant-build"
-  rm -rf "$pl"; mkdir -p "$pl/scripts"
-  cp -R "$ROOT/.claude-plugin" "$ROOT/skills" "$ROOT/commands" "$ROOT/hooks" "$pl/"
-  cp -R "$ROOT/scripts/." "$pl/scripts/"
-  cp "$ROOT/LICENSE" "$ROOT/THIRD-PARTY-NOTICES.md" "$ROOT/README.release.md" "$ROOT/.gitattributes" "$pl/"
+  plant_tree "$pl"
   sed "$2" "$ROOT/scripts/build-claude.sh" > "$pl/scripts/build-claude.sh"
   if cmp -s "$ROOT/scripts/build-claude.sh" "$pl/scripts/build-claude.sh"; then
     bad "build refuses $1" "the plant did not apply — the build changed under this row"
@@ -2488,7 +2471,6 @@ for r in 'Bash(git *)' 'Bash(gh *)' 'Bash(* publish*)' 'Bash(*--update-snapshot*
          'Read(//**/.env)' 'Edit(//**/.env)' 'Write(//**/.env)' 'Write(//**/*.env)'; do
   assert_contains "release hooks ask about $r" "$(cat "$RH")" "\"if\": \"$r\""
 done
-assert_empty "release scripts are only the ones a command runs" "$(ls "$REL/scripts" | grep -vx 'profile-bootstrap.sh')"
 assert_empty "release guidelines promise no adhd flag-file hook" "$(grep -n 'm-skills-adhd-always' "$REL/skills/guidelines-meta/SKILL.md")"
 # Skill text ships to both editions, so it may name only scripts the release carries, and
 # a command hook only as one that runs where it is installed.
@@ -2500,9 +2482,6 @@ assert_empty "release skills and commands name no script the release leaves out"
 assert_empty "release skills promise a command hook only where it runs" \
   "$(grep -rnE 'pick check|SessionStart hook|preamble hook' "$REL/skills" "$REL/commands" --include='*.md' | grep -viE "where the plugin's")"
 assert_contains "release guidelines keep the adhd attribution" "$(cat "$REL/skills/guidelines-meta/SKILL.md")" "Derived from [ayghri/i-have-adhd]"
-
-# Hooks only list the gates; the inlined resolver must not carry the part that runs them.
-assert_empty "release hooks carry no gate runner" "$(grep -l 'Quality Check Results' "$REL"/scripts/*.sh)"
 
 # The release README is the listing page: 40+ words outside code (the directory's floor),
 # and none of the text the validator reads as reading a credential or sending data.
@@ -2521,17 +2500,7 @@ else
   skip "release: claude plugin validate --strict" "claude CLI not on PATH"
 fi
 
-# Equivalence: sections 2–3 once against these sources and once against the release
-# build. Same pass count, zero failures, or the compiled scripts are not the same scripts.
 counts() { tr -d '\033' | sed 's/\[[0-9;]*m//g' | grep -oE '[0-9]+ (passed|skipped|failed)' | tr '\n' ' '; }
-src_out="$(M_SKILLS_ONLY=shipped bash "$ROOT/tests/run-tests.sh" 2>&1)"; src_rc=$?
-rel_out="$(M_SKILLS_ONLY=shipped M_SKILLS_PLUGIN="$REL" bash "$ROOT/tests/run-tests.sh" 2>&1)"; rel_rc=$?
-[ "$src_rc" -eq 0 ] && ok "shipped sections pass on the sources: $(printf '%s' "$src_out" | counts)" \
-  || bad "shipped sections pass on the sources" "$(printf '%s' "$src_out" | grep '✗' | head -5)"
-[ "$rel_rc" -eq 0 ] && ok "shipped sections pass on the release build: $(printf '%s' "$rel_out" | counts)" \
-  || bad "shipped sections pass on the release build" "$(printf '%s' "$rel_out" | grep '✗' | head -5)"
-assert_eq "the release build passes the same shipped-section assertions as the sources" \
-  "$(printf '%s' "$rel_out" | counts)" "$(printf '%s' "$src_out" | counts)"
 
 # Once more on a machine with nothing installed: every PATH command except jq and
 # Python, so each hook reads with the built-in awk reader. 6b has fewer reader rows
@@ -2698,8 +2667,12 @@ rel_fixture r1 "$pv"
 rel_refuses "changed content under an unchanged version" "version is still $pv"
 rel_fixture r1 99.0.0
 rel_refuses "a version older than the one on the branch" "already carries 99.0.0"
+# The Claude build refuses a .env itself (not a type the directory accepts); release.sh's
+# own check still catches a stray file the build accepts.
 rel_fixture r1; : > "$RF/skills/guidelines-meta/.env"; rel_sync
-rel_refuses "a secret-shaped file in a build" "must never reach a public repository"
+rel_refuses "a secret-shaped file in a build" "the directory would refuse the built tree"
+rel_fixture r1; : > "$RF/skills/guidelines-meta/PROJECT-PROFILE.md"; rel_sync
+rel_refuses "a project profile in a build" "must never reach a public repository"
 rel_fixture r1; before="$(rel_state "$RFD")"; REL_NONINT=0; rel_run "$RF"; REL_NONINT=1
 [ "$rel_rc" -ne 0 ] && ok "the writing path refuses without a terminal" || bad "the writing path refuses without a terminal" "it exited 0"
 assert_contains "the no-terminal refusal says why" "$rel_out" "no terminal on stdin"

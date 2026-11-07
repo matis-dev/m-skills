@@ -3,28 +3,18 @@
 #
 # Usage: bash scripts/build-claude.sh [out-dir]   (default: dist/claude/m-skills)
 #
-# This edition's hooks are prompt hooks only (see Hooks below). The scripts it still
-# ships are the ones a command tells Claude to run itself, and the directory's
-# validator follows a script only when it is self-contained: it loads no other file,
-# runs no other script, and holds no here-document. A script that does any of those
-# holds every version for a reviewer ("Scripts the validator couldn't follow"). The
-# sources on main stay multi-file and commented; this build compiles each into one file:
-#   the library load        → the library itself, in place
-#   check-quality.sh --list → m_skills_gate_table, the resolver as a subshell function
-#   | bash skill-preamble.sh → m_skills_preamble, the preamble as a subshell function
-#   comment lines that name a .sh file are dropped; every other comment is kept
-# A subshell function keeps a child process's exit, cd, and variables to itself.
+# Since 2026-11 the directory accepts, from an organization that is not Verified, only
+# Markdown, text, JSON, YAML, and images: no hook of type command, no script or program,
+# no file starting with #!, no package-manager config, and no allowed-tools entry beyond
+# Read, Grep, Glob, and LS. So this edition ships no scripts at all. Its hooks are prompt
+# hooks (see Hooks below), and the steps that ran a plugin script are rewritten as steps
+# Claude does by hand (see Edition rewrites below). The build refuses any file that
+# breaks those rules, so a new script in skills/ fails here, not in the directory.
 #
-# What ships: the manifests and icon, skills/ (guidelines-meta's adhd paragraph
-# rewritten), commands/, a generated hooks/hooks.json, the compiled scripts,
-# .gitattributes, LICENSE, THIRD-PARTY-NOTICES.md, and README.release.md as README.md.
-# Tests, the changelog, the templates, the library, the command hooks' scripts, and the
-# build and adapter scripts stay on main: nothing this edition runs needs them.
-#
-# .gitattributes ships because a marketplace install is a clone of the release branch:
-# without it, Git for Windows' core.autocrlf checks the scripts out CRLF. A compiled
-# script holds the inlined library, so bash then stops on its first loop with a syntax
-# error.
+# What ships: the manifests and icon, skills/ (minus its scripts, with the edition
+# rewrites), commands/, a generated hooks/hooks.json, LICENSE, THIRD-PARTY-NOTICES.md,
+# and README.release.md as README.md. Everything else stays on main, where the
+# self-hosted install keeps every script and command hook.
 
 set -euo pipefail
 
@@ -41,75 +31,15 @@ VERSION="$(grep -o '"version": *"[^"]*"' "$ROOT/.claude-plugin/plugin.json" | he
 [ -n "$VERSION" ] || { echo "build-claude: no version in .claude-plugin/plugin.json" >&2; exit 1; }
 [ -f "$ROOT/README.release.md" ] || { echo "build-claude: README.release.md is missing" >&2; exit 1; }
 
-LIB="$ROOT/scripts/lib/hook-json.sh"
-CQ="$ROOT/skills/implementing-architect/check-quality.sh"
-SP="$ROOT/scripts/skill-preamble.sh"
 PART="$(mktemp -d)"; trap 'rm -rf "$PART"' EXIT
 
-# Comment lines that name a script read to the validator as a call to that script.
-# Every source passes through here or through compile, and both drop CR: a clone made
-# before .gitattributes keeps CRLF in every file a later pull left unchanged.
-drop_script_comments() { awk '{ sub(/\r$/, "") } !(/^[[:space:]]*#/ && /[A-Za-z0-9_-]\.sh([^A-Za-z0-9_]|$)/)'; }
-
-# compile <file> <lib-part-or-empty> <defs-part-or-empty>
-#   inlines the library at its load line, puts the function definitions right after
-#   the script's `set -…u… pipefail`, and turns the two script calls into those functions.
-compile() {
-  awk -v lib="$2" -v defs="$3" '
-    function cat(f,   l) { while ((getline l < f) > 0) print l; close(f) }
-    { sub(/\r$/, "") }
-    /^[[:space:]]*\. "[^"]*\/lib\/hook-json\.sh" 2>\/dev\/null \|\| (exit|return) 0$/ {
-      if (lib != "") cat(lib)
-      next
-    }
-    !placed && /^set -[a-z]*u[a-z]* pipefail$/ {
-      print
-      if (defs != "") cat(defs)
-      placed = 1
-      next
-    }
-    {
-      gsub(/bash "\$(DIR\/\.\.|PLUGIN)\/skills\/implementing-architect\/check-quality\.sh"/, "m_skills_gate_table")
-      gsub(/bash "\$DIR\/skill-preamble\.sh"/, "m_skills_preamble")
-      print
-    }
-  ' "$1" | drop_script_comments
-}
-
-tail -n +2 "$LIB" | drop_script_comments > "$PART/lib"
-
-# The gate resolver reads its gates from the environment first. A child process sees
-# only exported variables; a subshell function sees the caller's own as well, so the
-# function starts by unsetting any copy the caller did not export.
-# Hooks only ever ask it for --list, so it is inlined up to the end of that branch.
-# The part after it RUNS each gate, a command computed at run time, which no hook needs.
-{
-  echo 'm_skills_gate_table() ('
-  echo '  for v in LINT TYPECHECK TEST BUILD E2E VISUAL A11Y AUDIT VISUAL_REPORT UPDATE_CMD; do'
-  echo '    [[ "$(declare -p "$v" 2>/dev/null)" =~ ^declare\ -[a-zA-Z]*x ]] || unset "$v"'
-  echo '  done'
-  tail -n +2 "$CQ" | drop_script_comments \
-    | awk 'done { next } { print } /^if \[ "\$\{1:-\}" = "--list" \]; then$/ { list = 1 } list && /^fi$/ { done = 1 }'
-  # (awk reads to the end rather than exiting: an early exit sends SIGPIPE up the pipe,
-  # and under pipefail that silently fails the build on some runs, not others)
-  echo ')'
-} > "$PART/gate"
-grep -q '^if \[ "${1:-}" = "--list" \]; then$' "$PART/gate" \
-  || { echo "build-claude: check-quality.sh has no --list branch to stop at" >&2; exit 1; }
-
-# The preamble runs inside enforce-picks.sh, which has already loaded the library.
-{
-  echo 'm_skills_preamble() ('
-  tail -n +2 "$SP" | compile /dev/stdin "" ""
-  echo ')'
-} > "$PART/preamble"
-cat "$PART/gate" "$PART/preamble" > "$PART/gate+preamble"
-
 rm -rf "$OUT"
-mkdir -p "$OUT/.claude-plugin" "$OUT/hooks" "$OUT/scripts"
+mkdir -p "$OUT/.claude-plugin" "$OUT/hooks"
 cp "$ROOT/.claude-plugin/plugin.json" "$ROOT/.claude-plugin/marketplace.json" "$ROOT/.claude-plugin/icon.png" "$OUT/.claude-plugin/"
 cp -R "$ROOT/skills" "$ROOT/commands" "$OUT/"
-cp "$ROOT/LICENSE" "$ROOT/THIRD-PARTY-NOTICES.md" "$ROOT/.gitattributes" "$OUT/"
+cp "$ROOT/LICENSE" "$ROOT/THIRD-PARTY-NOTICES.md" "$OUT/"
+# The one script in skills/, by name: a new one must fail the checks below, not vanish.
+rm "$OUT/skills/implementing-architect/check-quality.sh"
 cp "$ROOT/README.release.md" "$OUT/README.md"
 
 # ── Hooks: prompt hooks only ─────────────────────────────────────────────────
@@ -128,8 +58,9 @@ cp "$ROOT/README.release.md" "$OUT/README.md"
 # UPDATE_SNAPSHOTS=1 in front of an unlisted runner goes unasked. A file tool matches
 # only a rule that names that tool — an Edit rule leaves Write unasked — and no path
 # rule matches Grep (both measured 2026-11-06 on Claude Code 2.1.310). So a Grep that
-# names a secret file goes unasked: the Read deny rule the profile bootstrap offers
-# covers it, and an unfiltered Grep hook would ask the model on every search.
+# names a secret file goes unasked: the Read deny rule onboard offers (the bootstrap
+# on main, the by-hand sweep here) covers it, and an unfiltered Grep hook would ask
+# the model on every search.
 #
 # The prompts hold no double quote, backslash, or percent sign: they are written into
 # JSON as they stand, and the directory reads backslash escapes as obfuscation. No
@@ -177,36 +108,50 @@ awk '
 ' "$GM" > "$GM.tmp" || { echo "build-claude: guidelines-meta has no adhd Scope and persistence paragraph to rewrite" >&2; exit 1; }
 mv "$GM.tmp" "$GM"
 
-# The scripts a command tells Claude to run itself, and nothing else from scripts/.
-for s in $(grep -rhoE 'CLAUDE_PLUGIN_ROOT\}/scripts/[a-z-]+\.sh' "$ROOT/commands" "$ROOT/skills" --include='*.md' | sed 's|^CLAUDE_PLUGIN_ROOT}/||' | sort -u); do
-  src="$ROOT/$s"
-  defs=""
-  grep -q 'skill-preamble\.sh"' "$src" && defs="$PART/gate+preamble"
-  [ -z "$defs" ] && grep -q 'check-quality\.sh" --list' "$src" && defs="$PART/gate"
-  compile "$src" "$PART/lib" "$defs" > "$OUT/$s"
-  chmod +x "$OUT/$s"
-done
+# ── Edition rewrites ─────────────────────────────────────────────────────────
+# Each step that ran a plugin script becomes a step Claude does by hand. rewrite fails
+# the build when its source text is gone, so an edit on main cannot slip a script call
+# past it. An empty replacement for a whole line deletes the line.
+rewrite() { # <file under OUT> <exact source text> <replacement>
+  OLD="$2" NEW="$3" awk '
+    BEGIN { o = ENVIRON["OLD"]; n = ENVIRON["NEW"] }
+    { i = index($0, o)
+      if (i) { hit = 1; if (n == "" && $0 == o) next; $0 = substr($0, 1, i - 1) n substr($0, i + length(o)) }
+      print }
+    END { exit !hit }
+  ' "$OUT/$1" > "$OUT/$1.tmp" || { echo "build-claude: $1 no longer holds the text to rewrite: $2" >&2; exit 1; }
+  mv "$OUT/$1.tmp" "$OUT/$1"
+}
+SWEEP_SHAPE='count the source files in any language (.ts, .py, .go, .rs, .sh, and the rest), skipping node_modules, .git, vendor, dist, build, target, and virtualenvs. Fewer than three, and no src, lib, app, scripts, pkg, internal, cmd, or source directory holding three or more files, is `greenfield`; anything else is `brownfield`'
+rewrite commands/kickoff.md 'Run `bash ${CLAUDE_PLUGIN_ROOT}/scripts/profile-bootstrap.sh --shape` — it prints `greenfield` or `brownfield` by the same rule as the session nudge.' "This edition ships no scripts, so work it out by hand: $SWEEP_SHAPE."
+rewrite commands/kickoff.md 'whatever `--shape` printed' 'whatever the count says'
+rewrite commands/onboard.md 'Mechanical sweep: `bash ${CLAUDE_PLUGIN_ROOT}/scripts/profile-bootstrap.sh` (silent when a profile exists and still holds). Fingerprint for the profile marker: `bash ${CLAUDE_PLUGIN_ROOT}/scripts/profile-bootstrap.sh --fingerprint`.' 'Mechanical sweep, by hand: this edition ships no scripts, so wherever onboard.md says the bootstrap, it means this sweep. List the manifests, lockfiles, package scripts, CI workflows, and `.claude` folder to point at §Commands and §Stack. For each secret-file name in the tree (`.env`, `.pem`, `.key`, credentials JSON), ask git whether it tracks or ignores it, never opening the file, and open with a 🚨 block for each one git tracks or a ⚠️ block for each one it does not ignore. Ask git too whether any real env file was ever committed (`git log --all --diff-filter=A --name-only`) and open with a 🚨 block for each, since its values need rotating even after it is gone. If real env files are on disk and no Claude Code settings file sets `sandbox.enabled` to true, offer once to merge into `.claude/settings.json` a `permissions.deny` entry `Read(./<file>)` and a `sandbox.filesystem.denyRead` entry `./<file>` for each: the guards deny reads that name the file, but `grep -r` or a dotenv loader reaches it without naming it. Merge nothing unless the user agrees. Skip the fingerprint marker: this edition runs no drift check.'
+rewrite skills/documentation-architect/references/onboard.md '- Put `<!-- m-skills-fingerprint: <n> -->` under the title, with `<n>` from `profile-bootstrap.sh --fingerprint`, so drift detection works from the first session.' ''
+rewrite skills/documentation-architect/references/onboard.md '**§Commands is machine-read** by `check-quality.sh` — keep' '**§Commands is the gate authority** every skill reads first — keep'
+rewrite skills/guidelines-meta/PROJECT-PROFILE.template.md '> **This table is machine-read.** `check-quality.sh` parses these rows and treats them as the authority' '> **This table is the gate authority.** Every skill reads these rows first and treats them as the authority'
+rewrite skills/implementing-architect/SKILL.md 'allowed-tools: Bash(bash ${CLAUDE_SKILL_DIR}/check-quality.sh:*)' ''
+rewrite skills/implementing-architect/SKILL.md '**One-shot alternative:** `bash ${CLAUDE_SKILL_DIR}/check-quality.sh` runs the same gates in the same order and prints a pass/fail report.' '**One-shot alternative:** none in this edition, which ships no scripts; the self-hosted install from matis-dev/m-skills adds a script that runs the same gates in one go.'
+rewrite skills/implementing-architect/SKILL.md ' The variable resolves to this skill'"'"'s own directory in both plugin and copied installs, so the command is identical either way. Add `--list` to print which gates it resolved **without running any of them** — use that first when you'"'"'re unsure the profile is right.' ''
 
-# Refuse to ship a script the validator could not follow, or one that does not parse.
-fail=""
-for f in "$OUT"/scripts/*.sh; do
-  rel="${f#$OUT/}"
-  bash -n "$f" 2>/dev/null || fail="$fail\n  $rel: does not parse"
-  grep -nE '<<[^<]|<<$' "$f" | grep -v '<<<' | sed "s|^|  $rel: here-document at |" >> "$PART/bad" || true
-  grep -nE '^[[:space:]]*(\.|source)[[:space:]]' "$f" | sed "s|^|  $rel: loads a file at |" >> "$PART/bad" || true
-  grep -nE '(^|[^A-Za-z0-9_])(ba)?sh[[:space:]]+"\$' "$f" | sed "s|^|  $rel: runs a script at |" >> "$PART/bad" || true
-  grep -nE '(^|[^A-Za-z0-9_])(ba)?sh([[:space:]]+-[a-z]+([[:space:]]+[a-z]+)?)*[[:space:]]+-c[[:space:]]+"\$' "$f" \
-    | sed "s|^|  $rel: runs a computed command at |" >> "$PART/bad" || true
-  # A package-manager name in a COMMENT reads to the validator as a launcher beside the
-  # code around it: two example rows (`pnpm run lint`) in the gate resolver blocked the
-  # listing, measured by bisect on 2026-10-03. Example commands in hook comments stay generic.
-  grep -nE '^[[:space:]]*#.*(^|[^A-Za-z0-9_-])(pnpm|yarn|bunx?|npx|uvx|dlx)([^A-Za-z0-9_-]|$)' "$f" \
-    | sed "s|^|  $rel: names a package manager in a comment at |" >> "$PART/bad" || true
-  # Package launchers block the listing unless pinned; uv run is pinned by --frozen or --locked.
-  grep -nE '(^|[^A-Za-z0-9_-])(npx|bunx|uvx|pnpm dlx|yarn dlx|pipx run)([^A-Za-z0-9_-]|$)|uv run( |"|$)' "$f" \
-    | grep -vE 'uv run --(frozen|locked)' | sed "s|^|  $rel: names an unpinned package launcher at |" >> "$PART/bad" || true
-  grep -nE '[A-Za-z0-9_-]\.sh([^A-Za-z0-9_]|$)' "$f" | sed "s|^|  $rel: names a script at |" >> "$PART/bad" || true
+# ── Directory checks ─────────────────────────────────────────────────────────
+for f in $(cd "$OUT" && find . -type f | sed 's|^\./||' | sort); do
+  case "$f" in
+    *.md|*.txt|*.json|*.yaml|*.yml|*.png|*.jpg|*.jpeg|*.gif|*.webp|*.ico|LICENSE|README|.gitignore) ;;
+    *) echo "  $f: not a type the directory accepts (Markdown, text, JSON, YAML, or an image)" >> "$PART/bad" ;;
+  esac
+  case "${f##*/}" in
+    package.json|package-lock.json|npm-shrinkwrap.json|pnpm-workspace.yaml|pnpm-lock.yaml|yarn.lock|.yarnrc|.yarnrc.yml|bun.lock|bunfig.toml|deno.json|deno.jsonc)
+      echo "  $f: a package-manager config" >> "$PART/bad" ;;
+  esac
+  [ "$(head -c2 "$OUT/$f")" = '#!' ] && echo "  $f: starts with #!" >> "$PART/bad"
+  case "$f" in *.png|*.jpg|*.jpeg|*.gif|*.webp|*.ico) continue ;; esac
+  tr -d '\000' < "$OUT/$f" | cmp -s - "$OUT/$f" || echo "  $f: holds a NUL byte" >> "$PART/bad"
+  iconv -f UTF-8 -t UTF-8 < "$OUT/$f" > /dev/null 2>&1 || echo "  $f: is not UTF-8" >> "$PART/bad"
 done
+# allowed-tools (a skill's frontmatter) or allowedTools: inline, naming only these four.
+grep -rnE '^[[:space:]]*"?(allowed-tools|allowedTools)"?[[:space:]]*:' "$OUT" \
+  | grep -vE ':[[:space:]]*\[?[[:space:]]*((Read|Grep|Glob|LS)[[:space:]]*,?[[:space:]]*)+\]?[[:space:]]*$' \
+  | sed "s|^$OUT/|  |; s|\$| — an allowed-tools entry beyond Read, Grep, Glob, and LS, or a list form the build cannot check|" >> "$PART/bad" || true
 # Every hook must be a prompt hook (the directory refuses command hooks), filtered by an
 # `if` rule (an unfiltered one asks the model on every tool call), and free of the
 # characters the generator cannot write into JSON as they stand.
@@ -215,8 +160,8 @@ grep -noE '"type": *"[^"]*"' "$H" | grep -v '"prompt"' | sed "s|^|  hooks/hooks.
 [ "$(grep -c '"type": "prompt"' "$H")" = "$(grep -c '"if": "' "$H")" ] \
   || echo "  hooks/hooks.json: a prompt hook with no if rule" >> "$PART/bad"
 printf '%s\n%s\n' "$P_SHELL" "$P_FILE" | grep -n '["\\%]' | sed "s|^|  hooks prompt: a quote, backslash, or percent sign at line |" >> "$PART/bad" || true
-if [ -n "$fail" ] || [ -s "$PART/bad" ]; then
-  { printf 'build-claude: the built tree would hold the plugin for review:'; printf "$fail"; echo; cut -c1-160 "$PART/bad"; } >&2
+if [ -s "$PART/bad" ]; then
+  { echo 'build-claude: the directory would refuse the built tree:'; cut -c1-220 "$PART/bad"; } >&2
   exit 1
 fi
 

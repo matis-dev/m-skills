@@ -6,7 +6,7 @@ Nothing is tied to one project. Every command, framework, and convention is reso
 
 ## Before you install
 
-There is nothing to install first. The guards are prompt hooks that Claude Code runs itself, and the one script the plugin ships, the project-profile sweep, is plain bash with its own JSON reader.
+There is nothing to install first. This edition ships no scripts: the guards are prompt hooks that Claude Code runs itself, and everything else is Markdown that Claude reads.
 
 ## Install it
 
@@ -54,7 +54,7 @@ To turn a guard off, remove the plugin or disable it for that project. These hoo
 
 **What the hooks send:** each guarded tool call goes to the model Claude Code already uses for background work, in the same session and under the same account. Nothing goes anywhere else.
 
-**What the profile sweep reads:** `/m-skills:onboard` and `/m-skills:kickoff` have Claude run one bash script inside the plugin. It reads your project's manifests, lockfiles, CI config, and `.claude` folder to resolve commands, your Claude Code settings files to see whether the Bash sandbox is on, and the names git reports for `.env` files, never their contents. It makes no network call and downloads nothing.
+**What the profile sweep reads:** `/m-skills:onboard` and `/m-skills:kickoff` have Claude look through your project's manifests, lockfiles, CI config, and `.claude` folder to resolve commands, your Claude Code settings files to see whether the Bash sandbox is on, and the names git reports for `.env` files, now or in its history, never their contents. Nothing is downloaded and no network call is made.
 
 **What the plugin writes:** `.claude/PROJECT-PROFILE.md`, only when you say yes to writing it.
 

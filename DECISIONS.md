@@ -78,3 +78,13 @@ By: brainstorming-planner · revisit if: contradictions keep merging unnoticed
 Why: the pack uses what it ships. Back-filled entries are quoted from their sources and written only once the user approves each one.
 Rejected: seeding from this session only; shipping the mechanism without adopting it here.
 By: brainstorming-planner · revisit if: never
+
+### 2026-11-07 — The directory edition ships no scripts
+Why: since 2026-11 the directory accepts, from an organization that is not Verified, only Markdown, text, JSON, YAML, and images, and no `allowed-tools` entry beyond Read, Grep, Glob, and LS. Steps that ran a plugin script become steps Claude does by hand; `main` keeps every script.
+Rejected: none recorded.
+By: Matis.dev · revisit if: the organization is Verified, or the directory accepts scripts again
+
+### 2026-11-07 — The by-hand onboard sweep keeps the bootstrap's secret checks
+Why: the release README promises the deny-rule offer, and it is the fallback for the prompt hooks' Grep gap. Env files once committed still need rotating.
+Rejected: dropping the promise from `README.release.md` and leaving the Grep gap uncovered in this edition.
+By: code-review-architect (fix pick) · revisit if: an `if` rule can match Grep paths
