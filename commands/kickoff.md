@@ -5,11 +5,11 @@ argument-hint: "[what you want to build]"
 
 Run `brainstorming-planner` in **Kickoff** mode — but only once the repo turns out to be new. This is the one door for a project the pack has not seen, so look before you route: Kickoff mode decides the stack, the test layers, and the visual world, and on an existing codebase those are already decided in the files.
 
-**0. Find out what this is.** Run `bash ${CLAUDE_PLUGIN_ROOT}/scripts/profile-bootstrap.sh --shape` — it prints `greenfield` or `brownfield` by the same rule as the session nudge. Take the first row that matches and say the route in one line:
+**0. Find out what this is.** This edition ships no scripts, so work it out by hand: count the source files in any language (.ts, .py, .go, .rs, .sh, and the rest), skipping node_modules, .git, vendor, dist, build, target, and virtualenvs. Fewer than three, and no src, lib, app, scripts, pkg, internal, cmd, or source directory holding three or more files, is `greenfield`; anything else is `brownfield`. Take the first row that matches and say the route in one line:
 
 | Found | Route |
 |---|---|
-| The user says they are starting over or rebuilding from scratch | Greenfield, whatever `--shape` printed — steps 1–3. |
+| The user says they are starting over or rebuilding from scratch | Greenfield, whatever the count says — steps 1–3. |
 | `greenfield` | Steps 1–3. |
 | `brownfield`, no `.claude/PROJECT-PROFILE.md` | Onboard first: load the `documentation-architect` skill and run `${CLAUDE_PLUGIN_ROOT}/skills/documentation-architect/references/onboard.md` in full, then step 4. |
 | `brownfield`, a profile exists | Step 4. |

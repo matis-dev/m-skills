@@ -34,7 +34,7 @@ Every review addresses each dimension explicitly. Silence on one is itself a fin
 3. **Security** — the threat model in Phase 4, anchored to OWASP Top 10:2025 via the `security-architect` skill §1.
 4. **Correctness & Tests** — does the change do what it claims? Tests paired with code (Guidelines §11)? Coverage on new branches? Green-but-lying traps (`module-gate-battery` §3)?
 5. **Design craft & accessibility** — for UI-visible diffs, `module-craft-floor` and the `design-architect` refuse list, plus `module-operability-floor`. A UI-visible diff with no direction brief or stamp, or whose brief fails the generic test ("could this serve a competitor unchanged?"), is a Design Craft finding.
-6. **Project conventions** — the committed design system, architecture topology, and idioms from the profile.
+6. **Project conventions** — the committed design system, architecture topology, and idioms from the profile, and the entries in the file the profile's **Decisions** row names.
 7. **Inherited guards** — the change set itself contains no committed git/CI bypasses, no auto-update of golden files, no `--no-verify` traces in scripts.
 8. **Goal trace, both directions** — every change line traces to a stated objective (drive-bys flagged), and every acceptance criterion of the plan or slice traces to the diff (missing work flagged). Code that is well built but builds the wrong thing fails here and nowhere else.
 9. **One unified verdict** — all dimensions collapse into a single 0–100 score so the user reads one number, not five.

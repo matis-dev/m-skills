@@ -66,7 +66,7 @@ Everything below is **repo-wide** unless a package overrides it.
 
 *Owner: SessionStart bootstrap · auto-detected. A role with no command is `n-a`, never invented.*
 
-> **This table is machine-read.** `check-quality.sh` parses these rows and treats them as the authority
+> **This table is the gate authority.** Every skill reads these rows first and treats them as the authority
 > (Guidelines §5 step 1), so keep the shape: one row per role, the role in the first cell, the command in
 > the second. A cell left blank, set to `n-a`, or still holding a `<placeholder>` falls through to
 > auto-detection rather than becoming an invented command — so a half-filled table is safe.
@@ -181,11 +181,12 @@ Adjust if this project's order differs. Cheap-and-fast first; the slow gate that
 
 ## Documentation Targets
 
-*Owner: `rolling-history` · filled at the first changelog entry. A doc that doesn't exist is omitted, not invented.*
+*Owner: `rolling-history` · filled at the first changelog entry. A doc that doesn't exist is omitted, not invented. The Decisions row is set by kickoff, onboard, or the first run with a user decision to log — a path, or `n-a — declined`.*
 
 | File | Path | Updated when |
 |---|---|---|
 | Changelog | `<path>` | every session (Rolling History) |
+| Decisions | `<path>` | a user decision in a question round — appended in the file's header format |
 | README | `<path>` | setup/scripts/feature-list changes |
 | Architecture | `<path>` | structural facts change |
 | Deployment | `<path>` | build/ship/runtime/env changes |

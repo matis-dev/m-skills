@@ -13,6 +13,7 @@
 - Typing discipline: escape hatches justified in one line, or not?
 - **User-facing text** (Guidelines §14): raw `error.message` shown to a user? If the project is localized, raw literals instead of keys, or a new key missing from a locale? Cite each offender.
 - **Doc drift**: if the diff changes something a profile-listed doc describes (an integration contract, an architecture fact, a deployment step), that doc is now stale — a **Low–Medium** finding. If a doc is multi-language or duplicated, updating only one copy is itself a finding.
+- **Logged decisions**: a hunk that contradicts an entry in the file the profile's **Decisions** row names, with no superseding entry, is a **Medium** finding that cites the entry's heading. The fix is the user's call: revert, or log a superseding entry. No file → skip.
 
 **Change-Propagation Audit** — if the diff changes shared shape, a public API, or an external origin, load the `module-propagation` skill and run its review-time audit against the diff. Findings of this class are the highest-value output of the whole review, because every one of them passes the gates that were supposed to catch it.
 

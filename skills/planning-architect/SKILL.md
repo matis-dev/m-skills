@@ -70,7 +70,7 @@ A plan that touches shared shape and lists one file is the most common way a pla
 ### Phase 1 — Reconnaissance
 - Read the Deep-Dive Execution Prompt; extract objectives.
 - **Resolve the Project Profile** (Guidelines §5): gate commands, design system, test layers, doc targets, known blind spots, recurring propagation sites.
-- **Read the project's changelog / recent history** (path from the profile) for the area you're about to touch. It surfaces prior decisions, hidden logic, and removed features that constrain the plan or reveal reuse. Cite anything that changes the approach; if nothing is relevant, say nothing.
+- **Read the project's changelog / recent history** (path from the profile) for the area you're about to touch. It surfaces prior decisions, hidden logic, and removed features that constrain the plan or reveal reuse. Cite anything that changes the approach; if nothing is relevant, say nothing. Read the file the profile's **Decisions** row names the same way: a plan that reverses an entry says so under Design and logs a superseding entry.
 - **Read the relevant contract doc** if the feature touches an integration (API doc, schema, protobuf, OpenAPI spec). Plan against the real contract, and fold any doc drift the plan introduces into Files to Modify.
 - Map the codebase areas the prompt touches.
 - **Reuse hunt** — enumerate existing services, components, utilities, and styles the feature could extend or compose. Record each with a path and a one-line "what it does".
@@ -94,6 +94,8 @@ Omit a section only where the template says it may be omitted — and say in one
 End the plan with the literal line:
 
 > **Awaiting approval before implementation. Do not proceed until the user confirms.**
+
+Before the picker, append each decision the user made in this run's questions to the file the profile's **Decisions** row names, in its own format. No row → ask once and record the answer; declined → skip. In plan mode, where no file can be written, list them in the plan under *Decisions to log* and append them once plan mode ends, approved or not.
 
 Then put the decision in the picker (Guidelines §17) — `Approve → implementing-architect` · `Revise <what>` · `Stop here` — unless plan mode is active, where `ExitPlanMode` carries it. Picking `Approve → implementing-architect` starts `implementing-architect` on this plan (§17: a pick is the user starting it). Until a pick, do **not** invoke it and do **not** write code. Wait.
 

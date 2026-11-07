@@ -104,7 +104,7 @@ When a duplicate is unavoidable (a quick start genuinely needs the install comma
 | **Audit** existing docs | `references/audit-mode.md`. Read-only, friction log first, `path:line` on every finding. |
 | **Reference** for a module, API, or CLI | `references/reference-docs.md` over the exported surface only. Generate from schema or types where the project can; hand-write the *when to use this*. |
 | **Polish** | `module-writing-floor` only. No restructuring, no new sections, no scope growth. |
-| **Explain / ADR** | Explanation type: the constraint, the options considered, the choice, and what it costs. Record it where the project keeps decisions; if it keeps none, ask before creating that convention. |
+| **Explain / ADR** | Explanation type: the constraint, the options considered, the choice, and what it costs. A short entry goes in the file the profile's **Decisions** row names, and a long-form explanation is linked from it; with no row, ask before creating that convention. |
 | **Release notes** | User-facing translation of what shipped — "fixed a crash when creating a profile", not "fix NPE in UserSvc" — grouped as features / fixes / **breaking**, with a migration guide for every breaking item and the required action stated as steps. The **changelog itself belongs to `rolling-history`**; this produces the human-facing notes from it, and never invents a version number or a date. |
 | **Docstrings** | `references/reference-docs.md` across the public surface. Never a docstring on a private helper whose name already says it (Guidelines §13). |
 

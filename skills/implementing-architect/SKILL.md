@@ -3,7 +3,6 @@ name: implementing-architect
 description: Use to execute an approved plan. Implements only what the plan says, authors the paired tests, runs every profile gate in one batch, then the Change Propagation Protocols (shared shape, public API and test doubles, external origins) that a green pipeline cannot prove. Never stages, commits, pushes, or auto-updates golden files.
 argument-hint: "[plan, story, or findings to fix] [+ modifiers: defer tests | skip gates]"
 disable-model-invocation: true
-allowed-tools: Bash(bash ${CLAUDE_SKILL_DIR}/check-quality.sh:*)
 ---
 
 # Skill: Implementing Architect — Implementation & Quality Validator
@@ -64,7 +63,7 @@ If the change fits none of the three shapes, say so in one line and move on.
 10. **Manual visual review** — if a visual or golden gate reports diffs, stop and hand it over (`module-gate-battery` §4). Never run the update command.
 11. **Summarize** — using the template at `${CLAUDE_SKILL_DIR}/references/summary-template.md`. Leave files **unstaged**; no commits; no pushes.
 
-**One-shot alternative:** `bash ${CLAUDE_SKILL_DIR}/check-quality.sh` runs the same gates in the same order and prints a pass/fail report. The variable resolves to this skill's own directory in both plugin and copied installs, so the command is identical either way. Add `--list` to print which gates it resolved **without running any of them** — use that first when you're unsure the profile is right.
+**One-shot alternative:** none in this edition, which ships no scripts; the self-hosted install from matis-dev/m-skills adds a script that runs the same gates in one go.
 
 ---
 
