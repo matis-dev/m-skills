@@ -1,0 +1,12 @@
+schema_version: "1.0"
+name: security-skips-date-format
+# Should-not-load control. tool_used defaults to min 1, so max 0 alone can never pass.
+description: A one-line date question has no trust boundary, so security-architect stays unloaded.
+tags: [negative]
+execution:
+  prompt: "In JavaScript, how do I format new Date(2026, 0, 5) as an ISO 8601 string? One line."
+  max_turns: 25
+  allowed_tools: [Read, Glob, Grep, Skill]
+graders:
+  - {type: regex, name: answers, pattern: "toISOString", flags: i}
+  - {type: tool_used, name: security-stays-unloaded, tool: Skill, input_match: "security-architect", min: 0, max: 0}

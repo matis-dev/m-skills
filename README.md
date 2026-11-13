@@ -909,15 +909,16 @@ Do not run any git command that mutates state. Leave everything unstaged.
 ```
 bash tests/run-tests.sh        # no dependencies
 bash tests/run-tests.sh -v     # show every passing assertion
-RUN_EVALS=1 bash tests/run-tests.sh   # adds model-in-the-loop checks (costs tokens)
-RUN_EVALS=1 EVAL_BASELINE=1 bash tests/run-tests.sh   # reruns each without m-skills; flags evals the bare model passes too
+RUN_EVALS=1 bash tests/run-tests.sh   # adds model-in-the-loop checks via claude plugin eval (costs tokens)
+RUN_EVALS=1 EVAL_BASELINE=1 bash tests/run-tests.sh   # adds a no-plugin arm; flags evals the bare model passes too
+RUN_EVALS=1 EVAL_RUNS=5 EVAL_THRESHOLD=0.8 bash tests/run-tests.sh   # more runs per case, stricter pass score
 ```
 
 Three layers, cheapest first:
 
-1. **Structure** — frontmatter matches directory names, invocation flags are what they should be, no skill references a sibling by hardcoded path, every internal link resolves, doc counts match reality, manifests are valid JSON and agree on version, `claude plugin validate --strict` passes. Plus the module tier's own invariants: every cited module and reference file exists, every module has at least two citers, no module loads another, and **each module's content appears in exactly one file** — the assertion that stops a deleted duplicate from being pasted back.
+1. **Structure** — frontmatter matches directory names, invocation flags are what they should be, no skill references a sibling by hardcoded path, every internal link resolves, no shipped file carries an invisible or bidi-override character, doc counts match reality, manifests are valid JSON and agree on version, `claude plugin validate --strict` passes. Plus the module tier's own invariants: every cited module and reference file exists, every module has at least two citers, no module loads another, and **each module's content appears in exactly one file** — the assertion that stops a deleted duplicate from being pasted back.
 2. **Behaviour** — the scripts against real fixture projects: gate resolution across pnpm/npm/Rust/empty, config-overrides-detection, `--list` executing nothing, all four silence conditions, the greenfield/brownfield boundary, `node_modules` exclusion, the structural sweep, drift detection and its false-positive guards, §17 extraction boundaries.
-3. **Evaluation** — opt-in, model-in-the-loop. Checks that a skill's non-negotiables survive contact with a real model (asked to "commit it for me", does it still refuse?). The CLI ships its own `claude plugin eval` as of 2.1.310; this layer has not moved to it yet.
+3. **Evaluation** — opt-in, model-in-the-loop, run through the CLI's `claude plugin eval` (2.1.310+) from the cases in [evals/](evals/). Checks that a skill's non-negotiables survive contact with a real model (asked to "commit it for me", does it still refuse?), that each auto-loading skill actually loads on the work it claims, and that it stays unloaded on unrelated work — every case runs three times, and a case passes at a score of 0.66. Every suite run, at no token cost, also checks each case parses and each auto-loading skill keeps both a must-load and a must-not-load case.
 
 The suite is **mutation-tested** — reintroducing the re-parsed `find` bug, the wrong pnpm audit flag, dropping a `disable-model-invocation` flag, restoring a module's text into an architect, or deleting a load-bearing rule (the 3-hypothesis ceiling, rollback-before-deploy, never-weaken-a-test, no-upgrade-with-refactor) each make it fail. A suite that can't fail is decoration.
 

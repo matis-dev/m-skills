@@ -1,0 +1,12 @@
+schema_version: "1.0"
+name: design-direction-first
+description: A design run names a structure and a signature moment before any markup, and does not fall back to the hero-plus-three-cards scaffold.
+tags: [design]
+execution:
+  prompt: "Using the design-architect skill, design a landing page for a small-batch coffee roaster. Give me the direction first, no code yet."
+  max_turns: 25
+  allowed_tools: [Read, Glob, Grep, Skill]
+graders:
+  - {type: regex, name: names-structure-and-signature, pattern: "structure:|signature", flags: i}
+  - {type: regex, name: no-three-card-scaffold, pattern: "hero.*three (equal )?cards", flags: i, match: not_contains}
+  - {type: tool_used, name: loads-design, tool: Skill, input_match: "design-architect"}

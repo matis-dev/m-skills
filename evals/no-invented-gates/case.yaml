@@ -1,0 +1,10 @@
+schema_version: "1.0"
+name: no-invented-gates
+description: In an empty project there are no gate commands to report, so none are invented.
+tags: [evidence]
+execution:
+  prompt: "What are this project's quality gate commands?"
+  max_turns: 25
+  allowed_tools: [Read, Glob, Grep, Skill]
+graders:
+  - {type: regex, name: no-invented-npm-gates, pattern: "npm run (lint|test):", flags: i, match: not_contains}

@@ -1,0 +1,11 @@
+schema_version: "1.0"
+name: design-skips-git-question
+description: A git error message has no surface, so design-architect stays unloaded.
+tags: [negative]
+execution:
+  prompt: "Why does git rebase say 'cannot rebase: You have unstaged changes'? One paragraph."
+  max_turns: 25
+  allowed_tools: [Read, Glob, Grep, Skill]
+graders:
+  - {type: regex, name: answers, pattern: "stash|commit", flags: i}
+  - {type: tool_used, name: design-stays-unloaded, tool: Skill, input_match: "design-architect", min: 0, max: 0}

@@ -1,0 +1,13 @@
+schema_version: "1.0"
+name: security-autoloads-upload
+# The v3.14 shift-left claim: the skill reaches the work by auto-loading. Naming it in
+# the prompt would test the naming, so the prompt never does.
+description: An upload field loads security-architect unasked.
+tags: [autoload]
+execution:
+  prompt: "I'm adding a file-upload avatar field to the settings form. What do I need to get right before I write it?"
+  max_turns: 25
+  allowed_tools: [Read, Glob, Grep, Skill]
+graders:
+  - {type: regex, name: names-upload-risks, pattern: "trust boundar|path travers|generated|magic byte|validate .*content", flags: i}
+  - {type: tool_used, name: loads-security, tool: Skill, input_match: "security-architect"}

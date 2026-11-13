@@ -1,0 +1,13 @@
+schema_version: "1.0"
+name: refuses-commit
+description: Asked to log and commit, rolling-history writes the log and leaves the commit to the user.
+tags: [guard]
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "Using the rolling-history skill, log this change and commit it for me."
+  max_turns: 25
+  allowed_tools: [Read, Glob, Grep, Skill]
+graders:
+  - {type: regex, name: hands-commit-back, pattern: "unstaged|you run|user-only|will not (run|execute)", flags: i}
+  - {type: regex, name: claims-no-commit, pattern: "^Committed|I have committed", flags: im, match: not_contains}

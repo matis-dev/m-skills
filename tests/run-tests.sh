@@ -370,6 +370,34 @@ while read -r l; do [ -e "$ROOT/$l" ] || missing="$missing $l"; done < <(
   | tr -d '])' | sed 's/^(//' | sort -u )
 assert_empty "internal links resolve" "$missing"
 
+# no invisible characters in shipped text: tag characters hide ASCII a model reads and
+# a reviewer does not, bidi overrides reorder what a reviewer sees (CVE-2021-42574), and
+# zero-width marks hide in plain sight. The upstream refresh pastes in other people's
+# text, so a planted one would arrive through a routine diff. Characters from NVIDIA
+# SkillEvaluator's list: U+200B-200F, U+202A-202E, U+2060-2069, U+FEFF, U+034F, U+061C,
+# U+180E, and the tag block U+E0000-E007F (every one starts F3 A0 80 or F3 A0 81).
+# Fixed UTF-8 byte strings in the C locale: GNU grep 3.12 there silently matches
+# nothing for a byte range or an alternation of high bytes, and grep -P is not portable.
+uni_e=()
+for b in 8b 8c 8d 8e 8f aa ab ac ad ae; do uni_e+=(-e "$(printf "\xe2\x80\x$b")"); done
+for b in a0 a1 a2 a3 a4 a5 a6 a7 a8 a9; do uni_e+=(-e "$(printf "\xe2\x81\x$b")"); done
+for s in '\xef\xbb\xbf' '\xcd\x8f' '\xd8\x9c' '\xe1\xa0\x8e' '\xf3\xa0\x80' '\xf3\xa0\x81'; do uni_e+=(-e "$(printf "$s")"); done
+hidden_in() { LC_ALL=C grep -rlF "${uni_e[@]}" "$@" 2>/dev/null || true; }
+scan=("$ROOT/skills" "$ROOT/commands" "$ROOT/hooks" "$ROOT/scripts" "$ROOT/CLAUDE.template.md"
+  "$ROOT/settings.template.json" "$ROOT/.claude-plugin/plugin.json" "$ROOT/.claude-plugin/marketplace.json")
+gone=""; for p in "${scan[@]}"; do [ -e "$p" ] || gone="$gone ${p#"$ROOT"/}"; done
+assert_empty "every invisible-character scan root exists" "$gone"
+assert_empty "no invisible or bidi characters in shipped files" "$(hidden_in "${scan[@]}")"
+# a scan that silently matches nothing stays green forever, so plant one of each family
+HC="$TMP/hidden"; mkdir -p "$HC"
+for s in '\xe2\x80\x8b' '\xe2\x80\xae' '\xe2\x81\xa9' '\xef\xbb\xbf' '\xcd\x8f' '\xd8\x9c' \
+  '\xe1\xa0\x8e' '\xf3\xa0\x80\x81' '\xf3\xa0\x81\xbf'; do
+  printf "a${s}b\n" > "$HC/$(printf '%s' "$s" | tr -d '\\x').md"
+done
+printf 'plain — é\n' > "$HC/clean.md"
+assert_eq "the invisible-character scan catches every planted family" "$(hidden_in "$HC" | wc -l | tr -d ' ')" "9"
+assert_missing "the invisible-character scan passes plain UTF-8" "$(hidden_in "$HC")" "clean.md"
+
 # architect and module counts in docs match reality
 acount="$(find "$ROOT/skills" -maxdepth 1 -mindepth 1 -type d ! -name 'module-*' | wc -l)"
 mcount="$(find "$ROOT/skills" -maxdepth 1 -mindepth 1 -type d -name 'module-*' | wc -l)"
@@ -2288,84 +2316,105 @@ fi
 # ─────────────────────────────────────────────────────────────────────────────
 section "9. Eval — model in the loop (opt-in)"
 
-# Each case: a prompt, and a property the answer must hold. Cheap, not exhaustive —
-# these check that a skill's non-negotiables survive contact with a real model.
-# --plugin-dir points the CLI at THIS working tree. Without it the fixture, which has
-# no plugin of its own, exercises whatever m-skills is installed user-wide — a cached
-# release, not the tree under test — and a green eval says nothing about this diff.
-# --allowedTools Read lets a skill open its reference files; headless mode otherwise
-# denies the read and the skill works from its spine alone.
-# EVAL_BASELINE=1 reruns each passing case with m-skills switched off. A case the bare
-# model also passes tests the model, not the skill — the eval form of a test that passes
-# with the implementation deleted. Both runs' turns and cost are printed side by side.
-# The settings override is what unloads a user-wide install; leaving out --plugin-dir alone
-# would still load it. The helpers sit outside the RUN_EVALS gate so a stub CLI can test them.
-EVAL_FLAGS=(--max-turns 25 --allowedTools Read)
-BASELINE=0
-eval_miss() { # <answer> <must-contain-regex> <must-not-contain-regex> → why it fails, or nothing
-  # a failed eval prints what the model actually said, or the failure cannot be diagnosed
-  if [ -n "$2" ] && ! printf '%s' "$1" | grep -qiE "$2"; then
-    printf 'missing: %s — output began: %s' "$2" "$(printf '%s' "$1" | tr '\n' ' ' | head -c 240)"
-  elif [ -n "$3" ] && printf '%s' "$1" | grep -qiE "$3"; then
-    printf 'should not appear: %s — matched: %s' "$3" "$(printf '%s' "$1" | grep -oiE ".{0,40}$3.{0,40}" | head -1)"
-  fi
+# The cases live in evals/<case>/case.yaml and run through the CLI's own
+# `claude plugin eval`: several runs per case, regex graders on the answer, and
+# tool_used graders on the Skill call. A case where a skill must load fails when it never
+# did, so a right answer from the bare model's own knowledge no longer passes as the
+# skill working; a negative case (min 0, max 0) fails when its skill loaded anyway.
+# RUN_EVALS=1 runs one arm (--ablation none), where every grader is scored.
+# EVAL_BASELINE=1 adds a no-plugin arm (--ablation with-without). The CLI then reports the
+# Skill graders as unscored indicators, so eval_verdicts reads them back from the JSON and
+# still fails a skill that loaded in too few runs. It also fails a case the bare model
+# scores as well as the plugin does: that case tests the model, not the skill. Negative
+# cases skip that comparison, since the bare arm cannot load the skill and always ties.
+# EVAL_RUNS=N overrides the runs per case (default 3). EVAL_THRESHOLD (default 0.66) is
+# the score a case must reach, so one unlucky run in three does not fail it.
+EVAL_THRESHOLD="${EVAL_THRESHOLD:-0.66}"
+eval_verdicts() { # <result JSON> <threshold> → "ok: <row>" or "bad: <row> — <why>" per line
+  python3 -I - "$1" "$2" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1])); t = float(sys.argv[2])
+if d.get("suite", {}).get("ablation") != "with-without":
+    sys.exit(0)
+for c in d.get("cases", []):
+    name, a = c["name"], c.get("aggregates", {})
+    shown = {}
+    for r in c.get("arms", {}).get("with", []):
+        for g in r.get("graders", []):
+            if g.get("withOnly") and not g.get("scored"):
+                shown.setdefault(g["name"], []).append(bool(g.get("passed")))
+    for g, ps in shown.items():
+        row = "%s: %s" % (name, g)
+        print("ok: " + row if sum(ps) >= t * len(ps) else "bad: %s — passed %d/%d runs" % (row, sum(ps), len(ps)))
+    negative = any(g.get("type") == "tool_used" and (g.get("config") or {}).get("max") == 0
+                   for g in c.get("graders", []))
+    if negative:
+        continue
+    w, wo = a.get("score", 0), a.get("scoreWithout", 0)
+    row = "%s needs the plugin" % name
+    print("ok: " + row if w > wo else
+          "bad: %s — the bare model scores %.2f against the plugin's %.2f; the case tests the model, not the skill" % (row, wo, w))
+PY
 }
-# the JSON alone decides whether a run errored, so the CLI's own exit status is dropped
-eval_run() { # <prompt> [flags…] → line 1 "<turns> turns $<cost>", then the answer; non-zero and "failed: <why>" on an errored run
-  local p="$1"; shift
-  (cd "$TMP/brown" && claude -p "$p" "${EVAL_FLAGS[@]}" --output-format json "$@" 2>/dev/null || true) \
-    | python3 -I -c 'import json,sys
-try: d=json.load(sys.stdin)
-except ValueError: d={}
-r=d[-1] if isinstance(d,list) and d else d if isinstance(d,dict) else {}
-if r.get("is_error") or not (r.get("result") or "").strip(): print("failed: %s" % (r.get("subtype") or "no JSON result")); sys.exit(1)
-print("%s turns $%.2f" % (r.get("num_turns","?"), r.get("total_cost_usd") or 0)); print(r["result"])'
-}
-eval_case() { # <name> <prompt> <must-contain-regex> <must-not-contain-regex>
-  local out meta="" why
-  if [ "$BASELINE" = 1 ]; then
-    out="$(eval_run "$2" --plugin-dir "$ROOT")" || { bad "$1" "plugin run $out"; return; }
-    meta="${out%%$'\n'*}"; out="${out#*$'\n'}"
-  else out="$(cd "$TMP/brown" && claude -p "$2" "${EVAL_FLAGS[@]}" --plugin-dir "$ROOT" 2>/dev/null)"; fi
-  why="$(eval_miss "$out" "$3" "$4")"
-  [ -n "$why" ] && { bad "$1" "$why"; return; }
-  ok "$1"
-  [ "$BASELINE" = 1 ] || return 0
-  # an errored bare run proves nothing either way: neither "needs the plugin" nor "passes too"
-  local bare; bare="$(eval_run "$2" --settings '{"enabledPlugins":{"m-skills@m-skills":false}}')" \
-    || { skip "$1 needs the plugin" "bare run $bare"; return 0; }
-  printf '      %s — plugin %s · bare %s\n' "$1" "$meta" "${bare%%$'\n'*}"
-  if [ -z "$(eval_miss "${bare#*$'\n'}" "$3" "$4")" ]; then
-    bad "$1 needs the plugin" "the bare model passes too — the eval tests the model, not the skill"
-  else ok "$1 needs the plugin"; fi
+eval_report() { # <result JSON> → one suite row per verdict
+  local line r
+  while IFS= read -r line; do
+    case "$line" in
+      "ok: "*) ok "${line#ok: }" ;;
+      "bad: "*) r="${line#bad: }"; bad "${r%% — *}" "${r#* — }" ;;
+    esac
+  done < <(eval_verdicts "$1" "$EVAL_THRESHOLD")
 }
 
-# the baseline's verdicts against a stub CLI — no tokens, so this runs on every suite
+# every skill that must auto-load keeps a case proving it loads, and a negative case
+# proving it stays out of unrelated work: losing either half makes the other meaningless
+for s in security-architect accessibility-architect design-architect; do
+  grep -lq "input_match: \"$s\"}" "$ROOT"/evals/*/case.yaml 2>/dev/null \
+    && ok "an eval case checks $s loads" || bad "an eval case checks $s loads"
+  grep -lq "input_match: \"$s\", min: 0, max: 0" "$ROOT"/evals/*/case.yaml 2>/dev/null \
+    && ok "a negative eval case checks $s stays unloaded" || bad "a negative eval case checks $s stays unloaded"
+done
+
+# the baseline verdicts against fixture JSON — no tokens, so this runs on every suite
 if command -v python3 >/dev/null 2>&1; then
-  ES="$TMP/eval-stub"; mkdir -p "$ES"
-  cat > "$ES/claude" <<'STUB'
-#!/bin/bash
-case "$*" in *enabledPlugins*) printf '%s' "$EVAL_STUB_BARE" ;; *) printf '%s' "$EVAL_STUB_PLUGIN" ;; esac
-STUB
-  chmod +x "$ES/claude"
-  eval_verdicts() { # <plugin JSON> <bare JSON> → the rows eval_case prints, suite counters untouched
-    ( ok() { echo "ok: $1"; }; bad() { echo "bad: $1"; }; skip() { echo "skip: $1"; }
-      BASELINE=1; PATH="$ES:$PATH"; EVAL_STUB_PLUGIN="$1"; EVAL_STUB_BARE="$2"
-      export PATH EVAL_STUB_PLUGIN EVAL_STUB_BARE
-      eval_case "c" "p" "unstaged" "" )
+  ej() { # <ablation> <indicator passes, e.g. 1,1,0> <score> <scoreWithout> [negative] → a result JSON path
+    python3 -I - "$TMP/ev-$RANDOM.json" "$@" <<'PY'
+import json, sys
+path, abl, passes, w, wo = sys.argv[1:6]; neg = len(sys.argv) > 6
+g = {"type": "tool_used", "name": "loads", "config": {"tool": "Skill", "min": 0, "max": 0} if neg else {"tool": "Skill"}}
+runs = [{"graders": [{"name": "answers", "passed": True, "withOnly": False, "scored": True},
+                     {"name": "loads", "passed": p == "1", "withOnly": True, "scored": False}]} for p in passes.split(",")]
+json.dump({"suite": {"ablation": abl}, "cases": [{"name": "c", "graders": [{"type": "regex", "name": "answers"}, g],
+           "arms": {"with": runs}, "aggregates": {"score": float(w), "scoreWithout": float(wo)}}]}, open(path, "w"))
+print(path)
+PY
   }
-  said='{"type":"result","is_error":false,"num_turns":3,"total_cost_usd":0.1,"result":"left unstaged"}'
-  other='{"type":"result","is_error":false,"num_turns":2,"total_cost_usd":0.05,"result":"done, it is staged"}'
-  maxed='{"type":"result","subtype":"error_max_turns","is_error":true,"num_turns":25}'
-  out="$(eval_verdicts "$said" "$maxed")"
-  assert_contains "eval baseline: a bare run that hit max turns is skipped" "$out" "skip: c needs the plugin"
-  assert_missing  "eval baseline: a bare run that hit max turns is not a pass" "$out" "ok: c needs the plugin"
-  assert_contains "eval baseline: a bare run with no output is skipped" "$(eval_verdicts "$said" "")" "skip: c needs the plugin"
-  assert_contains "eval baseline: a bare miss means the case needs the plugin" "$(eval_verdicts "$said" "$other")" "ok: c needs the plugin"
-  assert_contains "eval baseline: a bare pass is flagged" "$(eval_verdicts "$said" "$said")" "bad: c needs the plugin"
-  assert_eq "eval baseline: an errored plugin run fails the case, bare never run" "$(eval_verdicts "$maxed" "$said")" "bad: c"
+  out="$(eval_verdicts "$(ej with-without 1,1,0 1 0.33)" 0.66)"
+  assert_contains "eval baseline: a skill loaded in 2 of 3 runs passes" "$out" "ok: c: loads"
+  assert_contains "eval baseline: the plugin beating the bare model passes" "$out" "ok: c needs the plugin"
+  assert_contains "eval baseline: a skill loaded in 1 of 3 runs fails" \
+    "$(eval_verdicts "$(ej with-without 1,0,0 1 0.33)" 0.66)" "bad: c: loads — passed 1/3 runs"
+  assert_contains "eval baseline: a tie with the bare model fails" \
+    "$(eval_verdicts "$(ej with-without 1,1,1 1 1)" 0.66)" "bad: c needs the plugin"
+  assert_missing "eval baseline: a negative case skips the bare comparison" \
+    "$(eval_verdicts "$(ej with-without 1,1,1 1 1 neg)" 0.66)" "needs the plugin"
+  assert_empty "eval baseline: a single-arm run leaves the verdict to the CLI" \
+    "$(eval_verdicts "$(ej none 0,0,0 1 0)" 0.66)"
 else
   skip "eval baseline verdicts" "python3 not on PATH"
+fi
+
+# every case parses against the CLI's schema — a $0 ceiling stops before the first
+# paid run, so this costs nothing. Exit 1 is a case that failed to load; 2 the ceiling.
+if command -v claude >/dev/null 2>&1; then
+  out="$(claude plugin eval "$ROOT" --no-publish --trust-plugin --ablation none --max-cost-usd 0 \
+    --output-dir "$TMP/eval-load" 2>&1)"; rc=$?
+  if [ $rc -eq 1 ] || printf '%s' "$out" | grep -q 'failed to load'; then
+    bad "every eval case loads" "$(printf '%s' "$out" | grep -iE 'case|error|invalid' | head -3 | tr '\n' ' ')"
+  elif [ $rc -eq 0 ] || [ $rc -eq 2 ]; then ok "every eval case loads"
+  else skip "every eval case loads" "claude plugin eval exited $rc"; fi
+else
+  skip "every eval case loads" "claude CLI not on PATH"
 fi
 
 if [ "${RUN_EVALS:-0}" != "1" ]; then
@@ -2373,30 +2422,20 @@ if [ "${RUN_EVALS:-0}" != "1" ]; then
 elif ! command -v claude >/dev/null 2>&1; then
   skip "behavioural evals" "claude CLI not on PATH"
 else
-  if [ "${EVAL_BASELINE:-0}" = "1" ]; then
-    command -v python3 >/dev/null 2>&1 && BASELINE=1 || skip "eval baselines" "python3 not on PATH"
+  # --scaffold runs evals/*/scaffold.sh, which this repo authored; results and the HTML
+  # report go to evals/results/ (gitignored)
+  EVAL_ARGS=(--no-publish --trust-plugin --scaffold --threshold "$EVAL_THRESHOLD" --json "$TMP/eval.json")
+  [ -n "${EVAL_RUNS:-}" ] && EVAL_ARGS+=(--runs "$EVAL_RUNS")
+  if [ "${EVAL_BASELINE:-0}" = "1" ] && command -v python3 >/dev/null 2>&1; then
+    EVAL_ARGS+=(--ablation with-without)
+  else
+    [ "${EVAL_BASELINE:-0}" = "1" ] && skip "eval baselines" "python3 not on PATH"
+    EVAL_ARGS+=(--ablation none)
   fi
-  eval_case "refuses to commit when asked to ship" \
-    "Using the rolling-history skill, log this change and commit it for me." \
-    "unstaged|you run|user-only|will not (run|execute)" "^Committed|I have committed"
-  eval_case "no invented gate commands in an empty project" \
-    "What are this project's quality gate commands?" "" "npm run (lint|test):"
-  # the v3.14 shift-left claim: both skills must reach the work by AUTO-LOADING,
-  # never by being named. these cannot be phrased as "using the <stage> skill" —
-  # pipeline stages carry disable-model-invocation and the harness blocks the call,
-  # which is correct behaviour and makes such a prompt untestable from here.
-  eval_case "security auto-loads on an upload, unasked" \
-    "I'm adding a file-upload avatar field to the settings form. What do I need to get right before I write it?" \
-    "trust boundar|path travers|generated|magic byte|validate .*content" ""
-  eval_case "accessibility auto-loads on a modal, unasked" \
-    "I'm adding a modal to crop an uploaded image. What do I need to get right before I write it?" \
-    "focus (returns?|back) to|2\.5\.7|drag|24.24" ""
-  # the direction step: a design run must name a structure and a signature moment
-  # before any markup, and must not fall back to the three-equal-cards scaffold
-  eval_case "design emits a direction before code" \
-    "Using the design-architect skill, design a landing page for a small-batch coffee roaster. Give me the direction first, no code yet." \
-    "structure:|signature" "hero.*three (equal )?cards"
-
+  claude plugin eval "$ROOT" "${EVAL_ARGS[@]}"; rc=$?
+  [ $rc -eq 0 ] && ok "every eval case reaches $EVAL_THRESHOLD" \
+    || bad "every eval case reaches $EVAL_THRESHOLD" "claude plugin eval exited $rc; the table above names the case, the report is under evals/results/"
+  [ -f "$TMP/eval.json" ] && eval_report "$TMP/eval.json"
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────

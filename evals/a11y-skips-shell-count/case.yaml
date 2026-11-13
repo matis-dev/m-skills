@@ -1,0 +1,11 @@
+schema_version: "1.0"
+name: a11y-skips-shell-count
+description: A shell one-liner has no interface, so accessibility-architect stays unloaded.
+tags: [negative]
+execution:
+  prompt: "Give me a bash one-liner that counts the lines in every .md file under docs/."
+  max_turns: 25
+  allowed_tools: [Read, Glob, Grep, Skill]
+graders:
+  - {type: regex, name: answers, pattern: "wc", flags: i}
+  - {type: tool_used, name: accessibility-stays-unloaded, tool: Skill, input_match: "accessibility-architect", min: 0, max: 0}

@@ -16,3 +16,6 @@ Thumbs.db
 *.swp
 *~
 .idea/
+
+# claude plugin eval results and HTML reports
+evals/results/
