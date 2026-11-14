@@ -9,7 +9,7 @@ disable-model-invocation: true
 # Skill: Rolling History (Continuous Documentation)
 
 > **Apply Guidelines Skill** — load the `guidelines-meta` skill before proceeding.
-> **Profile section owned:** §Documentation Targets and §Commit Convention (Guidelines §5), plus §Deployment's **Versioning scheme** row, shared with `deployment-architect`. The §Documentation Targets **Decisions** row is shared with kickoff, onboard, `brainstorming-planner`, and `planning-architect`. §Documentation Standards belongs to `documentation-architect` — read it, don't fill it. Fill it on first use per **Guidelines §5.1–§5.4** — read the repo first, ask only what the code cannot say, write it back. If the repo has no changelog or no commit history to infer from, ask which convention to adopt rather than picking one silently.
+> **Profile section owned:** §Documentation Targets and §Commit Convention (Guidelines §5), plus §Deployment's **Versioning scheme** row, shared with `deployment-architect`. Kickoff and onboard may set the §Documentation Targets rows for Changelog, Decisions, and README; the **Decisions** row is also shared with `brainstorming-planner` and `planning-architect`. §Documentation Standards belongs to `documentation-architect` — read it, don't fill it. Fill it on first use per **Guidelines §5.1–§5.4** — read the repo first, ask only what the code cannot say, write it back. If the repo has no changelog or no commit history to infer from, ask which convention to adopt rather than picking one silently.
 
 **Run only after:** the Implementing Skill's gates have passed **and** the user has manually reviewed (and approved or updated) any failed visual baselines. This skill records what **shipped** — never what's still in flight.
 

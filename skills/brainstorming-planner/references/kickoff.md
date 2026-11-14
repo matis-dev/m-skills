@@ -24,15 +24,21 @@ Triggered by "kickoff", or whenever there is no meaningful code to brainstorm ag
 | Test layers, placement, coverage bar | `testing-architect` | before the first test — which is before the first feature |
 | Visual world, tokens, component vocabulary | `design-architect` (**Establish** mode) | before the first screen |
 | Hosting, environments, rollback | `deployment-architect` | before the first deploy, **not now** |
-| Changelog format, commit convention | `rolling-history` | at the first commit |
+| README, changelog, decisions log — the files | this run, step 3 | now — a new project has none, and each one later is a skill asking for it |
+| Changelog entry format, commit convention | `rolling-history` | at the first commit |
 | Audience, positioning, where it gets found | `marketing-architect` | only if distribution shapes what gets built — otherwise defer, and deferring is normal |
 
 Say plainly which of these you are deferring and to when. **Deferring is the default** — a project that hasn't been built has no business deciding its rollback mechanism.
 
-### 3. Seed the profile with what was actually decided
+### 3. Seed the profile and the starter docs
 Write only the rows this conversation genuinely settled, and mark the rest `pending: <when>` (Guidelines §5). No `assumed:` values in a greenfield profile — an unchallenged guess recorded on day one becomes a fact nobody remembers choosing.
 
-Then offer the decisions log, once: create `DECISIONS.md` at the root from `<this-skill>/../guidelines-meta/DECISIONS.template.md`, with the decisions the user made in this kickoff as its first entries. Record the profile's **Decisions** row as its path, or `n-a — declined`.
+Then ask once with ask_question (`is_multi_select`, every option labelled `(Recommended)`; an existing file is adopted, never overwritten, and dropped from the sheet). Don't skip this step: a later skill only ever asks for its own file one at a time.
+- **`README.md`**: a router (`documentation-architect` §1). It says what this is, who it is for, the status (pre-release), and the first slice. Leave out the install and run commands while there is no manifest; the slice that adds the manifest adds them.
+- **`CHANGELOG.md`**: propose Keep a Changelog (§5.4) with one dated entry recording the kickoff. The entry format and commit convention stay with `rolling-history`.
+- **`DECISIONS.md`**: built from `<this-skill>/../guidelines-meta/DECISIONS.template.md`, with this kickoff's decisions as its first entries.
+
+Write the docs the user picked, then fill §Documentation Targets: each picked file gets its path. An unpicked Changelog or **Decisions** row gets `n-a — declined <date>`; an unpicked README row is omitted. Architecture, API, and deployment docs wait for their owners, because they have nothing to describe yet.
 
 ### 4. Then run Active Discovery on the first slice
 Kickoff ends where the normal skill begins: take the smallest useful thing from step 1 and pressure-test it below. The emitted Deep-Dive Execution Prompt is for **that slice**, not for the whole product.
