@@ -28,6 +28,7 @@ By: Matis.dev · revisit if: never
 Why: the directory refused 5.4.0. Since 2026-11 it rejects every hook of type `command` from an organization that is not Verified, and accepts hooks of type `prompt`. The self-hosted install keeps its command hooks on `main`.
 Rejected: none recorded.
 By: Matis.dev · revisit if: the organization is Verified, or the directory accepts command hooks again
+Superseded by 2026-11-14
 
 ### 2026-11-06 — Decisions get their own file beside the changelog
 Why: the changelog records only what shipped, so rejected and dropped directions were lost, or kept only in one person's private memory.
@@ -88,3 +89,9 @@ By: Matis.dev · revisit if: the organization is Verified, or the directory acce
 Why: the release README promises the deny-rule offer, and it is the fallback for the prompt hooks' Grep gap. Env files once committed still need rotating.
 Rejected: dropping the promise from `README.release.md` and leaving the Grep gap uncovered in this edition.
 By: code-review-architect (fix pick) · revisit if: an `if` rule can match Grep paths
+
+### 2026-11-14 — The directory edition ships no hooks
+Supersedes: 2026-11-06 — The directory edition ships prompt hooks only
+Why: the directory now refuses hooks of every type, prompt hooks included, from an organization that is not Verified. The guards stay as rules in every skill; the self-hosted install on `main` keeps every hook.
+Rejected: seeking Verified status (the plugin stays refused until granted); leaving the directory for the self-hosted install only.
+By: Matis.dev · revisit if: the organization is Verified, or the directory accepts hooks again

@@ -123,6 +123,11 @@ These four carry their own emphasis, because they are the ones most often ration
 
 > If you find yourself about to type a git write — stop, and **print the exact command for the user to paste instead**. That handover is the deliverable, not a consolation prize. There are no exceptions, even when the user says "ship it": they still want to drive the operation themselves.
 
+Two more actions stay the user's, in every skill:
+
+- **No secret files in the conversation.** Never print, open, source, or copy out a real `.env`, private key, or credentials file; example files such as `.env.example` stay open. Variable names come from the example or the code that reads them (`security-architect` constraint 5).
+- **No outward actions.** Deploying, publishing a package, pushing an image, applying infrastructure, or migrating a shared database is handed over as a runbook (`module-handover`), never run.
+
 *(This is enforced by the plugin's `PreToolUse` hook, which denies the call outright. The list above describes what that hook actually does, so the prose and the enforcement cannot drift apart.)*
 
 ### 10. Manual Golden / Snapshot Review

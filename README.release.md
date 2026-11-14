@@ -6,13 +6,13 @@ Nothing is tied to one project. Every command, framework, and convention is reso
 
 ## Before you install
 
-There is nothing to install first. This edition ships no scripts: the guards are prompt hooks that Claude Code runs itself, and everything else is Markdown that Claude reads.
+There is nothing to install first. This edition ships no scripts and no hooks: it is Markdown that Claude reads.
 
 ## Install it
 
-Add it from the Claude directory. That is this edition: the skills, the commands, and the guards as prompt hooks.
+Add it from the Claude directory. That is this edition: the skills and the commands, with the guards written into every skill as rules.
 
-The self-hosted edition adds script-based hooks: guards that need no model call, the gate table handed to each skill as it starts, skill suggestions, a check that a skill picked in the question sheet was really loaded, and advisories on skipped tests and shared-shape edits. Run these in Claude Code to install it instead:
+The self-hosted edition adds hooks: guards that deny the call outright, the gate table handed to each skill as it starts, skill suggestions, a check that a skill picked in the question sheet was really loaded, and advisories on skipped tests and shared-shape edits. Run these in Claude Code to install it instead:
 
 ```text
 /plugin marketplace add matis-dev/m-skills
@@ -37,22 +37,18 @@ Then you run git yourself. The plugin never does.
 
 The rest wait until you need them: design, testing, documentation, product slicing, debugging, deployment, maintenance, security, accessibility, marketing, and search visibility, plus 17 route commands such as `/m-skills:threat-model` and `/m-skills:rollback` that open an architect in one mode.
 
-## Know what the guards deny
+## Know the guards
 
-The strictest rules are checked by hooks that deny the call, not by text the model has to remember:
+Every skill tells Claude to keep these actions for you:
 
-- **No git writes.** Staging, committing, pushing, branching, and every other git write are denied, as are `gh` commands that publish. You get the exact command to paste instead.
+- **No git writes.** Staging, committing, pushing, branching, and every other git write, and `gh` commands that publish. You get the exact command to paste instead.
 - **No auto-accepted golden files.** Snapshot and visual-baseline updates are yours to run after you inspect the diff.
-- **No secret files in the conversation.** Reads and writes of real `.env` files and private keys are denied; example files such as `.env.example` stay open.
-- **No outward actions.** Deploys, package publishes, and migrations of shared state are denied and handed back to you as a runbook.
+- **No secret files in the conversation.** Real `.env` files and private keys stay unread; example files such as `.env.example` stay open.
+- **No outward actions.** Deploys, package publishes, and migrations of shared state come back to you as a runbook.
 
-**How they decide.** Each guard is a prompt hook: Claude Code's background model reads the tool call and answers allow or deny. A pattern filter first narrows the calls it is asked about to the ones that could break a rule, such as commands that start with `git` or `gh` and files named like `.env`, so ordinary calls skip the check. A model's judgment is a tripwire, not a boundary: it can misread a call, and a Grep that names a secret file is not checked at all. For a hard stop, add deny rules to your Claude Code settings. When real `.env` files sit in a project, `/m-skills:onboard` offers the rules.
-
-To turn a guard off, remove the plugin or disable it for that project. These hooks cannot read an opt-out file.
+**How they hold.** In this edition the guards are instructions the model follows, not checks that stop a call: the directory accepts no hooks from this publisher. The model can still slip. For a hard stop, add deny rules to your Claude Code settings, or install the self-hosted edition, whose hooks stop these calls outright. When real `.env` files sit in a project, `/m-skills:onboard` offers the deny rules.
 
 ## See what runs on your machine
-
-**What the hooks send:** each guarded tool call goes to the model Claude Code already uses for background work, in the same session and under the same account. Nothing goes anywhere else.
 
 **What the profile sweep reads:** `/m-skills:onboard` and `/m-skills:kickoff` have Claude look through your project's manifests, lockfiles, CI config, and `.claude` folder to resolve commands, your Claude Code settings files to see whether the Bash sandbox is on, and the names git reports for `.env` files, now or in its history, never their contents. Nothing is downloaded and no network call is made.
 
@@ -62,7 +58,7 @@ To turn a guard off, remove the plugin or disable it for that project. These hoo
 
 **What they never change: your settings.** When real `.env` files sit on disk and the Bash sandbox is off, Claude offers a deny rule and a sandbox block once, and merges nothing unless you agree.
 
-**Where the guards run:** Claude Code and Cowork. claude.ai chat loads the skills and commands but runs no hooks, so there the rules above are followed by the model rather than enforced.
+**Where the guards apply:** anywhere the skills load: Claude Code, Cowork, and claude.ai chat.
 
 ## License
 
