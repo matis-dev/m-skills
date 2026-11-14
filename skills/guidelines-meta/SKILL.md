@@ -1,6 +1,6 @@
 ---
 name: guidelines-meta
-description: Operating principles every m-skills architect cites; loaded as a dependency, never invoked alone. Holds the Project Profile indirection (§5), the Laziness Ladder, surgical changes, the hook-enforced git and golden-file guards, honest output, bounded verification, the reply protocol, the pre-emit self-critique, and the invocation modifiers.
+description: Operating principles every m-skills architect cites; loaded as a dependency, never invoked alone. Holds the Project Profile indirection (§5), the Laziness Ladder, surgical changes, the git and golden-file guards, honest output, bounded verification, the reply protocol, the pre-emit self-critique, and the invocation modifiers.
 user-invocable: false
 ---
 
@@ -111,7 +111,7 @@ The profile also carries the project's **conventions**: design system, i18n loca
 
 **Read-only git stays fully open** — and it is most of what you need: `status`, `diff`, `log`, `show`, `blame`, `rev-parse`, `merge-base`, `describe`, and the *listing* forms of `branch`, `tag`, `remote`, `stash`, and `worktree`. Reviewing a branch, tracing history, and reading a diff all work unchanged.
 
-**Everything that writes is denied**, including the ones people assume are harmless: `add`/`stage`, `commit` (any form, `--amend` included), `push`, `checkout`/`switch`, branch or tag *creation*, `merge`, `pull`, `fetch`, `rebase`, `cherry-pick`, `revert`, `reset`, `restore`, `stash`, `clean`, `rm`, `mv`, `gc`, `prune`, and the plumbing that moves refs. The same applies to `gh` writes — `pr create`, `pr merge`, `pr comment`, `issue create`, `release create`, `secret set`, `workflow run` — which publish to a shared surface and notify people.
+**Everything that writes is off limits**, including the ones people assume are harmless: `add`/`stage`, `commit` (any form, `--amend` included), `push`, `checkout`/`switch`, branch or tag *creation*, `merge`, `pull`, `fetch`, `rebase`, `cherry-pick`, `revert`, `reset`, `restore`, `stash`, `clean`, `rm`, `mv`, `gc`, `prune`, and the plumbing that moves refs. The same applies to `gh` writes — `pr create`, `pr merge`, `pr comment`, `issue create`, `release create`, `secret set`, `workflow run` — which publish to a shared surface and notify people.
 
 These four carry their own emphasis, because they are the ones most often rationalized away:
 
@@ -123,7 +123,12 @@ These four carry their own emphasis, because they are the ones most often ration
 
 > If you find yourself about to type a git write — stop, and **print the exact command for the user to paste instead**. That handover is the deliverable, not a consolation prize. There are no exceptions, even when the user says "ship it": they still want to drive the operation themselves.
 
-*(This is enforced by the plugin's `PreToolUse` hook, which denies the call outright. The list above describes what that hook actually does, so the prose and the enforcement cannot drift apart.)*
+Two more actions stay the user's, in every skill:
+
+- **No secret files in the conversation.** Never print, open, source, or copy out a real `.env`, private key, or credentials file; example files such as `.env.example` stay open. Variable names come from the example or the code that reads them (`security-architect` constraint 5).
+- **No outward actions.** Deploying, publishing a package, pushing an image, applying infrastructure, or migrating a shared database is handed over as a runbook (`module-handover`), never run.
+
+*(This edition ships no hooks, so nothing denies these calls: the list above is the rule, and you hold it. The self-hosted install from matis-dev/m-skills adds hooks that block them.)*
 
 ### 10. Manual Golden / Snapshot Review
 - **Never auto-accept a golden-file or visual-snapshot update.** Whatever the project's update command is (`--update-snapshots`, `-u`, `--accept`, `UPDATE_SNAPSHOTS=1`), it is **user-only**.

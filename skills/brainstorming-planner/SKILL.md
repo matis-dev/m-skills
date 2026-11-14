@@ -76,7 +76,7 @@ The frameworks above say *what* to ask; this is how the asking runs. Treat the o
 
 ## Strict Guardrails
 
-1. **Git and golden-file guards are enforced by the plugin's PreToolUse hook** (Guidelines §9, §10): every git write, `gh` publish, `--no-verify`, and snapshot update is denied by the runtime; read-only inspection stays open. At this stage that also means never *proposing* a git step: work stays on the active branch, and no plan you emit suggests a new one.
+1. **Git and golden-file guards are yours to hold** (Guidelines §9, §10): this edition ships no hooks, so nothing denies the call. Run no git write, `gh` publish, `--no-verify`, or snapshot update; read-only inspection stays open. At this stage that also means never *proposing* a git step: work stays on the active branch, and no plan you emit suggests a new one.
 2. **Reuse as DNA** — new features are composed from existing components, services, and patterns. Cite them by path when you propose them.
 3. **No Over-Engineering (YAGNI)** — only what was asked; no speculative abstractions or future-proofing the user didn't request. Favor the simplest implementation that works (Guidelines §2).
 4. **Tests planned via Testing Architect** — when the prompt mentions tests, defer the *how* to the `testing-architect` skill (cited by the downstream Planning Architect). Same deferral for security and accessibility: surface the boundary and the assistive path here, and let `security-architect` and `accessibility-architect` own the answers downstream.

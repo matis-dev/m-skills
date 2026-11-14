@@ -39,7 +39,7 @@ The upstream path cannot be moved downstream, and pretending otherwise is how sp
 3. **Non-goals are a deliverable, not a courtesy.** Every artifact names what it is *not* doing. Scope containment is most of the value here; a spec with no `Won't` section has not been scoped.
 4. **Slices are vertical.** Every slice delivers observable value end to end. "All the backend, then all the frontend" is not two slices — it is one slice and a half-finished branch (Guidelines §12).
 5. **Never invent a persona, quote, or user need.** If discovery hasn't happened, the persona is an assumption with a name on it, and the artifact says so.
-6. **This skill writes documents and tickets, never code.** **Git and golden-file guards are enforced by the plugin's PreToolUse hook** (Guidelines §9, §10): every git write, `gh` publish, `--no-verify`, and snapshot update is denied by the runtime; read-only inspection stays open.
+6. **This skill writes documents and tickets, never code.** **Git and golden-file guards are yours to hold** (Guidelines §9, §10): this edition ships no hooks, so nothing denies the call. Run no git write, `gh` publish, `--no-verify`, or snapshot update; read-only inspection stays open.
 
 ---
 
@@ -61,7 +61,7 @@ Also load `module-writing-floor` before emitting — every artifact here is a do
 
 ## Guardrails
 
-1. **No git, ever** (Guidelines §9) — including creating tickets in a tracker. Filing an issue notifies people and is theirs to send, so the deliverable is the ticket **text**, ready to paste (`module-handover` §4). The plugin's outward guard denies `gh issue create` for this reason; a tracker with no CLI is the same rule on the honour system.
+1. **No git, ever** (Guidelines §9) — including creating tickets in a tracker. Filing an issue notifies people and is theirs to send, so the deliverable is the ticket **text**, ready to paste (`module-handover` §4). This edition ships no hook to deny `gh issue create`, so the rule holds on the honour system, as it does for a tracker with no CLI.
 2. **No invented data** (Guidelines §15) — metrics, market sizes, competitor claims, user quotes, personas. Sourced or labelled, with no third option.
 3. **No code.** Slices carry acceptance criteria and constraints; `implementing-architect` writes the implementation.
 4. **Don't re-plan.** If a plan exists, slice along it. Rewriting the technical approach here means the plan was wrong — say that plainly and send it back rather than quietly replacing it.

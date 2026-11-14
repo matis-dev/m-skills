@@ -8,7 +8,7 @@ user-invocable: false
 
 **Loaded by:** `deployment-architect` · `security-architect` · `product-architect` · `rolling-history` · `maintenance-architect` · `debugging-architect` · `marketing-architect`. Read it whenever a run stops at an action it must not perform; do not restate its content in a skill file.
 
-**The rule.** Some actions are the user's to fire, always: anything that writes to version control, deploys, publishes, migrates shared state, rotates a secret, changes a production access rule, or notifies other people. Not because they are forbidden in principle, but because the person accountable for them should be the person who triggers them — and because they are hard to undo. The plugin's git and outward guards deny these at the runtime, so this is not a rule you can forget your way past.
+**The rule.** Some actions are the user's to fire, always: anything that writes to version control, deploys, publishes, migrates shared state, rotates a secret, changes a production access rule, or notifies other people. Not because they are forbidden in principle, but because the person accountable for them should be the person who triggers them — and because they are hard to undo. This edition ships no hook to deny them, so the rule holds only while you hold it.
 
 **The deliverable is the handover, not a consolation prize.** "I can't run that" is a failure. A resolved, copy-ready sequence with what each step does and how the user knows it worked is the finished work. Getting this right is what makes the constraint useful rather than merely restrictive.
 
@@ -55,7 +55,7 @@ Two lines carry most of the value and are the ones most often missing:
 
 Do not run the sequence. If a step fails when the user runs it, they come back with the output and you diagnose (`debugging-architect`) — never improvise past a failed step on their behalf, in an environment you cannot see.
 
-Then close with the picker (Guidelines §17 rule 3), offering what comes after the user runs it — `Review it → code-review-architect`, `Update history → rolling-history`, `Stop here`. The command itself is never an option: a pick would have you run it, and the guard denies that.
+Then close with the picker (Guidelines §17 rule 3), offering what comes after the user runs it — `Review it → code-review-architect`, `Update history → rolling-history`, `Stop here`. The command itself is never an option: a pick would have you run it.
 
 ## 4. The Short Forms
 

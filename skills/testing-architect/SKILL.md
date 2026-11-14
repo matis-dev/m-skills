@@ -13,7 +13,7 @@ argument-hint: "[target area] [+ modifiers: make gates green | hold coverage]"
 
 ## Operational Constraints (Strict — restated from Guidelines)
 
-1. **Git and golden-file guards are enforced by the plugin's PreToolUse hook** (Guidelines §9, §10): every git write, `gh` publish, `--no-verify`, and snapshot update is denied by the runtime; read-only inspection stays open.
+1. **Git and golden-file guards are yours to hold** (Guidelines §9, §10): this edition ships no hooks, so nothing denies the call. Run no git write, `gh` publish, `--no-verify`, or snapshot update; read-only inspection stays open.
 2. **Tests are part of the deliverable** (§11) — no "tests TBD", no merge-ready code without paired tests.
 3. **Never weaken a test to make it pass.** Loosening a tolerance, deleting an assertion, adding a skip, or widening a mock to swallow the failure is a defect. Fix the code or surface the disagreement.
 

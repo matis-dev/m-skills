@@ -27,7 +27,7 @@ If invoked without one:
 
 ## Core Operational Constraints (Strict)
 
-1. **Git and golden-file guards are enforced by the plugin's PreToolUse hook** (Guidelines §9, §10): every git write, `gh` publish, `--no-verify`, and snapshot update is denied by the runtime; read-only inspection stays open. The update command stays user-only (§Manual Visual Review).
+1. **Git and golden-file guards are yours to hold** (Guidelines §9, §10): this edition ships no hooks, so nothing denies the call. Run no git write, `gh` publish, `--no-verify`, or snapshot update; read-only inspection stays open. The update command stays user-only (§Manual Visual Review).
 2. **Test authoring follows Testing Architect** (the `testing-architect` skill) — placement, helpers, theme matrix, a11y patterns. No ad-hoc test setups.
 3. **UI work follows Design Architect** (the `design-architect` skill) — its §2 direction brief is written before the markup, and `module-craft-floor` and its refuse list apply before a UI change is called done.
 4. **`[SEC]` steps follow Security Architect** (the `security-architect` skill, `harden` mode) — the sink is built correctly the first time: parameterized, encoded at the sink, authorization checked at the data access, error path failing **closed**. Never fix a finding by weakening a check.
@@ -37,7 +37,7 @@ If invoked without one:
 8. **Finish the plan, not the first step** (Guidelines §12). A blocked step is named and skipped past; the run continues on everything independent of it. The only mid-run stops are the plan's *Ask Before* items and tier switches.
 9. **Progress lives in a file on any plan of three or more steps.** Context gets summarized mid-run; a file does not. Keep `.claude/PROGRESS.md` — one line per step (`done` · `blocked: <why>` · `todo`), each check with its result — updated after every step. On any stop, end it with a handoff: what changed, what failed, the step to resume at. Where the plugin's SessionStart hook runs, it points every new or compacted context at it; without it, read the file first after any summary. Delete it once the summary is emitted — the summary supersedes it.
 
-> Constraint 1 is absolute and now mechanical. Even when the user says "ship it" or "looks good", they still drive `git add`, `git commit`, and `git push` themselves — and the hook denies the call if you reach for it anyway.
+> Constraint 1 is absolute. Even when the user says "ship it" or "looks good", they still drive `git add`, `git commit`, and `git push` themselves.
 
 ---
 

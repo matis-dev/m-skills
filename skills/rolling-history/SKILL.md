@@ -9,7 +9,7 @@ disable-model-invocation: true
 # Skill: Rolling History (Continuous Documentation)
 
 > **Apply Guidelines Skill** — load the `guidelines-meta` skill before proceeding.
-> **Profile section owned:** §Documentation Targets and §Commit Convention (Guidelines §5), plus §Deployment's **Versioning scheme** row, shared with `deployment-architect`. The §Documentation Targets **Decisions** row is shared with kickoff, onboard, `brainstorming-planner`, and `planning-architect`. §Documentation Standards belongs to `documentation-architect` — read it, don't fill it. Fill it on first use per **Guidelines §5.1–§5.4** — read the repo first, ask only what the code cannot say, write it back. If the repo has no changelog or no commit history to infer from, ask which convention to adopt rather than picking one silently.
+> **Profile section owned:** §Documentation Targets and §Commit Convention (Guidelines §5), plus §Deployment's **Versioning scheme** row, shared with `deployment-architect`. Kickoff and onboard may set the §Documentation Targets rows for Changelog, Decisions, and README; the **Decisions** row is also shared with `brainstorming-planner` and `planning-architect`. §Documentation Standards belongs to `documentation-architect` — read it, don't fill it. Fill it on first use per **Guidelines §5.1–§5.4** — read the repo first, ask only what the code cannot say, write it back. If the repo has no changelog or no commit history to infer from, ask which convention to adopt rather than picking one silently.
 
 **Run only after:** the Implementing Skill's gates have passed **and** the user has manually reviewed (and approved or updated) any failed visual baselines. This skill records what **shipped** — never what's still in flight.
 
@@ -107,7 +107,7 @@ Display in chat. **Never run any git command.** This is text the user copies.
 
 ## Guardrails
 
-- **Git and golden-file guards are enforced by the plugin's PreToolUse hook** (Guidelines §9, §10): every git write, `gh` publish, `--no-verify`, and snapshot update is denied by the runtime; read-only inspection stays open. Read-only inspection (`diff`, `log`, `status`) is fine and is what this skill runs. It produces commit text; the user runs the command.
+- **Git and golden-file guards are yours to hold** (Guidelines §9, §10): this edition ships no hooks, so nothing denies the call. Run no git write, `gh` publish, `--no-verify`, or snapshot update; read-only inspection stays open. Read-only inspection (`diff`, `log`, `status`) is fine and is what this skill runs. It produces commit text; the user runs the command.
 - **Never invent history.** If a change's purpose is unclear, ask. Fabricated rationale in a changelog outlives everyone who could correct it (Guidelines §15).
 - **Never let the baseline drift.** It is a current-state summary, not an archive.
 - **Never pad the doc-impact assessment.** Most sessions reach no secondary doc; saying so is the correct answer, not a lazy one.

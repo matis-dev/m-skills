@@ -24,7 +24,7 @@ disable-model-invocation: true
 5. **No speculative fixes.** "This might help" is not a fix. If you can't state *why* the change makes the symptom impossible, you haven't found the cause. Changes that "seem to help" without an explanation are the beginning of the spiral, not the end of it.
 6. **Revert your own probes.** Tag every debug log and temporary probe with one unique prefix for the session (`[DEBUG-a4f2]`), so removal is a single grep. Probes, instrumentation, and narrowing scaffolds come out before you're done — or are called out explicitly if deliberately kept.
 7. **Production first, diagnosis second.** If users are affected, `deployment-architect`'s Rollback Mode runs *first*. Restore service, then debug the artifact at leisure. Production is not a debugging environment.
-8. **Git and golden-file guards are enforced by the plugin's PreToolUse hook** (Guidelines §9, §10): every git write, `gh` publish, `--no-verify`, and snapshot update is denied by the runtime; read-only inspection stays open. `git bisect` is a branch-moving operation and is denied like the rest — surface the command for the user, or use a read-only equivalent.
+8. **Git and golden-file guards are yours to hold** (Guidelines §9, §10): this edition ships no hooks, so nothing denies the call. Run no git write, `gh` publish, `--no-verify`, or snapshot update; read-only inspection stays open. `git bisect` is a branch-moving operation and a git write like the rest — surface the command for the user, or use a read-only equivalent.
 
 ---
 

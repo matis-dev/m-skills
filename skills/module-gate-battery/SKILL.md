@@ -67,7 +67,7 @@ A blind spot found the hard way is written into the profile's §Guardrails → K
 
 ## 4. When a Visual or Golden Gate Reports Diffs
 
-**Stop. Do not run the update command.** This is Guidelines §10 and it is enforced by the plugin's git and snapshot guard, which denies the call.
+**Stop. Do not run the update command.** This is Guidelines §10. This edition ships no hook to deny the call, so the stop is yours.
 
 Surface the failure literally:
 
