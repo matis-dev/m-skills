@@ -19,23 +19,82 @@
 #     "run_command\r" matches no case arm. Every call goes through m_skills_lf.
 #
 # The engine name stays "python3" whichever interpreter answered; M_SKILLS_PY holds it.
+#
+# Speed is a guard property, not a nicety: a guard that outlives its hooks.json timeout is
+# skipped, and the call runs unchecked. Git Bash pays ~70-90 ms per process and ~340 ms
+# per Python start, so the hot path of a guard spawns only the JSON engine:
+#   - the probe below runs once per PATH and is cached in the private state base;
+#   - m_skills_re / m_skills_fixed match in bash, json_fields reads every field in one run;
+#   - on Windows awk is tried before Python — one cheap process, and no code page in the way.
+
+# m_skills_state_base — sets M_SKILLS_STATE_BASE to this user's private state dir, or
+# returns 1. The base is a predictable name in a shared /tmp, and the hooks read caches
+# back out of it — the engine choice, the gate table the preamble injects as "use
+# verbatim", the update command the guard denies. Another user who creates the name first
+# would own all three, so it is used only when it is ours, private, and not a symlink.
+# Windows skips the check: TEMP is per-user there. Spawns nothing on the usual path: mkdir
+# only when the base is missing, and the chmod that tightens a base an older version left
+# at 755 runs once, recorded in .private.
+m_skills_state_base() {
+  local base="${TMPDIR:-/tmp}/m-skills-${UID:-0}"
+  [ -d "$base" ] || mkdir -p -m 700 "$base" 2>/dev/null
+  if [ "${OS:-}" != Windows_NT ]; then
+    [ -d "$base" ] && [ ! -L "$base" ] && [ -O "$base" ] || return 1
+    [ -f "$base/.private" ] || { chmod 700 "$base" 2>/dev/null && : > "$base/.private"; } || return 1
+  fi
+  M_SKILLS_STATE_BASE="$base"
+}
 
 M_SKILLS_JSON_ENGINE=""
 M_SKILLS_PY=()
-if command -v jq >/dev/null 2>&1; then
-  M_SKILLS_JSON_ENGINE="jq"
-else
-  for _m_py in python3 python "py -3"; do
-    command -v "${_m_py%% *}" >/dev/null 2>&1 || continue
-    # shellcheck disable=SC2086 # "py -3" is meant to split into command and flag
-    if $_m_py -c 'import json, sys; sys.exit(sys.version_info[0] != 3)' >/dev/null 2>&1; then
-      read -r -a M_SKILLS_PY <<< "$_m_py"
-      M_SKILLS_JSON_ENGINE="python3"
-      break
-    fi
+M_SKILLS_ENGINE_CACHE=""
+m_skills_state_base && M_SKILLS_ENGINE_CACHE="$M_SKILLS_STATE_BASE/engine"
+
+# The probe. Each Python candidate is run once, not just found (the Store stub).
+_m_skills_probe() {
+  local c py order="jq python awk"
+  [ "${OS:-}" = Windows_NT ] && order="jq awk python"
+  M_SKILLS_JSON_ENGINE=""; M_SKILLS_PY=()
+  for c in $order; do
+    case "$c" in
+      jq|awk) command -v "$c" >/dev/null 2>&1 && { M_SKILLS_JSON_ENGINE="$c"; return 0; } ;;
+      python)
+        for py in python3 python "py -3"; do
+          command -v "${py%% *}" >/dev/null 2>&1 || continue
+          # shellcheck disable=SC2086 # "py -3" is meant to split into command and flag
+          if $py -c 'import json, sys; sys.exit(sys.version_info[0] != 3)' >/dev/null 2>&1; then
+            # shellcheck disable=SC2206 # one of three fixed names, no glob characters
+            M_SKILLS_PY=($py); M_SKILLS_JSON_ENGINE="python3"; return 0
+          fi
+        done ;;
+    esac
   done
-  unset _m_py
-  command -v awk >/dev/null 2>&1 && [ -z "$M_SKILLS_JSON_ENGINE" ] && M_SKILLS_JSON_ENGINE="awk"
+  return 1
+}
+
+# The cache: engine, interpreter, and the PATH and OS it was probed under, one per line.
+# Read with builtins and trusted only as one of the fixed answers the probe can give:
+# M_SKILLS_PY is executed, so a planted line must never reach it.
+_m_skills_engine_load() {
+  local e p key
+  [ -n "$M_SKILLS_ENGINE_CACHE" ] || return 1
+  { IFS= read -r e && IFS= read -r p && IFS= read -r key; } 2>/dev/null < "$M_SKILLS_ENGINE_CACHE" || return 1
+  [ "$key" = "$PATH|${OS:-}" ] || return 1
+  case "$e:$p" in
+    jq:|awk:) command -v "$e" >/dev/null 2>&1 || return 1 ;;
+    python3:python3|python3:python|"python3:py -3") command -v "${p%% *}" >/dev/null 2>&1 || return 1 ;;
+    *) return 1 ;;
+  esac
+  M_SKILLS_JSON_ENGINE="$e"
+  # shellcheck disable=SC2206 # validated above: one of three fixed names
+  M_SKILLS_PY=($p)
+}
+
+if ! _m_skills_engine_load; then
+  _m_skills_probe
+  [ -n "$M_SKILLS_ENGINE_CACHE" ] && [ -n "$M_SKILLS_JSON_ENGINE" ] && \
+    printf '%s\n%s\n%s\n' "$M_SKILLS_JSON_ENGINE" "${M_SKILLS_PY[*]}" "$PATH|${OS:-}" \
+      > "$M_SKILLS_ENGINE_CACHE" 2>/dev/null
 fi
 
 # The built-in reader: a validating JSON parser in portable awk, run with LC_ALL=C so
@@ -56,18 +115,27 @@ BEGIN {
   ESC["r"] = "\r"; ESC["b"] = sprintf("%c", 8); ESC["f"] = sprintf("%c", 12)
   CTRL = sprintf("[%c-%c%c%c%c-%c]", 1, 8, 11, 12, 14, 31)
   Q2 = sprintf("%c%c", 1, 1)
-  np = split(ENVIRON["M_SKILLS_JP"], W, ".")
+  NUL = (ENVIRON["M_SKILLS_JNUL"] == "1")
+  npaths = split(ENVIRON["M_SKILLS_JP"], PATHS, " ")
 }
 { buf = buf $0 "\n" }
 END {
-  ok = 1; found = 0; out = ""
-  if (buf ~ CTRL) exit
+  bad = NUL ? 1 : 0
+  if (buf ~ CTRL) exit bad
   y = buf
   gsub(/\\[\\"]/, Q2, y)
-  if (y ~ /\\([^\/bfnrtu]|$)/ || y ~ /\\u([^0-9a-fA-F]|.[^0-9a-fA-F]|..[^0-9a-fA-F]|...[^0-9a-fA-F])/) exit
-  if (!lex(y)) exit
-  ti = 1; pval(0, 1)
-  if (ok && ti == nt + 1 && found) printf "%s", out
+  if (y ~ /\\([^\/bfnrtu]|$)/ || y ~ /\\u([^0-9a-fA-F]|.[^0-9a-fA-F]|..[^0-9a-fA-F]|...[^0-9a-fA-F])/) exit bad
+  if (!lex(y)) exit bad
+  # One walk per path; whether the document is valid does not depend on the path, so
+  # the first walk decides it before anything is printed.
+  for (pi = 1; pi <= npaths; pi++) {
+    np = split(PATHS[pi], W, ".")
+    ok = 1; found = 0; out = ""
+    ti = 1; pval(0, 1)
+    if (!(ok && ti == nt + 1)) exit bad
+    if (NUL) printf "%s%c", (found ? out : ""), 0
+    else if (found) printf "%s", out
+  }
 }
 function lex(y,   m, i, pos) {
   m = split(y, P, /"/); nt = 0; pos = 1
@@ -164,6 +232,7 @@ function hex(s,   v, i) {
   return v
 }
 function utf8(c) {
+  if (c == 0) return ""   # \u0000 is dropped, as $(…) drops a NUL from every other reader
   if (c < 128) return sprintf("%c", c)
   if (c < 2048) return sprintf("%c%c", 192 + int(c / 64), 128 + c % 64)
   if (c < 65536) return sprintf("%c%c%c", 224 + int(c / 4096), 128 + int(c / 64) % 64, 128 + c % 64)
@@ -182,6 +251,43 @@ m_skills_py() { "${M_SKILLS_PY[@]}" "$@" | m_skills_lf; }
 # buffer, and under pipefail the match reads as a miss. No here-string: past the pipe
 # size bash writes it to a temp file, and an unwritable TMPDIR would read as a miss too.
 m_skills_has() { local n; n="$(printf '%s' "$1" | grep -c "${@:2}")"; [ "${n:-0}" != 0 ]; }
+
+# m_skills_re <text> <ERE> — bash's own regex over the whole text, no subprocess. The
+# guards match with this; m_skills_has spawned three processes per check.
+#
+# grep reads line by line, so its ^ and $ anchor at every line break and nothing crosses
+# one; in [[ =~ ]] a newline is an ordinary character. A pattern gives the same answer
+# both ways only if no part of it can match a newline except a boundary, so guard
+# patterns are written to that rule:
+#   - a boundary is (^|[^…]) or ([…]|$), whose class includes the newline: a match that
+#     starts after one is a match at the start of a line, as grep would see it;
+#   - a separator inside a match is $M_SKILLS_SP, which is [[:space:]] without newline;
+#   - "any characters" is $M_SKILLS_ANY, which is .* without newline;
+#   - a bare $ is written (${M_SKILLS_NL}|\$).
+# Looping over the lines instead costs one regcomp per line per pattern — 1.8 s on a
+# command with an 8,000-line heredoc, measured — which is the timeout this replaces.
+m_skills_re() { [[ $1 =~ $2 ]]; }
+M_SKILLS_NL=$'\n'
+M_SKILLS_SP=$'[[:blank:]\v\f\r]'
+M_SKILLS_ANY=$'[^\n]*'
+
+# m_skills_fixed <text> <string> — whether <string> occurs in <text>, as grep -F does
+# for a one-line string. No subprocess.
+m_skills_fixed() { [[ $1 == *"$2"* ]]; }
+
+# m_skills_re_lines <text> <ERE> — true if a line of <text> matches, exactly as grep -E:
+# for a short text (a path) matched with a pattern written for grep, where the rule above
+# does not hold. A one-line text takes a single match.
+m_skills_re_lines() {
+  case "$1" in *"$M_SKILLS_NL"*) ;; *) [[ $1 =~ $2 ]]; return ;; esac
+  local f=$- IFS=$'\n' l
+  set -f
+  # shellcheck disable=SC2206 # split on newline is the point; globbing is off
+  local -a lines=($1)
+  case "$f" in *f*) ;; *) set +f ;; esac
+  for l in "${lines[@]}"; do [[ $l =~ $2 ]] && return 0; done
+  return 1
+}
 
 # Read the entire stdin payload. Call once; stdin is not rewindable.
 hook_read_input() { cat; }
@@ -202,11 +308,11 @@ json_field() {
       ;;
     python3)
       printf '%s' "$payload" | m_skills_py -c '
-import json, sys
+import json, re, sys
 try:
-    d = json.load(sys.stdin)
+    d = json.loads(sys.stdin.buffer.read().decode("utf-8", "replace"))
 except Exception:
-    print(""); sys.exit(0)
+    sys.exit(0)
 for k in sys.argv[1].split("."):
     if isinstance(d, dict):
         d = d.get(k)
@@ -215,7 +321,8 @@ for k in sys.argv[1].split("."):
     else:
         d = None
         break
-print(d if isinstance(d, str) else ("" if d is None else json.dumps(d)))
+s = d if isinstance(d, str) else ("" if d is None else json.dumps(d))
+sys.stdout.buffer.write(re.sub("[\ud800-\udfff]", "\ufffd", s).encode("utf-8"))
 ' "$path" 2>/dev/null
       ;;
     awk)
@@ -223,6 +330,86 @@ print(d if isinstance(d, str) else ("" if d is None else json.dumps(d)))
       ;;
     *) return 1 ;;
   esac
+}
+
+# The multi-field readers. Each prints every value followed by a NUL, in path order, and
+# exits non-zero with no output when the payload is not exactly one valid JSON document.
+# A NUL inside a value (\u0000) is dropped, as $(…) drops it from json_field. Python reads
+# and writes bytes as UTF-8: decoding stdin with the Windows code page raises on bytes
+# like 0x81, and a reader that prints nothing hands the guard an empty command to allow.
+M_SKILLS_JQ_FIELDS='[inputs] | if length != 1 then error("not one document") else .[0] end
+  | . as $d | ($p | split(" ")[]) as $path
+  | $d | reduce ($path | split(".")[]) as $k (.;
+      if type == "object" then .[$k]
+      elif type == "array" and ($k | test("^[0-9]+$")) then .[$k | tonumber]
+      else null end)
+  | (if . == null then "" elif type == "string" then . else tojson end)
+  | (split("\u0000") | join("")) + "\u0000"'
+M_SKILLS_PY_FIELDS='
+import json, re, sys
+try:
+    d = json.loads(sys.stdin.buffer.read().decode("utf-8", "replace"))
+except Exception:
+    sys.exit(1)
+out = []
+for p in sys.argv[1:]:
+    v = d
+    for k in p.split("."):
+        if isinstance(v, dict):
+            v = v.get(k)
+        elif isinstance(v, list) and k.isdigit() and int(k) < len(v):
+            v = v[int(k)]
+        else:
+            v = None
+            break
+    s = v if isinstance(v, str) else ("" if v is None else json.dumps(v, separators=(",", ":"), ensure_ascii=False))
+    out.append(re.sub("[\ud800-\udfff]", "\ufffd", s).replace("\0", "") + "\0")
+sys.stdout.buffer.write("".join(out).encode("utf-8"))
+'
+_m_skills_fields() { # <path>… — the payload on stdin
+  local IFS=' '
+  case "$M_SKILLS_JSON_ENGINE" in
+    jq)      jq -j -n --arg p "$*" "$M_SKILLS_JQ_FIELDS" ;;
+    python3) "${M_SKILLS_PY[@]}" -c "$M_SKILLS_PY_FIELDS" "$@" ;;
+    awk)     M_SKILLS_JP="$*" M_SKILLS_JNUL=1 LC_ALL=C awk "$M_SKILLS_JSON_AWK" ;;
+    *)       return 1 ;;
+  esac
+}
+
+# json_fields <payload> <VAR> <path> [<VAR> <path>]… — reads every path in one engine run
+# and assigns each value to its variable; absent, null, or an unreadable payload leaves it
+# empty. A numeric segment indexes an array: workspacePaths.0. One process, not one per
+# field: on Git Bash each costs a third of a second under Python.
+#
+# The payload goes in as a here-string, which spawns no writer. Past the pipe size bash
+# writes it to a temp file instead, and an unwritable TMPDIR would read as "no fields" —
+# so a run that printed nothing is retried once through printf, as json_field reads it.
+# A run that fails both ways also empties the engine cache, so the next hook re-probes:
+# an interpreter that broke since it was cached must not keep handing guards nothing.
+# Locals are prefixed so no caller's variable name is shadowed by printf -v.
+json_fields() {
+  local _jf_payload="$1" _jf_i; shift
+  local -a _jf_vars=() _jf_paths=()
+  while [ $# -ge 2 ]; do _jf_vars+=("$1"); _jf_paths+=("$2"); shift 2; done
+  for _jf_i in "${!_jf_vars[@]}"; do printf -v "${_jf_vars[$_jf_i]}" '%s' ""; done
+  [ ${#_jf_vars[@]} -gt 0 ] || return 0
+  if ! _m_skills_read_fields < <(_m_skills_fields "${_jf_paths[@]}" 2>/dev/null <<< "$_jf_payload"); then
+    _m_skills_read_fields < <(printf '%s' "$_jf_payload" | _m_skills_fields "${_jf_paths[@]}" 2>/dev/null) || {
+      [ -n "$M_SKILLS_ENGINE_CACHE" ] && : > "$M_SKILLS_ENGINE_CACHE" 2>/dev/null
+      return 1
+    }
+  fi
+}
+# Reads one NUL-terminated value per name in _jf_vars; fails, setting nothing, unless the
+# first one arrives. Native jq.exe ends lines with CRLF, so each value loses the CR before
+# every LF and at the end — what m_skills_lf does, without the sed.
+_m_skills_read_fields() {
+  local _jf_v _jf_n
+  for _jf_n in "${!_jf_vars[@]}"; do
+    IFS= read -r -d '' _jf_v || { [ "$_jf_n" -gt 0 ] && break; return 1; }
+    _jf_v="${_jf_v//$'\r\n'/$'\n'}"
+    printf -v "${_jf_vars[$_jf_n]}" '%s' "${_jf_v%$'\r'}"
+  done
 }
 
 # json_string <text> — the text as a JSON string literal, quotes included. Plain bash:
@@ -297,7 +484,7 @@ m_skills_section() {
 # The user's opt-out from the enforcement hooks, project or global. Same flag-file
 # idiom as adhd-always-on.sh: presence is the whole signal, contents ignored.
 m_skills_guards_disabled() {
-  local project="${CLAUDE_PROJECT_DIR:-$(pwd)}"
+  local project="${CLAUDE_PROJECT_DIR:-$PWD}"
   local config_dir="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
   [ -f "$project/.claude/.m-skills-no-guards" ] && return 0
   [ -f "$config_dir/.m-skills-no-guards" ] && return 0
@@ -360,10 +547,13 @@ m_skills_gate_cache_key() {
 # Last resort, when neither is available: the parent process's start time. Constant
 # within one Claude Code process, different in the next — still wrong for concurrent
 # sessions sharing a parent, but never a global constant.
+#
+# The id becomes a directory name, so anything outside [A-Za-z0-9._-] turns into _, one per
+# byte (LC_ALL=C), as the tr this replaces did — the names every hook already uses stay.
 m_skills_session_id() {
-  local from_payload="${1:-}"
-  [ -n "$from_payload" ] && { printf '%s' "$from_payload" | tr -c 'A-Za-z0-9._-' '_'; return; }
-  [ -n "${CLAUDE_SESSION_ID:-}" ] && { printf '%s' "$CLAUDE_SESSION_ID" | tr -c 'A-Za-z0-9._-' '_'; return; }
+  local from_payload="${1:-}" LC_ALL=C
+  [ -n "$from_payload" ] && { printf '%s' "${from_payload//[^A-Za-z0-9._-]/_}"; return; }
+  [ -n "${CLAUDE_SESSION_ID:-}" ] && { printf '%s' "${CLAUDE_SESSION_ID//[^A-Za-z0-9._-]/_}"; return; }
   local boot
   boot="$(awk '{print $22}' "/proc/$PPID/stat" 2>/dev/null)" \
     || boot="$(ps -o lstart= -p "$PPID" 2>/dev/null)"
@@ -374,22 +564,10 @@ m_skills_session_id() {
 # time the same file is touched. Pass the payload's session_id; two concurrent
 # sessions then never silence each other.
 #
-# The base is a predictable name in a shared /tmp, and the hooks read caches back out
-# of it — the gate table the preamble injects as "use verbatim", the update command the
-# guard denies. Another user who creates the name first would own both, so it is used
-# only when it is ours, private, and not a symlink; otherwise this prints nothing and
-# returns 1. The update-command guard then runs uncached; the advisories, the gate
-# preamble, and the pick check stay silent. Windows skips the check: TEMP is per-user there.
-#
-# enforce-picks.sh calls this on every Read and Bash, so the usual path spawns nothing:
-# mkdir only when the base is missing, and the chmod that tightens a base an older
-# version left at 755 runs once, recorded in .private.
+# Prints nothing and returns 1 when the base is not ours (m_skills_state_base, top of
+# this file). The update-command guard then runs uncached; the advisories, the gate
+# preamble, and the pick check stay silent.
 m_skills_state_dir() {
-  local base="${TMPDIR:-/tmp}/m-skills-$(id -u 2>/dev/null || echo 0)"
-  [ -d "$base" ] || mkdir -p -m 700 "$base" 2>/dev/null
-  if [ "${OS:-}" != Windows_NT ]; then
-    [ -d "$base" ] && [ ! -L "$base" ] && [ -O "$base" ] || return 1
-    [ -f "$base/.private" ] || { chmod 700 "$base" 2>/dev/null && : > "$base/.private"; } || return 1
-  fi
-  printf '%s/%s' "$base" "$(m_skills_session_id "${1:-}")"
+  m_skills_state_base || return 1
+  printf '%s/%s' "$M_SKILLS_STATE_BASE" "$(m_skills_session_id "${1:-}")"
 }
