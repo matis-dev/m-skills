@@ -584,6 +584,12 @@ if command -v jq >/dev/null 2>&1; then
     case "|$m|" in *"|Bash|"*) ;; *) bad "$g matcher includes Bash" "got: $m" ;; esac
     case "|$m|" in *"|Monitor|"*) ok "$g matcher includes Monitor" ;; *) bad "$g matcher includes Monitor" "got: $m" ;; esac
   done
+  # a guard past its timeout fails OPEN — the host runs the call unchecked. Windows Git
+  # Bash spawns slowly enough that 5 s was being hit on a plain `ls`.
+  short="$(jq -r '.hooks.PreToolUse[].hooks[] | select(.timeout < 15) | .args[0]' "$HOOKS_JSON")"
+  assert_empty "every PreToolUse guard allows at least 15 s" "$short"
+  assert_contains "README says a timed-out guard lets the call through" \
+    "$(cat "$ROOT/README.md")" "Claude Code runs the tool call without the check"
   assert_contains "preamble wired to UserPromptExpansion" "$(jq -r '.hooks.UserPromptExpansion[].hooks[].args[0]' "$HOOKS_JSON")" "skill-preamble.sh"
   assert_contains "pick check wired to AskUserQuestion" "$(jq -r '.hooks.PostToolUse[] | select(.matcher == "AskUserQuestion") | .hooks[].args[0]' "$HOOKS_JSON")" "enforce-picks.sh"
   assert_contains "pick check wired to Read and Bash"   "$(jq -r '.hooks.PostToolUse[] | select(.matcher == "Read|Bash") | .hooks[].args[0]' "$HOOKS_JSON")" "enforce-picks.sh"
@@ -1214,6 +1220,104 @@ expect "deny: npm publish ahead of 280 KB" deny  "$(decision guard-outward.sh "$
 $BULK")")"
 expect "deny: cat .env ahead of 100 KB of words" deny "$(decision guard-secrets.sh "$(bash_payload "cat .env $BULKW")")"
 
+# ── A newline. grep judged each line on its own; the guards now match the whole string
+#    in bash, where a newline is an ordinary character. Their patterns let only a boundary
+#    match one, so a command on any line is caught and nothing joins across lines.
+expect "deny: git commit on the second line"     deny  "$(decision guard-mutations.sh "$(bash_payload "$(printf 'ls\ngit commit -m x')")")"
+expect "deny: rm -rf / on the second line"       deny  "$(decision guard-mutations.sh "$(bash_payload "$(printf 'echo ok\nrm -rf /')")")"
+expect "deny: bare git stash, then another line" deny  "$(decision guard-mutations.sh "$(bash_payload "$(printf 'git stash\nls')")")"
+expect "deny: jest -u on the second line"        deny  "$(decision guard-mutations.sh "$(bash_payload "$(printf 'ls\njest -u')")")"
+expect "allow: git, then commit on the next line" allow "$(decision guard-mutations.sh "$(bash_payload "$(printf 'git\ncommit')")")"
+expect "allow: git branch, -D on the next line"   allow "$(decision guard-mutations.sh "$(bash_payload "$(printf 'git branch\n-D x')")")"
+expect "allow: dd, of=/dev/ on the next line"     allow "$(decision guard-mutations.sh "$(bash_payload "$(printf 'dd if=a of=b\necho of=/dev/null')")")"
+expect "allow: jest, then sort -u on the next line" allow "$(decision guard-mutations.sh "$(bash_payload "$(printf 'jest --listTests\nsort -u')")")"
+expect "deny: npm publish on the second line"    deny  "$(decision guard-outward.sh "$(bash_payload "$(printf 'ls\nnpm publish')")")"
+expect "deny: gh pr create on the second line"   deny  "$(decision guard-outward.sh "$(bash_payload "$(printf 'cd x\ngh pr create --fill')")")"
+expect "allow: gh pr, then create on the next line" allow "$(decision guard-outward.sh "$(bash_payload "$(printf 'gh pr\ncreate')")")"
+expect "allow: prisma, deploy on the next line"  allow "$(decision guard-outward.sh "$(bash_payload "$(printf 'prisma generate\necho deploy')")")"
+out="$(printf '%s' "$(bash_payload 'git -C /tmp/add commit -m x')" | bash "$PLUGIN_UT/scripts/guard-mutations.sh" 2>/dev/null)"
+assert_contains "the reason names the subcommand, not a word in a path" "$out" 'git commit'
+
+# ── The payload reader is the guards' eyes: a field it fails to read is a command the guard
+#    allows. Each row is an attack on the reader, named by what it would let through.
+expect "deny: a \\u0000 escape does not cut the command short" deny \
+  "$(decision guard-mutations.sh '{"tool_name":"Bash","tool_input":{"command":"ls\u0000; git push"}}')"
+RBIN="$TMP/readerbin"; mkdir -p "$RBIN" "$TMP/readertmp"
+for c in bash sh cat grep tr sed awk dirname head cut cksum id stat date mkdir chmod git; do
+  p="$(command -v "$c" 2>/dev/null)" && [ -n "$p" ] && ln -sf "$p" "$RBIN/$c"
+done
+if REALPY3="$(command -v python3 2>/dev/null)"; then
+  # Windows Python decodes a pipe with the ANSI code page; cp1252 has no character for 0x81,
+  # which UTF-8 "с" (D1 81) contains, and the reader that raised printed an empty command.
+  mkdir -p "$TMP/cp1252bin"; ln -sf "$RBIN"/* "$TMP/cp1252bin/"; rm -f "$TMP/cp1252bin/awk"
+  printf '#!/bin/sh\nPYTHONIOENCODING=cp1252 exec "%s" "$@"\n' "$REALPY3" > "$TMP/cp1252bin/python3"
+  chmod +x "$TMP/cp1252bin/python3"
+  out="$(printf '%s' "$(bash_payload 'git commit -m "сборка"')" \
+    | TMPDIR="$TMP/readertmp" PATH="$TMP/cp1252bin" bash "$PLUGIN_UT/scripts/guard-mutations.sh" 2>/dev/null)"
+  expect "deny: a Cyrillic commit message under a code-page Python" deny "$(printf '%s' "$out" | verdict)"
+  # On Windows awk goes first: one process, and no code page between the payload and the guard.
+  ln -sf "$REALPY3" "$RBIN/python3"
+  eng() { OS="$1" TMPDIR="$TMP/readertmp" PATH="$RBIN" bash -c '. "$1"; printf %s "$M_SKILLS_JSON_ENGINE"' _ "$ROOT/scripts/lib/hook-json.sh" 2>/dev/null; }
+  assert_eq "Windows probes awk before Python" "$(eng Windows_NT)" "awk"
+  assert_eq "elsewhere Python still comes before awk" "$(eng '')" "python3"
+  rm -f "$RBIN/python3"
+else
+  skip "reader rows under Python" "python3 not available"
+fi
+# The engine choice is cached in the private state base, and M_SKILLS_PY is executed: a
+# planted cache line must be refused and re-probed, never run.
+PBASE="$TMP/poisontmp/m-skills-$(id -u)"; mkdir -p "$PBASE"; chmod 700 "$PBASE"; : > "$PBASE/.private"
+printf ': > "%s"\n' "$TMP/PWNED" > "$TMP/evil.sh"
+printf 'python3\nsh %s\n%s|\n' "$TMP/evil.sh" "$PATH" > "$PBASE/engine"
+out="$(printf '%s' "$(bash_payload 'git commit -m x')" | TMPDIR="$TMP/poisontmp" bash "$PLUGIN_UT/scripts/guard-mutations.sh" 2>/dev/null)"
+expect "deny: a planted engine cache does not blind the guard" deny "$(printf '%s' "$out" | verdict)"
+[ -e "$TMP/PWNED" ] && bad "a planted engine cache is not executed" "the cached interpreter ran" \
+                    || ok "a planted engine cache is not executed"
+case "$(head -1 "$PBASE/engine")" in jq|python3|awk) ok "a refused engine cache is re-probed and rewritten" ;;
+  *) bad "a refused engine cache is re-probed and rewritten" "got: $(head -1 "$PBASE/engine")" ;; esac
+
+# ── Speed is a guard property: past its hooks.json timeout a guard is skipped and the call
+#    runs unchecked. Git Bash pays ~80 ms per process, so the budget is a process count,
+#    not a time — forks are nearly free on Linux, and a timer here would pass the very
+#    regression that times out on Windows. A plain call may cost the payload read and one
+#    engine run, and the pick check nothing at all while no pick is pending.
+if command -v strace >/dev/null 2>&1 && strace -f -qq -o /dev/null true 2>/dev/null; then
+  mkdir -p "$TMP/forktmp" "$TMP/forkproj"
+  forks() { # <script> <payload> → process creations (clone/fork/vfork) in one run
+    printf '%s' "$2" | CLAUDE_PROJECT_DIR="$TMP/forkproj" TMPDIR="$TMP/forktmp" \
+      strace -f -qq -o "$TMP/forks.txt" -e trace=clone,clone3,fork,vfork bash "$PLUGIN_UT/scripts/$1" >/dev/null 2>&1
+    grep -cE '(clone|clone3|fork|vfork)\(' "$TMP/forks.txt"
+  }
+  FC_LS='{"session_id":"forks-1","tool_name":"Bash","tool_input":{"command":"ls"}}'
+  FC_READ='{"session_id":"forks-1","hook_event_name":"PostToolUse","tool_name":"Read","tool_input":{"file_path":"/p/README.md"}}'
+  forks guard-mutations.sh "$FC_LS" >/dev/null   # a session's first call resolves the update command
+  for g in guard-mutations.sh guard-outward.sh guard-secrets.sh; do
+    n="$(forks "$g" "$FC_LS")"
+    [ "$n" -le 2 ] && ok "$g spawns at most 2 processes on a plain ls" \
+                   || bad "$g spawns at most 2 processes on a plain ls" "got $n"
+  done
+  n="$(forks guard-secrets.sh "$FC_READ")"
+  [ "$n" -le 2 ] && ok "guard-secrets spawns at most 2 processes on a plain Read" \
+                 || bad "guard-secrets spawns at most 2 processes on a plain Read" "got $n"
+  n="$(forks enforce-picks.sh "$FC_READ")"
+  [ "$n" -eq 0 ] && ok "enforce-picks spawns nothing on a Read with no pick pending" \
+                 || bad "enforce-picks spawns nothing on a Read with no pick pending" "got $n"
+else
+  skip "process-count budget for the hot-path hooks" "strace is not available"
+fi
+
+# ── A hook finds its lib from its own path. On Windows that path comes from a native
+#    ${CLAUDE_PLUGIN_ROOT} (C:\…\5.9.1/scripts/guard-mutations.sh); a hook that took it for
+#    a relative path would source a lib that is not there and exit 0 — the call unchecked.
+#    No Linux run can hand bash a drive path, so each hook's own DIR lines are run on one.
+for g in guard-mutations.sh guard-outward.sh guard-secrets.sh enforce-picks.sh; do
+  idiom="$(grep -E '^(DIR=|case "\$DIR" in)' "$PLUGIN_UT/scripts/$g" | sed 's/BASH_SOURCE\[0\]/SRC/g')"
+  for src in 'C:\Users\u\plug\5.9.1/scripts/x.sh' 'C:/Users/u/plug/5.9.1/scripts/x.sh'; do
+    assert_eq "$g keeps a drive path as it is: ${src%%/*}…" \
+      "$(cd / && SRC="$src" bash -c "$idiom"$'\n''printf %s "$DIR"')" "${src%/*}"
+  done
+done
+
 # ── §9 is "no git write", not "no four specific verbs". These were denied by the
 #    hook while Guidelines §9 listed only six bullets; the prose now matches, so
 #    pin the breadth against a future narrowing.
@@ -1360,6 +1464,13 @@ expect "deny: .env spliced from a quoted part"             deny "$(sec "cat '.en
 expect "deny: .env spliced from mixed quotes"              deny "$(sec "cat \".e\"n'v'")"
 expect "deny: .env spliced with an escaped letter"         deny "$(sec 'cat .e\nv')"
 expect "deny: .env spliced with empty quotes on Windows"   deny "$(OS=Windows_NT sec 'type .en""v')"
+# $'…' (ANSI-C) and $"…" (locale) quoting join the same way; the $ goes with its quote
+expect "deny: .env spliced from an ANSI-C quoted part"     deny "$(sec "cat .en\$'v'")"
+expect "deny: .env spliced from a locale-quoted part"      deny "$(sec 'cat .en$"v"')"
+expect "deny: .env spliced from an ANSI-C part on Windows" deny "$(OS=Windows_NT sec "type .en\$'v'")"
+expect "allow: an ANSI-C quoted .env.example"              allow "$(sec "cat \$'.env.example'")"
+expect "allow: an ANSI-C string beside .env.example"       allow "$(sec "printf \$'%s\\n' .env.example")"
+expect "allow: naming an ANSI-C quoted .env with ls"       allow "$(sec "ls \$'.env'")"
 expect "deny: Read id_rsa"                 deny  "$(decision guard-secrets.sh "$(write_payload Read '/home/u/.ssh/id_rsa')")"
 expect "deny: Grep pointed at .env.local"  deny  "$(decision guard-secrets.sh "$(grep_payload path '/p/.env.local')")"
 expect "deny: Grep globbed to .env*"       deny  "$(decision guard-secrets.sh "$(grep_payload glob '.env*')")"
@@ -1431,7 +1542,8 @@ TRAV_STATE="$TMP/trav-state"
 out="$(printf '{"hook_event_name":"UserPromptExpansion","command_name":"m-skills:../skills/planning-architect","session_id":"trav-%s"}' "$$" \
   | TMPDIR="$TRAV_STATE" bash "$PLUGIN_UT/scripts/skill-preamble.sh" 2>/dev/null)"
 assert_empty "preamble refuses a skill name that climbs out with ../" "$out"
-assert_empty "  ...and writes no marker for it" "$(find "$TRAV_STATE" -type f 2>/dev/null)"
+# (engine and .private belong to the state base, written when the lib is sourced)
+assert_empty "  ...and writes no marker for it" "$(find "$TRAV_STATE" -type f ! -name engine ! -name .private 2>/dev/null)"
 
 # The state dir sits at a predictable name in a shared /tmp, and the hooks read caches
 # back out of it: the gate table the preamble injects as "use verbatim", and the update
@@ -1449,18 +1561,20 @@ LEGACY="$TMP/legacy/m-skills-$(id -u 2>/dev/null || echo 0)"; mkdir -p -m 755 "$
 printf '{"hook_event_name":"UserPromptExpansion","command_name":"m-skills:testing-architect","session_id":"legacy-%s"}' "$$" \
   | TMPDIR="$TMP/legacy" bash "$PLUGIN_UT/scripts/skill-preamble.sh" >/dev/null 2>&1
 assert_eq "preamble tightens a state dir left at 755 to 700" "$(ls -ld "$LEGACY" | cut -c1-10)" "drwx------"
-# A foreign-owned base needs a second uid to create. The name is built from `id -u`, so
-# a stub answering with a climb out to / points the base at a real directory this
-# account does not own. Sandboxes can hand / itself to the user, so look for one.
+# A foreign-owned base needs a second uid to create, and the name is built from bash's
+# read-only $UID, which no stub can change. A user + mount namespace makes one: inside
+# it this account is uid 0, and a directory it does not own (root's, unmapped) is bound
+# onto m-skills-0. Sandboxes can hand / itself to the user, so look for one.
 NOT_MINE=""; for d in /usr /proc /dev /; do [ -d "$d" ] && [ ! -O "$d" ] && { NOT_MINE="$d"; break; }; done
+FOREIGN="$TMP/foreign"; mkdir -p "$FOREIGN/m-skills-0"
 if [ -z "$NOT_MINE" ]; then
   skip "state dir refuses a base another account owns" "every candidate directory is owned by this account"
+elif ! unshare -rm true 2>/dev/null; then
+  skip "state dir refuses a base another account owns" "unprivileged user namespaces are off here"
 else
-  FOREIGN="$TMP/foreign"; mkdir -p "$FOREIGN/bin" "$FOREIGN/m-skills-x"
-  printf '#!/bin/sh\necho "x/%s..%s"\n' "$(printf '%s' "$FOREIGN" | tr -cd / | sed 's#/#../#g')" "$NOT_MINE" > "$FOREIGN/bin/id"
-  chmod +x "$FOREIGN/bin/id"
-  out="$(PATH="$FOREIGN/bin:$PATH"; TMPDIR="$FOREIGN"; m_skills_state_dir foreign)"; rc=$?
-  assert_eq "state dir refuses a base another account owns" "$rc:$out" "1:"
+  out="$(unshare -rm bash -c 'mount --bind "$1" "$2/m-skills-0" || exit 9
+    TMPDIR="$2"; . "$3"; m_skills_state_dir foreign; echo ":$?"' _ "$NOT_MINE" "$FOREIGN" "$ROOT/scripts/lib/hook-json.sh" 2>/dev/null)"
+  assert_eq "state dir refuses a base another account owns" "$out" ":1"
 fi
 
 # It is registered with no matcher, so it runs on EVERY user prompt: it must decide
@@ -1542,11 +1656,40 @@ UPC="$TMP/updconf"; mkdir -p "$UPC/.claude"
 printf 'UPDATE_CMD="make snapshots"\n' > "$UPC/.claude/quality-gates.conf"
 POISON="$TMP/poison-upd"; mkdir -p "$POISON/theirs/updc-$$"
 ln -s "$POISON/theirs" "$POISON/m-skills-$(id -u 2>/dev/null || echo 0)"
-: > "$POISON/theirs/updc-$$/updatecmd-$(m_skills_gate_cache_key "$UPC")"
+printf '%s\n%s\n\n' "$UPC" "$UPC" > "$POISON/theirs/updc-$$/updatecmd"
 expect "deny: the update command, with an emptied cache planted in /tmp" deny \
   "$(CLAUDE_PROJECT_DIR="$UPC" CLAUDE_SESSION_ID="updc-$$" TMPDIR="$POISON" \
      decision guard-mutations.sh "$(bash_payload 'make snapshots')")"
 rm -rf "${TMPDIR:-/tmp}/m-skills-$(id -u 2>/dev/null || echo 0)/upd-$$"
+# The resolution spawns git and node, so it is cached per session; a hit must spawn
+# neither, and a file the resolution reads that changes mid-session must re-resolve.
+GITSHIM="$TMP/gitshim"; mkdir -p "$GITSHIM"
+printf '#!/bin/sh\n: > "%s"\nexec "%s" "$@"\n' "$TMP/GIT_RAN" "$(command -v git)" > "$GITSHIM/git"; chmod +x "$GITSHIM/git"
+updc() { CLAUDE_PROJECT_DIR="$UPC" PATH="$GITSHIM:$PATH" decision guard-mutations.sh \
+  "$(printf '{"session_id":"updcache-%s","tool_name":"Bash","tool_input":{"command":%s}}' "$$" "$(esc "$1")")"; }
+expect "deny: the update command, first call resolves it" deny "$(updc 'make snapshots')"
+rm -f "$TMP/GIT_RAN"
+expect "deny: the update command, from the session cache" deny "$(updc 'make snapshots')"
+[ -e "$TMP/GIT_RAN" ] && bad "a cached update command spawns no git" "git ran on a cache hit" \
+                      || ok "a cached update command spawns no git"
+printf 'UPDATE_CMD="make goldens"\n' > "$UPC/.claude/quality-gates.conf"
+expect "deny: an update command changed mid-session is re-resolved" deny "$(updc 'make goldens')"
+expect "allow: the old update command once it is no longer the project's" allow "$(updc 'make snapshots')"
+rm -rf "${TMPDIR:-/tmp}/m-skills-$(id -u 2>/dev/null || echo 0)/updcache-$$"
+# A lockfile picks the runner (npm run / yarn run / …), so one that appears mid-session —
+# the user runs `yarn` — re-resolves too, or `yarn run test:update` passes on a stale npm.
+if [ "$HAVE_NODE" = 1 ]; then
+  UPL="$TMP/updlock"; mkdir -p "$UPL"
+  printf '{"scripts":{"test:update":"x"}}\n' > "$UPL/package.json"
+  updl() { CLAUDE_PROJECT_DIR="$UPL" decision guard-mutations.sh \
+    "$(printf '{"session_id":"updlock-%s","tool_name":"Bash","tool_input":{"command":%s}}' "$$" "$(esc "$1")")"; }
+  expect "deny: the update command, resolved with no lockfile" deny "$(updl 'npm run test:update')"
+  : > "$UPL/yarn.lock"
+  expect "deny: a lockfile added mid-session re-resolves the runner" deny "$(updl 'yarn run test:update')"
+  rm -rf "${TMPDIR:-/tmp}/m-skills-$(id -u 2>/dev/null || echo 0)/updlock-$$"
+else
+  skip "a lockfile added mid-session re-resolves the update command" "node not available"
+fi
 
 # ── C2: `-u` is only a snapshot flag on runners that define it, and only when it
 #    belongs to that runner. Denying legitimate work is the worst guard failure
@@ -1703,13 +1846,39 @@ rd() { # <reader> <payload> <path>
       python3)    M_SKILLS_JSON_ENGINE=python3; M_SKILLS_PY=(python3) ;;
       *)          M_SKILLS_JSON_ENGINE="$1" ;;
     esac
-    json_field "$2" "$3"
+    if [ -n "${RD_FIELDS:-}" ]; then json_fields "$2" X "$3" Y session_id; printf '%s' "$X"
+    else json_field "$2" "$3"; fi
   )
 }
+# Every row runs twice: json_field, and json_fields reading the same path in one run with a
+# second one beside it — the guards read through json_fields, the advisories through json_field.
 agree() { # <label> <payload> <path> <expected> [readers]
   local r
-  for r in ${5:-$READERS}; do expect "reader $r: $1" "$4" "$(rd "$r" "$2" "$3")"; done
+  for r in ${5:-$READERS}; do
+    expect "reader $r: $1" "$4" "$(rd "$r" "$2" "$3")"
+    expect "reader $r fields: $1" "$4" "$(RD_FIELDS=1 rd "$r" "$2" "$3")"
+  done
 }
+rdm() { # <reader> <payload> → the three fields json_fields read, joined with |
+  ( case "$1" in
+      gawk-posix) M_SKILLS_JSON_ENGINE=awk; awk() { command gawk --posix "$@"; } ;;
+      mawk)       M_SKILLS_JSON_ENGINE=awk; awk() { command mawk "$@"; } ;;
+      python3)    M_SKILLS_JSON_ENGINE=python3; M_SKILLS_PY=(python3) ;;
+      *)          M_SKILLS_JSON_ENGINE="$1" ;;
+    esac
+    json_fields "$2" A tool_input.command B session_id C w.1
+    printf '%s|%s|%s' "$A" "$B" "$C" )
+}
+agreem() { # <label> <payload> <expected a|b|c> [readers]
+  local r
+  for r in ${4:-$READERS}; do expect "reader $r fields: $1" "$3" "$(rdm "$r" "$2")"; done
+}
+agreem "three fields, one run, in order"   '{"w":["/a","/b"],"session_id":"s-1","tool_input":{"command":"ls\nx"}}' "$(printf 'ls\nx|s-1|/b')"
+agreem "an absent field is empty, not shifted" '{"session_id":"s-1","w":["/a","/b"]}' '|s-1|/b'
+agreem "a NUL in a value is dropped, not a field break" '{"tool_input":{"command":"ls\u0000; git push"},"session_id":"s-1"}' 'ls; git push|s-1|'
+agreem "two documents are not one"         '{"tool_input":{"command":"ls"}} {"tool_input":{"command":"git push"}}' '||'
+agreem "a non-ASCII value round-trips"     '{"tool_input":{"command":"git commit -m \"сборка é\""}}' 'git commit -m "сборка é"||'
+agreem "a CR in a value survives unless before LF" "$(printf '{"tool_input":{"command":"a\\rb\\r\\nc"}}')" "$(printf 'a\rb\nc||')"
 agree "the last duplicate key wins"             '{"tool_input":{"command":"ls","command":"git push"}}' tool_input.command 'git push'
 agree "a later ancestor discards an earlier find" '{"tool_input":{"command":"git push"},"tool_input":{}}' tool_input.command ''
 agree "a deeper key of the same name is not read" '{"tool_input":{"x":{"command":"git push"}}}' tool_input.command ''

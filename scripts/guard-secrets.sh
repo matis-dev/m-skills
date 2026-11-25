@@ -19,18 +19,22 @@
 
 set -uo pipefail
 
-DIR="$(cd "$(dirname -- "$0")" 2>/dev/null && pwd)" || exit 0
+DIR="${BASH_SOURCE[0]%/*}"; [ "$DIR" = "${BASH_SOURCE[0]}" ] && DIR=.
 # shellcheck source=lib/hook-json.sh
 . "$DIR/lib/hook-json.sh" 2>/dev/null || exit 0
 
 m_skills_guards_disabled && exit 0
 
-INPUT="$(hook_read_input)"
+INPUT="$(< /dev/stdin)"
 [ -z "$INPUT" ] && exit 0
 
 guard_require_json_engine
 
-TOOL="$(json_field "$INPUT" "tool_name")"
+# Every field any arm reads, in one engine run. NotebookEdit sends notebook_path, not
+# file_path. Reading only file_path made that arm dead code — a guard the header claims
+# and the case never ran.
+json_fields "$INPUT" TOOL tool_name FILE tool_input.file_path NBPATH tool_input.notebook_path \
+  GPATH tool_input.path GGLOB tool_input.glob CMD tool_input.command
 
 # Example files always pass; the lists are shared with profile-bootstrap.sh.
 EXAMPLE="$M_SKILLS_EXAMPLE_RE"
@@ -48,8 +52,8 @@ BARE_EXT='^\.(pem|key|p12|pfx|jks|keystore)$'
 # slashes, or no (^|/) anchor ever matches it.
 is_secret() {
   local p="${1//\\//}"
-  printf '%s' "$p" | grep -Eq "$EXAMPLE" && return 1
-  printf '%s' "$p" | grep -Eq "$2"
+  m_skills_re_lines "$p" "$EXAMPLE" && return 1
+  m_skills_re_lines "$p" "$2"
 }
 
 # glob_hits_secret <pattern> [shell] — whether a glob would match a secret file:
@@ -88,6 +92,7 @@ QUOTE_LEX='
     if (q == "") {
       if (c == sq || c == "\"") { q = c; return "open" }
       if (c == "$" && nx == sq) { q = "a"; i++; return "open" }
+      if (c == "$" && nx == "\"") { q = "\""; i++; return "open" }   # $"…": bash reads it as "…"
       if (c == "#" && index(" \t;|&()<>", p)) { q = "#"; return "lit" }
       if (c == "<" && nx == "<") return "heredoc"
       return index(";|&(){}`", c) ? "sep" : "lit"
@@ -120,6 +125,7 @@ words() {
         }
         if (blind == "") k = lex()
         else if (c == "\\") { k = "esc"; i++ }
+        else if (c == "$" && (nx == sq || nx == "\"")) { k = "open"; i++ }   # $'…' and $"…" join like '…'
         else k = (c == sq || c == "\"") ? "open" : "lit"
         t = substr($0, s, i - s + 1); after(k, t)
         if (k == "esc") { t = (win || q != "") ? t : substr(t, 2); out = out t; deq = deq t }
@@ -206,7 +212,7 @@ names_only() {
       for ((j = i + 1; j < ${#w[@]}; j++)); do
         case "${w[$j]}" in -*) ;; *) n=$((n + 1)); [ "$n" -eq 1 ] && src="${w[$j]}" ;; esac
       done
-      [ "$n" -eq 2 ] && printf '%s' "$src" | grep -Eq "$EXAMPLE" && return 0
+      [ "$n" -eq 2 ] && m_skills_re_lines "$src" "$EXAMPLE" && return 0
       ;;
   esac
   return 1
@@ -222,29 +228,34 @@ deny_read() {
 
 case "$TOOL" in
   Write|Edit|NotebookEdit)
-    # NotebookEdit sends notebook_path, not file_path. Reading only file_path made
-    # this arm dead code — a guard the header claims and the case never ran.
-    FILE="$(json_field "$INPUT" "tool_input.file_path")"
-    [ -z "$FILE" ] && FILE="$(json_field "$INPUT" "tool_input.notebook_path")"
+    [ -z "$FILE" ] && FILE="$NBPATH"
     [ -z "$FILE" ] && exit 0
     is_secret "$FILE" "$GUARDED_FILE_RE" && deny_write "$FILE"
     ;;
   Read)
-    FILE="$(json_field "$INPUT" "tool_input.file_path")"
     [ -n "$FILE" ] && is_secret "$FILE" "$GUARDED_FILE_RE" && deny_read "$FILE"
     ;;
   Grep)
     # A search pointed at a secret file, or filtered down to one, reads it. A
     # directory-wide search is left to the runtime's own Read deny rules.
-    P="$(json_field "$INPUT" "tool_input.path")"
-    G="$(json_field "$INPUT" "tool_input.glob")"
+    P="$GPATH"; G="$GGLOB"
     [ -n "$P" ] && is_secret "$P" "$GUARDED_FILE_RE" && deny_read "$P"
     [ -n "$G" ] && { is_secret "$G" "$GUARDED_FILE_RE" || glob_hits_secret "$G"; } && deny_read "$G"
     ;;
   # Monitor runs its command in the same shell as Bash; its ws form sends none.
   Bash|Monitor)
-    CMD="$(json_field "$INPUT" "tool_input.command")"
     [ -z "$CMD" ] && exit 0
+    # Almost every command names no secret at all, and the passes below spawn a dozen
+    # processes to prove it. Every hit they can report contains one of these words: a hit
+    # is a piece of the command with quotes and backslashes taken out, so the same words
+    # are looked for in the command with quotes, backslashes, $ and backticks taken out
+    # (more is joined, never less). A glob character sends the command on, since
+    # glob_hits_secret matches words that name no secret literally (`.e*`).
+    STRIPPED="${CMD//[\"\'\\\$\`]/}"
+    case "$STRIPPED" in
+      *[][*?]*) ;;
+      *) m_skills_re "$STRIPPED" '(env|pem|key|p12|pfx|jks|id_(rsa|dsa|ecdsa|ed25519)|credentials|service-account|serviceAccountKey|gha-creds|npmrc|pypirc|netrc)' || exit 0 ;;
+    esac
     # One pass over the whole command; almost every command ends here. It reads blind,
     # so a quoted '\.env' is a hit until its segment shows a search tool: `bash -c
     # 'cat \.env'` and "$(cat \.env)" undo the escape, and cmd and PowerShell read
@@ -266,8 +277,10 @@ case "$TOOL" in
     while IFS= read -r seg; do
       mode=blind; [ "$TRUST" = 1 ] && search_tool "$seg" && mode=""
       while IFS= read -r h; do
-        # Quotes and backslashes out of both, or `.en""v` and `.e\nv` skip the check.
-        [[ ${seg//[\"\'\\]/} == *"${h//\\/}"* ]] || continue
+        # Quotes and backslashes out of both, or `.en""v` and `.e\nv` skip the check; the $
+        # that opens $'…' or $"…" goes with its quote, or `.en$'v'` does.
+        s="${seg//\$[\"\']/}"
+        [[ ${s//[\"\'\\]/} == *"${h//\\/}"* ]] || continue
         m_skills_has "$(words "$seg" "$mode")" -Fx -- "$h" || continue
         names_only "$seg" || deny_read "$h"
       done <<< "$HITS"

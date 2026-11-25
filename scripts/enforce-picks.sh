@@ -25,25 +25,28 @@
 
 set -uo pipefail
 
-DIR="$(cd "$(dirname -- "$0")" 2>/dev/null && pwd)" || exit 0
+DIR="${BASH_SOURCE[0]%/*}"; [ "$DIR" = "${BASH_SOURCE[0]}" ] && DIR=.
+case "$DIR" in /*|[A-Za-z]:[\\/]*) ;; *) DIR="$PWD/$DIR" ;; esac   # C:\… is absolute on Windows
+
+INPUT="$(< /dev/stdin)"
+[ -z "$INPUT" ] && exit 0
+
+# Read, Bash, and Stop fire constantly; they only matter while a pick is pending in
+# some session. Decide that with a glob before anything else — before the lib is even
+# sourced — so the common case spawns nothing. The name is the one m_skills_state_base
+# builds; whether that base can be trusted is checked below, before anything is read.
+case "$INPUT" in
+  *AskUserQuestion*) ;;
+  *) pending=0
+     for m in "${TMPDIR:-/tmp}/m-skills-${UID:-0}"/*/pick/*; do [ -e "$m" ] && { pending=1; break; }; done
+     [ "$pending" -eq 1 ] || exit 0 ;;
+esac
+
 # shellcheck source=lib/hook-json.sh
 . "$DIR/lib/hook-json.sh" 2>/dev/null || exit 0
 
 m_skills_guards_disabled && exit 0
-
-INPUT="$(hook_read_input)"
-[ -z "$INPUT" ] && exit 0
-
-# Read, Bash, and Stop fire constantly; they only matter while a pick is pending in
-# some session. Decide that with a glob before spending a jq/python3 spawn.
-STATE_BASE="$(m_skills_state_dir probe)" || exit 0
-STATE_BASE="$(dirname "$STATE_BASE")"
-case "$INPUT" in
-  *AskUserQuestion*) ;;
-  *) pending=0
-     for m in "$STATE_BASE"/*/pick/*; do [ -e "$m" ] && { pending=1; break; }; done
-     [ "$pending" -eq 1 ] || exit 0 ;;
-esac
+m_skills_state_base || exit 0
 
 advisory_require_json_engine
 

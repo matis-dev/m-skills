@@ -24,47 +24,52 @@
 
 set -uo pipefail
 
-DIR="$(cd "$(dirname -- "$0")" 2>/dev/null && pwd)" || exit 0
+DIR="${BASH_SOURCE[0]%/*}"; [ "$DIR" = "${BASH_SOURCE[0]}" ] && DIR=.
 # shellcheck source=lib/hook-json.sh
 . "$DIR/lib/hook-json.sh" 2>/dev/null || exit 0
 
 m_skills_guards_disabled && exit 0
 
-INPUT="$(hook_read_input)"
+INPUT="$(< /dev/stdin)"
 [ -z "$INPUT" ] && exit 0
 
 guard_require_json_engine
 
-CMD="$(json_field "$INPUT" "tool_input.command")"
+json_fields "$INPUT" CMD tool_input.command
 [ -z "$CMD" ] && exit 0
 
+# Every pattern below starts with one of these names and a separator, so a command that
+# names none of them is settled by one match — no reason to walk sixteen. Matching is in
+# bash and follows the newline rule in lib/hook-json.sh: $SP and $ANY never cross a line.
 B='(^|[^[:alnum:]_./-])'
+SP="$M_SKILLS_SP"; ANY="$M_SKILLS_ANY"
+m_skills_re "$CMD" "${B}(gh|vercel|netlify|fly|railway|render|heroku|npm|pnpm|yarn|bun|kubectl|terraform|tofu|prisma|drizzle-kit|alembic|knex|sequelize|docker|aws|firebase|wrangler|serverless|sls|supabase|doctl|flyctl)${SP}" || exit 0
 
-match() { m_skills_has "$CMD" -E "$1"; }
+match() { m_skills_re "$CMD" "$1"; }
 
 WHAT=""; KIND=""
 
 # ── gh writes — publish to a surface other people see ────────────────────────
 # Subcommands are enumerated as WRITES only. Anything not listed (view, list,
 # diff, checks, status) falls through and stays allowed.
-if   match "${B}gh[[:space:]]+pr[[:space:]]+(create|merge|close|reopen|comment|edit|review|ready)([^[:alnum:]_-]|\$)";  then WHAT="open, merge, or comment on a pull request"; KIND=gh
-elif match "${B}gh[[:space:]]+issue[[:space:]]+(create|close|reopen|comment|edit|transfer|delete|pin)([^[:alnum:]_-]|\$)"; then WHAT="create or change a GitHub issue"; KIND=gh
-elif match "${B}gh[[:space:]]+release[[:space:]]+(create|edit|delete|upload)([^[:alnum:]_-]|\$)";                      then WHAT="create or change a GitHub release"; KIND=gh
-elif match "${B}gh[[:space:]]+secret[[:space:]]+(delete|remove|se[t])([^[:alnum:]_-]|\$)";                               then WHAT="write a repository or environment secret"; KIND=gh
-elif match "${B}gh[[:space:]]+(repo|gist)[[:space:]]+(create|delete|edit|rename|archive)([^[:alnum:]_-]|\$)";          then WHAT="create, delete, or reconfigure a repository"; KIND=gh
-elif match "${B}gh[[:space:]]+workflow[[:space:]]+(run|enable|disable)([^[:alnum:]_-]|\$)";                            then WHAT="trigger or toggle a CI workflow"; KIND=gh
-elif match "${B}gh[[:space:]]+api[[:space:]]+.*(-X|--method)[[:space:]]*(POST|PUT|PATCH|DELETE)";                      then WHAT="make a writing GitHub API call"; KIND=gh
+if   match "${B}gh${SP}+pr${SP}+(create|merge|close|reopen|comment|edit|review|ready)([^[:alnum:]_-]|\$)";  then WHAT="open, merge, or comment on a pull request"; KIND=gh
+elif match "${B}gh${SP}+issue${SP}+(create|close|reopen|comment|edit|transfer|delete|pin)([^[:alnum:]_-]|\$)"; then WHAT="create or change a GitHub issue"; KIND=gh
+elif match "${B}gh${SP}+release${SP}+(create|edit|delete|upload)([^[:alnum:]_-]|\$)";                      then WHAT="create or change a GitHub release"; KIND=gh
+elif match "${B}gh${SP}+secret${SP}+(delete|remove|se[t])([^[:alnum:]_-]|\$)";                               then WHAT="write a repository or environment secret"; KIND=gh
+elif match "${B}gh${SP}+(repo|gist)${SP}+(create|delete|edit|rename|archive)([^[:alnum:]_-]|\$)";          then WHAT="create, delete, or reconfigure a repository"; KIND=gh
+elif match "${B}gh${SP}+workflow${SP}+(run|enable|disable)([^[:alnum:]_-]|\$)";                            then WHAT="trigger or toggle a CI workflow"; KIND=gh
+elif match "${B}gh${SP}+api${SP}+${ANY}(-X|--method)${SP}*(POST|PUT|PATCH|DELETE)";                      then WHAT="make a writing GitHub API call"; KIND=gh
 
 # ── infrastructure — deploy, publish, migrate ────────────────────────────────
-elif match "${B}(vercel|netlify|fly|railway|render|heroku)[[:space:]]+(deploy|up)([^[:alnum:]_-]|\$)";       then WHAT="deploy to a hosting platform"; KIND=infra
-elif match "${B}(npm|pnpm|yarn|bun)[[:space:]]+publish([^[:alnum:]_-]|\$)";                                  then WHAT="publish a package to a registry"; KIND=infra
-elif match "${B}kubectl[[:space:]]+(apply|delete|rollout|scale)([^[:alnum:]_-]|\$)";                         then WHAT="mutate a Kubernetes cluster"; KIND=infra
-elif match "${B}(terraform|tofu)[[:space:]]+(apply|destroy)([^[:alnum:]_-]|\$)";                             then WHAT="apply infrastructure changes"; KIND=infra
-elif match "${B}(prisma|drizzle-kit|alembic|knex|sequelize)[[:space:]]+.*(migrate|deploy|push|upgrade)";     then WHAT="run a migration against a database"; KIND=infra
-elif match "${B}docker[[:space:]]+push([^[:alnum:]_-]|\$)";                                                  then WHAT="push a container image to a registry"; KIND=infra
-elif match "${B}aws[[:space:]]+(s3[[:space:]]+(sync|rm|cp)|cloudfront[[:space:]]+create-invalidation|ecs[[:space:]]+update-service|lambda[[:space:]]+update-function-code)"; then WHAT="mutate live AWS infrastructure"; KIND=infra
-elif match "${B}(firebase|wrangler|serverless|sls)[[:space:]]+(deploy|publish)([^[:alnum:]_-]|\$)";          then WHAT="deploy to a serverless platform"; KIND=infra
-elif match "${B}(supabase|doctl|flyctl)[[:space:]]+.*(deploy|migration[[:space:]]+up)";                      then WHAT="deploy or migrate a hosted environment"; KIND=infra
+elif match "${B}(vercel|netlify|fly|railway|render|heroku)${SP}+(deploy|up)([^[:alnum:]_-]|\$)";       then WHAT="deploy to a hosting platform"; KIND=infra
+elif match "${B}(npm|pnpm|yarn|bun)${SP}+publish([^[:alnum:]_-]|\$)";                                  then WHAT="publish a package to a registry"; KIND=infra
+elif match "${B}kubectl${SP}+(apply|delete|rollout|scale)([^[:alnum:]_-]|\$)";                         then WHAT="mutate a Kubernetes cluster"; KIND=infra
+elif match "${B}(terraform|tofu)${SP}+(apply|destroy)([^[:alnum:]_-]|\$)";                             then WHAT="apply infrastructure changes"; KIND=infra
+elif match "${B}(prisma|drizzle-kit|alembic|knex|sequelize)${SP}+${ANY}(migrate|deploy|push|upgrade)";     then WHAT="run a migration against a database"; KIND=infra
+elif match "${B}docker${SP}+push([^[:alnum:]_-]|\$)";                                                  then WHAT="push a container image to a registry"; KIND=infra
+elif match "${B}aws${SP}+(s3${SP}+(sync|rm|cp)|cloudfront${SP}+create-invalidation|ecs${SP}+update-service|lambda${SP}+update-function-code)"; then WHAT="mutate live AWS infrastructure"; KIND=infra
+elif match "${B}(firebase|wrangler|serverless|sls)${SP}+(deploy|publish)([^[:alnum:]_-]|\$)";          then WHAT="deploy to a serverless platform"; KIND=infra
+elif match "${B}(supabase|doctl|flyctl)${SP}+${ANY}(deploy|migration${SP}+up)";                      then WHAT="deploy or migrate a hosted environment"; KIND=infra
 fi
 
 [ -z "$WHAT" ] && exit 0

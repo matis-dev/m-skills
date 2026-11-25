@@ -696,6 +696,10 @@ Three properties are deliberate and worth knowing before you rely on them:
   history skills are built on them, so a guard that closed them would break the pack — the same
   asymmetry as `.env.example`.
 
+**A guard that does not answer in time lets the call through.** If a guard does not answer
+within its timeout, Claude Code runs the tool call without the check. Slow machines can raise
+the timeout in `hooks/hooks.json`.
+
 **What the secret guard cannot stop.** A hook sees the command text, not the files a process
 opens. `grep -r KEY .`, a path assembled at runtime, or a script that loads dotenv itself
 reaches `.env` without naming it, and no pattern match closes that. The guard catches the
