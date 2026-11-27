@@ -115,7 +115,7 @@ If a one-way door exists and can't be avoided, say so explicitly and let the use
 
 ## Phase 5 — Handover
 
-You assemble; the user fires (Constraint 2). The shape, the resolve-every-placeholder rule, the never-print-a-secret rule, and the *what it does / how you know it worked* lines are in the **`module-handover`** skill. Load it and emit the runbook in that shape.
+You assemble; the user fires (Constraint 2). The shape, the resolve-every-placeholder rule, the never-print-a-secret rule, and the *what it does / how you know it worked* lines are in the **`module-handover`** skill. Load it and emit the runbook in that shape, its prose swept against `module-writing-floor`.
 
 Two things this phase adds on top of the module:
 
