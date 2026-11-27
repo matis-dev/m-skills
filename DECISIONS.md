@@ -95,3 +95,8 @@ Supersedes: 2026-11-06 — The directory edition ships prompt hooks only
 Why: the directory now refuses hooks of every type, prompt hooks included, from an organization that is not Verified. The guards stay as rules in every skill; the self-hosted install on `main` keeps every hook.
 Rejected: seeking Verified status (the plugin stays refused until granted); leaving the directory for the self-hosted install only.
 By: Matis.dev · revisit if: the organization is Verified, or the directory accepts hooks again
+
+### 2026-11-27 — rolling-history and deployment-architect load the writing floor
+Why: both were listed as its loaders but never named the module, so the preamble never offered §3 to the commit brief, the changelog entry, or the runbook, the prose it most needs to reach.
+Rejected: removing both from the loader lists and the changelog claim.
+By: code-review-architect (fix pick) · revisit if: never
