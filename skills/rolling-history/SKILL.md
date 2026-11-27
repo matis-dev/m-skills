@@ -114,6 +114,7 @@ Display in chat. **Never run any git command.** This is text the user copies.
 - **Never create a doc the project doesn't have** without asking.
 - **Match the file's existing format** rather than improving it mid-session. Format changes are their own task.
 - **Keep the markdown clean.** This file is read by humans, often months later.
+- **Sweep the changelog entry and the commit brief against `module-writing-floor`** before showing either; §3's prose tells name the sentence shapes to rewrite.
 
 ---
 

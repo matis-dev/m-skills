@@ -1,6 +1,6 @@
 ---
 name: module-writing-floor
-description: "Module — loaded by name from an m-skills architect, not an entry point. The floor for any document a project ships: prerequisites first, runnable examples, real identifiers, task-shaped headings, resolving links, no time estimates — plus the refuse list of documentation slop."
+description: "Module — loaded by name from an m-skills architect, not an entry point. The floor for any document a project ships: prerequisites first, runnable examples, real identifiers, task-shaped headings, resolving links, no time estimates — plus the refuse list of documentation slop and the prose tells that read as machine-written."
 user-invocable: false
 ---
 
@@ -55,3 +55,33 @@ What documentation defaults to when nobody decided. The project's own brief can 
 - A comment or docstring that restates its own signature (`// gets the user` above `getUser()`) → the contract a caller cannot see from the signature: failure behaviour, side effects, units (Guidelines §13).
 - Copying an upstream library's docs into your repo → link the upstream page at the version the lockfile pins. A copy is stale the day the dependency bumps.
 - Screenshots as the only home of a value someone needs to type → the value as text beside the image.
+
+---
+
+## 3. Prose Tells
+
+The sentence-level defaults a model reaches for when it writes for no reader in particular. Sweep every paragraph a person will read — README, release notes, posts, PR and commit bodies, PRDs — in the same verification round as §1; never code, identifiers, or quotations. Each line names the default, then the fix. **Strong** tells justify an edit on one sighting; **weak** ones need a second tell in the same passage.
+
+**Staging instead of stating — strong**
+- Not X but Y — "not just a tool, it's a platform", "…, no guessing", the split form "This doesn't mean X. It means Y." → state Y. Keep the contrast only when X is a belief the reader actually holds.
+- One-line closer or fragment row — "That's the real win.", "No config. No setup.", a sentence naming what the example just showed → cut it, or merge it into a sentence carrying a new fact.
+- Aphorism — "at its core", "the real question is", "X is the language of Y" → the specific claim.
+- Run-up — "Here's the thing", "Let's dive in", "the hard part is" → start at the point; name whatever "the part" points at.
+- Arguing with no one — "To be clear", "I'm not saying", "a tempting approach would be" for an option nobody proposed → delete. Keep an objection the text attributes and answers.
+
+**Inflation — weak**
+- Significance — "marks a pivotal moment", "sets the stage", "the future looks bright" → keep the fact; end on the last concrete one.
+- Sales voice — "seamless", "robust", "powerful", "nestled", "rich", "stunning" → what the thing is or does, with a figure only if it was measured.
+- Avoiding *is* and *has* — "serves as", "stands as", "boasts", "features" → *is*, *has*.
+
+**Shape by rule — weak**
+- Three items for rhythm → three only when there are three ideas.
+- A bold label and colon on every list item, the label restating its sentence → prose, or a plain list.
+- A heading restated in the first sentence under it → cut the sentence.
+- A dash joining every other clause → comma, colon, period, or parentheses. Outbound posts carry none; elsewhere match the rate in the project's existing docs.
+
+**Writing about the document — strong outside change docs.** "Was added to replace", "the table below compares", "compiled from" → describe the subject. History belongs in changelogs, release notes, and migration guides only.
+
+**Voice outranks the list.** The project's existing docs, or a sample the user gives, set sentence length, punctuation, and register; match them before applying any line above. Leave a tell inside a quotation or a name, or where the text discusses the phrase. Informal text — an issue comment, a chat reply — needs two unrelated tells before it is touched.
+
+**Rewrite check.** After any edit under this section, compare before and after for every name, number, date, link, and claim; merging a list or stripping labels is where facts drop. A lost fact is a defect, not concision.
